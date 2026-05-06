@@ -5,8 +5,8 @@ export interface TenantBranding {
   supportEmail: string
   tenantOrganizationSlug: string
   logo: {
-    navbar: string
-    hero: string
+    onLight: string
+    onDark: string
   }
   assets: {
     favicon: string
@@ -28,14 +28,15 @@ export interface TenantBranding {
 }
 
 const defaultBranding: TenantBranding = {
-  siteName: "Padel Base",
-  shortName: "Padel Base",
+  siteName: "Padel FV",
+  shortName: "Padel FV",
   siteDomain: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
-  supportEmail: "soporte@example.com",
-  tenantOrganizationSlug: process.env.NEXT_PUBLIC_TENANT_ORGANIZATION_SLUG || "organizacion-demo",
+  supportEmail: "hola@padelfv.com",
+  tenantOrganizationSlug: process.env.NEXT_PUBLIC_TENANT_ORGANIZATION_SLUG || "padel-fv",
   logo: {
-    navbar: "/placeholder-logo.svg",
-    hero: "/placeholder-logo.svg",
+    // These SVGs wrap embedded raster artwork, so we use them as fixed brand assets.
+    onLight: "/FV%20-%20LOGO%20SIN%20FONDO%20-%20LETRA%20AZUL.svg",
+    onDark: "/FV%20-%20LOGO%20SIN%20FONDO%20-%20LETRA%20BLANCA.svg",
   },
   assets: {
     favicon: "/favicon.ico",
@@ -45,14 +46,14 @@ const defaultBranding: TenantBranding = {
     placeholderUser: "/placeholder-user.jpg",
   },
   seo: {
-    title: "Padel Base",
-    description: "Base single-tenant para gestionar torneos, clubes y ranking de padel.",
+    title: "Padel FV",
+    description: "Proximos torneos, sedes y registro simple para el circuito de Padel FV.",
   },
   home: {
-    title: "Gestiona tu circuito desde una sola plataforma",
-    subtitle: "Muestra tus proximos torneos, los clubes donde organizas y el ranking de jugadores desde una instalacion dedicada.",
+    title: "Padel FV",
+    subtitle: "Todos los proximos torneos del circuito en una vista simple, clara y lista para inscribirte.",
     ctaPrimary: "Ver proximos torneos",
-    ctaSecondary: "Ver ranking",
+    ctaSecondary: "Ver clubes",
   },
 }
 

@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,7 +13,6 @@ import { createClient } from "@/utils/supabase/client"
 
 export default function ForgotPasswordPage() {
   const { toast } = useToast()
-  const router = useRouter()
   const [email, setEmail] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isEmailSent, setIsEmailSent] = useState(false)
@@ -68,15 +66,15 @@ export default function ForgotPasswordPage() {
 
   if (isEmailSent) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#f7f7f7_0%,#ffffff_50%,#eef3f9_100%)] p-4">
         <Card className="w-full max-w-md shadow-lg border-0">
           <CardHeader className="space-y-1 pb-6">
             <div className="flex justify-center mb-4">
               <CPALogo />
             </div>
             <div className="flex justify-center mb-4">
-              <div className="bg-green-100 p-3 rounded-full">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+              <div className="rounded-full bg-court-100 p-3">
+                <CheckCircle className="h-8 w-8 text-brand-700" />
               </div>
             </div>
             <CardTitle className="text-2xl font-bold text-center text-slate-800">
@@ -92,7 +90,7 @@ export default function ForgotPasswordPage() {
               <p className="text-sm text-slate-600">
                 Revisa tu bandeja de entrada en:
               </p>
-              <p className="font-semibold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg">
+              <p className="rounded-lg bg-brand-50 px-3 py-2 font-semibold text-brand-900">
                 {email}
               </p>
             </div>
@@ -110,14 +108,14 @@ export default function ForgotPasswordPage() {
                 setIsEmailSent(false)
                 setEmail("")
               }}
-              className="w-full"
+              className="w-full border-brand-100 text-brand-700 hover:bg-brand-50"
             >
               Enviar a otro email
             </Button>
             
             <Link 
               href="/login" 
-              className="flex items-center justify-center gap-2 text-slate-600 hover:text-slate-800 text-sm font-medium"
+              className="flex items-center justify-center gap-2 text-sm font-medium text-slate-600 hover:text-brand-900"
             >
               <ArrowLeft className="h-4 w-4" />
               Volver al inicio de sesión
@@ -129,15 +127,15 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-lg border-0">
+      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#f7f7f7_0%,#ffffff_50%,#eef3f9_100%)] p-4">
+        <Card className="w-full max-w-md shadow-lg border-0">
         <CardHeader className="space-y-1 pb-6">
           <div className="flex justify-center mb-4">
             <CPALogo />
           </div>
-          <div className="flex justify-center mb-4">
-            <div className="bg-blue-100 p-3 rounded-full">
-              <Mail className="h-8 w-8 text-blue-600" />
+            <div className="flex justify-center mb-4">
+              <div className="rounded-full bg-brand-50 p-3">
+                <Mail className="h-8 w-8 text-brand-600" />
             </div>
           </div>
           <CardTitle className="text-2xl font-bold text-center text-slate-800">
@@ -159,7 +157,7 @@ export default function ForgotPasswordPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isSubmitting}
-                className="h-11"
+                className="h-11 border-brand-100"
                 autoComplete="email"
                 required
               />
@@ -175,7 +173,7 @@ export default function ForgotPasswordPage() {
           <CardFooter className="flex flex-col space-y-3">
             <Button 
               type="submit" 
-              className="w-full h-11 bg-blue-600 hover:bg-blue-700"
+              className="h-11 w-full bg-brand-600 hover:bg-brand-700"
               disabled={isSubmitting}
             >
               {isSubmitting ? "Enviando..." : "Enviar link de recuperación"}
@@ -183,7 +181,7 @@ export default function ForgotPasswordPage() {
             
             <Link 
               href="/login" 
-              className="flex items-center justify-center gap-2 text-slate-600 hover:text-slate-800 text-sm font-medium"
+              className="flex items-center justify-center gap-2 text-sm font-medium text-slate-600 hover:text-brand-900"
             >
               <ArrowLeft className="h-4 w-4" />
               Volver al inicio de sesión

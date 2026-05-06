@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
-import { getTenantBranding } from "@/config/tenant"
+import { getTenantOrganization } from "@/lib/services/tenant-organization.service"
 
 export interface TenantClub {
   id: string
@@ -13,11 +13,18 @@ export interface TenantTournament {
   id: string
   name: string
   status: string
-  category_name: string | null
+  category: string | null
   gender: string | null
-  start_date: string | null
-  club_name: string | null
-  pre_tournament_image_url: string | null
+  type: "LONG" | "AMERICAN"
+  startDate: string | null
+  endDate: string | null
+  price: number | null
+  award: string | null
+  enablePublicInscriptions: boolean
+  club: {
+    name: string | null
+    address: string | null
+  } | null
 }
 
 export interface TenantRankingPlayer {
@@ -45,33 +52,7 @@ export interface TenantHomeData {
 
 export async function getTenantHomeData(): Promise<TenantHomeData> {
   const supabase = await createClient()
-  const branding = getTenantBranding()
-
-  let organization: any = null
-
-  const configuredSlug = branding.tenantOrganizationSlug?.trim()
-  if (configuredSlug) {
-    const { data } = await supabase
-      .from("organizaciones")
-      .select("id, slug, name, description, logo_url")
-      .eq("slug", configuredSlug)
-      .eq("is_active", true)
-      .maybeSingle()
-
-    organization = data
-  }
-
-  if (!organization) {
-    const { data } = await supabase
-      .from("organizaciones")
-      .select("id, slug, name, description, logo_url")
-      .eq("is_active", true)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle()
-
-    organization = data
-  }
+  const organization = await getTenantOrganization()
 
   if (!organization) {
     return {
@@ -82,37 +63,38 @@ export async function getTenantHomeData(): Promise<TenantHomeData> {
     }
   }
 
-  const [tournamentsResult, clubsResult, rankingResult] = await Promise.all([
+  const [tournamentsResult, clubsResult] = await Promise.all([
     supabase
       .from("tournaments")
-      .select("id, name, status, category_name, gender, start_date, pre_tournament_image_url, clubes(name)")
+      .select("id, name, status, category_name, gender, type, start_date, end_date, price, award, enable_public_inscriptions, clubes(name, address)")
       .eq("organization_id", organization.id)
+      .eq("status", "NOT_STARTED")
       .neq("status", "CANCELED")
       .order("start_date", { ascending: true })
-      .limit(6),
+      .limit(12),
     supabase
       .from("organization_clubs")
       .select("clubes(id, name, address, courts, cover_image_url)")
       .eq("organizacion_id", organization.id)
       .limit(6),
-    supabase
-      .from("players")
-      .select("id, first_name, last_name, score, category_name, profile_image_url, clubes(name)")
-      .eq("organizador_id", organization.id)
-      .eq("es_prueba", false)
-      .order("score", { ascending: false })
-      .limit(10),
   ])
 
   const tournaments = (tournamentsResult.data || []).map((tournament: any) => ({
     id: tournament.id,
     name: tournament.name,
     status: tournament.status,
-    category_name: tournament.category_name,
+    category: tournament.category_name,
     gender: tournament.gender,
-    start_date: tournament.start_date,
-    pre_tournament_image_url: tournament.pre_tournament_image_url,
-    club_name: Array.isArray(tournament.clubes) ? tournament.clubes[0]?.name || null : tournament.clubes?.name || null,
+    type: tournament.type || "LONG",
+    startDate: tournament.start_date,
+    endDate: tournament.end_date,
+    price: tournament.price,
+    award: tournament.award,
+    enablePublicInscriptions: Boolean(tournament.enable_public_inscriptions),
+    club: {
+      name: Array.isArray(tournament.clubes) ? tournament.clubes[0]?.name || null : tournament.clubes?.name || null,
+      address: Array.isArray(tournament.clubes) ? tournament.clubes[0]?.address || null : tournament.clubes?.address || null,
+    },
   }))
 
   const clubs = (clubsResult.data || [])
@@ -126,16 +108,6 @@ export async function getTenantHomeData(): Promise<TenantHomeData> {
       cover_image_url: club.cover_image_url,
     }))
 
-  const ranking = (rankingResult.data || []).map((player: any) => ({
-    id: player.id,
-    first_name: player.first_name,
-    last_name: player.last_name,
-    score: player.score,
-    category_name: player.category_name,
-    profile_image_url: player.profile_image_url,
-    club_name: Array.isArray(player.clubes) ? player.clubes[0]?.name || null : player.clubes?.name || null,
-  }))
-
   return {
     organization: {
       id: organization.id,
@@ -146,6 +118,6 @@ export async function getTenantHomeData(): Promise<TenantHomeData> {
     },
     tournaments,
     clubs,
-    ranking,
+    ranking: [],
   }
 }

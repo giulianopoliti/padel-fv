@@ -1,19 +1,18 @@
 import React from "react"
-import { getTournamentsOptimized, getCategories, getOrganizationsForFilter, getClubsForFilter } from "@/app/api/tournaments"
+import { getTournamentsOptimized, getCategories, getClubsForFilter } from "@/app/api/tournaments"
 import TournamentsLayout from "../components/tournaments-layout"
-import TournamentCard from "@/components/tournament-card"
 import PaginationWrapper from "../components/pagination-wrapper"
-import { Calendar } from "lucide-react"
+import { PublicTournamentCards } from "@/components/tournaments/public-tournament-cards"
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
 interface PageProps {
   searchParams: Promise<{
     page?: string
     category?: string
-    organization?: string
     club?: string
     search?: string
+    type?: string
   }>
 }
 
@@ -21,80 +20,49 @@ export default async function UpcomingTournamentsPage({ searchParams }: PageProp
   const params = await searchParams
   const page = Number(params.page) || 1
   const categoryFilter = params.category
-  const organizationFilter = params.organization
   const clubFilter = params.club
   const searchTerm = params.search
+  const type = params.type === "AMERICAN" ? "AMERICAN" : "LONG"
 
-  const [tournamentsData, categories, organizations, clubs] = await Promise.all([
+  const [tournamentsData, categories, clubs] = await Promise.all([
     getTournamentsOptimized({
-      status: 'upcoming',
+      status: "upcoming",
       page,
-      limit: 12,
+      limit: 10,
       filters: {
         categoryName: categoryFilter,
-        organizationId: organizationFilter,
         clubId: clubFilter,
-        search: searchTerm
-      }
+        search: searchTerm,
+        type,
+      },
     }),
     getCategories(),
-    getOrganizationsForFilter(),
-    getClubsForFilter()
+    getClubsForFilter(),
   ])
 
-  const { tournaments, totalCount, totalPages } = tournamentsData
+  const { tournaments, totalCount } = tournamentsData
 
   return (
-    <TournamentsLayout categories={categories} organizations={organizations} clubs={clubs}>
-      {tournaments.length > 0 ? (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {tournaments.map((tournament) => (
-              <TournamentCard
-                key={tournament.id}
-                tournament={tournament}
-                categories={categories}
-                showViewButton={true}
-                showStatus={true}
-              />
-            ))}
-          </div>
-
-          <PaginationWrapper
-            total={totalCount}
-            pageSize={12}
-            currentPage={page}
-          />
-        </>
-      ) : (
-        <EmptyState
-          icon={<Calendar className="h-8 w-8 text-gray-400" />}
-          title="No hay próximos torneos"
-          description={
-            categoryFilter || organizationFilter || clubFilter || searchTerm
-              ? "No se encontraron torneos con los filtros seleccionados. Intenta ajustar tus criterios de búsqueda."
-              : "No hay próximos torneos disponibles en este momento. Vuelve a consultar más tarde."
+    <TournamentsLayout
+      title="Proximos torneos"
+      description="Las proximas fechas del circuito Padel FV, ordenadas para que veas rapido categoria, horario, club e inscripcion."
+      currentType={type}
+      categories={categories}
+      clubs={clubs}
+    >
+      <div className="space-y-8">
+        <PublicTournamentCards
+          tournaments={tournaments}
+          emptyTitle={type === "LONG" ? "No hay ligas publicadas" : "No hay americanos publicados"}
+          emptyDescription={
+            categoryFilter || clubFilter || searchTerm
+              ? "No encontramos torneos con esos filtros. Proba cambiando la categoria, el club o la busqueda."
+              : "No hay torneos cargados para este formato en este momento."
           }
         />
-      )}
-    </TournamentsLayout>
-  )
-}
 
-function EmptyState({
-  icon,
-  title,
-  description,
-}: {
-  icon: React.ReactNode
-  title: string
-  description: string
-}) {
-  return (
-    <div className="text-center py-12">
-      <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">{icon}</div>
-      <h3 className="text-xl font-medium text-gray-700 mb-2">{title}</h3>
-      <p className="text-gray-500 max-w-md mx-auto">{description}</p>
-    </div>
+        <PaginationWrapper total={totalCount} pageSize={10} currentPage={page} />
+      </div>
+    </TournamentsLayout>
   )
 }

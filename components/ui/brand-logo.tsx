@@ -3,17 +3,20 @@ import { getTenantBranding } from "@/config/tenant"
 
 interface BrandLogoProps {
   variant?: "navbar" | "hero"
+  surface?: "light" | "dark"
   className?: string
   priority?: boolean
 }
 
 export default function BrandLogo({
   variant = "navbar",
+  surface,
   className,
   priority = true,
 }: BrandLogoProps) {
   const branding = getTenantBranding()
-  const src = variant === "hero" ? branding.logo.hero : branding.logo.navbar
+  const resolvedSurface = surface || (variant === "navbar" ? "dark" : "light")
+  const src = resolvedSurface === "dark" ? branding.logo.onDark : branding.logo.onLight
   const alt = `${branding.siteName} logo`
 
   return (

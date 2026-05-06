@@ -22,11 +22,6 @@ const publicLinks = [
     icon: "Trophy" as const,
   },
   {
-    path: "/ranking",
-    label: "Ranking",
-    icon: "BarChart" as const,
-  },
-  {
     path: "/clubes",
     label: "Clubes",
     icon: "MapPin" as const,
@@ -43,7 +38,7 @@ interface NavbarClientProps {
 
 const useNavbarLinks = (userRole: Role | null) => {
   return useMemo(() => {
-    const allAuthLinks = userRole ? getLinksForRole(userRole) : []
+    const allAuthLinks = userRole ? getLinksForRole(userRole).filter((link) => link.path !== "/ranking") : []
 
     const mainLinks = userRole ? allAuthLinks.filter((link) => !profileLinkPaths.includes(link.path)) : publicLinks
 

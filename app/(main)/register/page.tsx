@@ -243,26 +243,26 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
+    <div className="min-h-screen bg-[linear-gradient(135deg,#f7f7f7_0%,#ffffff_50%,#eef3f9_100%)]">
       <div className="container mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-8">
         <div className="mb-8 flex items-center justify-between">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition-colors hover:text-brand-900"
           >
             <ArrowLeft className="h-4 w-4" />
             Volver al inicio
           </Link>
-          <BrandLogo />
+          <BrandLogo variant="navbar" surface="light" />
         </div>
 
         <div className="grid flex-1 items-start gap-8 lg:grid-cols-[1fr_0.95fr]">
-          <section className="space-y-6 rounded-[2rem] border border-slate-200 bg-white/70 p-8 shadow-sm backdrop-blur-sm lg:p-12">
-            <div className="inline-flex items-center rounded-full bg-slate-900 px-4 py-1 text-sm font-medium text-white">
+          <section className="space-y-6 rounded-[2rem] border border-brand-100 bg-white/80 p-8 shadow-sm backdrop-blur-sm lg:p-12">
+            <div className="inline-flex items-center rounded-full bg-brand-900 px-4 py-1 text-sm font-medium text-white">
               Alta publica de jugadores
             </div>
             <div className="space-y-4">
-              <h1 className="max-w-xl text-4xl font-black tracking-tight text-slate-900 lg:text-5xl">
+              <h1 className="max-w-xl text-4xl font-black tracking-tight text-brand-900 lg:text-5xl">
                 Crea tu cuenta para jugar en {TENANT_CONFIG.siteName}.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-slate-600 lg:text-lg">
@@ -272,13 +272,13 @@ export default function RegisterPage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="rounded-2xl border border-brand-100 bg-white p-5">
                 <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Que incluye</h2>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
-                  Perfil de jugador, acceso al panel, inscripciones a torneos y seguimiento de ranking.
+                  Perfil de jugador, acceso al panel, inscripciones a torneos y seguimiento de tus inscripciones.
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="rounded-2xl border border-brand-100 bg-white p-5">
                 <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Equipo organizador</h2>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
                   Si necesitas acceso interno, pedilo por soporte. No se habilita desde el registro publico.
@@ -286,7 +286,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <Alert className="rounded-2xl border-slate-200 bg-slate-50">
+            <Alert className="rounded-2xl border-brand-100 bg-brand-50">
               <CheckCircle className="h-4 w-4" />
               <AlertDescription className="text-sm leading-6 text-slate-600">
                 Si ya jugaste antes y cargas tu DNI, vamos a intentar vincular tu nueva cuenta con ese perfil existente.
@@ -299,7 +299,7 @@ export default function RegisterPage() {
               <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[2rem] bg-black/50 p-4 backdrop-blur-sm">
                 <Card className="w-full max-w-md rounded-[2rem] border-0 shadow-2xl">
                   <CardHeader className="text-center">
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-900 text-white">
                       <UserCheck className="h-6 w-6" />
                     </div>
                     <CardTitle className="text-xl">¿Es tu perfil?</CardTitle>
@@ -327,7 +327,7 @@ export default function RegisterPage() {
                     </Button>
                     <Button
                       type="button"
-                      className="flex-1 rounded-xl bg-slate-900 hover:bg-black"
+                      className="flex-1 rounded-xl bg-brand-600 hover:bg-brand-700"
                       onClick={handleConfirmLinking}
                       disabled={isSubmitting}
                     >
@@ -346,15 +346,15 @@ export default function RegisterPage() {
             )}
 
             <Card className="overflow-hidden rounded-[2rem] border-0 bg-white shadow-2xl">
-              <div className="h-2 bg-gradient-to-r from-slate-700 via-slate-900 to-black" />
+              <div className="h-2 bg-gradient-to-r from-brand-700 via-brand-600 to-court-500" />
               <CardHeader className="space-y-3 px-8 pt-8 text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900">
-                  <BrandLogo className="h-10 w-auto text-white" />
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-900">
+                  <BrandLogo variant="navbar" surface="dark" className="h-10 w-auto" />
                 </div>
                 <div>
                   <CardTitle className="text-2xl font-bold text-slate-900">Crear cuenta de jugador</CardTitle>
                   <CardDescription className="mt-2 text-sm leading-6 text-slate-600">
-                    Completa tus datos para empezar a inscribirte en torneos y seguir tu ranking.
+                    Completa tus datos para empezar a inscribirte en torneos y gestionar tu perfil.
                   </CardDescription>
                 </div>
               </CardHeader>
@@ -370,7 +370,7 @@ export default function RegisterPage() {
                         value={formData.firstName}
                         onChange={handleInputChange}
                         required
-                        className="h-12 rounded-xl border-slate-200"
+                        className="h-12 rounded-xl border-brand-100"
                       />
                     </div>
                     <div className="space-y-2">
@@ -381,7 +381,7 @@ export default function RegisterPage() {
                         value={formData.lastName}
                         onChange={handleInputChange}
                         required
-                        className="h-12 rounded-xl border-slate-200"
+                        className="h-12 rounded-xl border-brand-100"
                       />
                     </div>
                   </div>
@@ -396,7 +396,7 @@ export default function RegisterPage() {
                       onChange={handleInputChange}
                       autoComplete="email"
                       required
-                      className="h-12 rounded-xl border-slate-200"
+                      className="h-12 rounded-xl border-brand-100"
                     />
                   </div>
 
@@ -412,7 +412,7 @@ export default function RegisterPage() {
                         autoComplete="new-password"
                         required
                         minLength={6}
-                        className="h-12 rounded-xl border-slate-200 pr-12"
+                        className="h-12 rounded-xl border-brand-100 pr-12"
                       />
                       <button
                         type="button"
@@ -438,7 +438,7 @@ export default function RegisterPage() {
                         }}
                         inputMode="numeric"
                         maxLength={8}
-                        className="h-12 rounded-xl border-slate-200"
+                        className="h-12 rounded-xl border-brand-100"
                         placeholder="Solo numeros"
                       />
                     </div>
@@ -450,7 +450,7 @@ export default function RegisterPage() {
                         type="tel"
                         value={formData.phone}
                         onChange={handleInputChange}
-                        className="h-12 rounded-xl border-slate-200"
+                        className="h-12 rounded-xl border-brand-100"
                         placeholder="+54 9 11 12345678"
                       />
                     </div>
@@ -460,7 +460,7 @@ export default function RegisterPage() {
                     <div className="space-y-2">
                       <Label htmlFor="gender">Genero</Label>
                       <Select value={formData.gender} onValueChange={(value) => setFormData((prev) => ({ ...prev, gender: value }))}>
-                        <SelectTrigger className="h-12 rounded-xl border-slate-200">
+                        <SelectTrigger className="h-12 rounded-xl border-brand-100">
                           <SelectValue placeholder="Seleccionar" />
                         </SelectTrigger>
                         <SelectContent>
@@ -477,7 +477,7 @@ export default function RegisterPage() {
                         type="date"
                         value={formData.dateOfBirth}
                         onChange={handleInputChange}
-                        className="h-12 rounded-xl border-slate-200"
+                        className="h-12 rounded-xl border-brand-100"
                       />
                     </div>
                   </div>
@@ -485,7 +485,7 @@ export default function RegisterPage() {
                   <Button
                     type="submit"
                     disabled={isSubmitting}
-                    className="h-12 w-full rounded-xl bg-slate-900 text-base font-semibold text-white hover:bg-black"
+                    className="h-12 w-full rounded-xl bg-brand-600 text-base font-semibold text-white hover:bg-brand-700"
                   >
                     {isSubmitting ? (
                       <span className="inline-flex items-center gap-2">
@@ -508,7 +508,7 @@ export default function RegisterPage() {
                     variant="outline"
                     onClick={handleGoogleLogin}
                     disabled={isSubmitting}
-                    className="h-12 w-full rounded-xl border-slate-200 text-base font-medium text-slate-700 hover:bg-slate-50"
+                    className="h-12 w-full rounded-xl border-brand-100 text-base font-medium text-brand-700 hover:bg-brand-50"
                   >
                     Continuar con Google
                   </Button>
@@ -516,16 +516,16 @@ export default function RegisterPage() {
               </CardContent>
 
               <CardFooter className="flex flex-col gap-4 px-8 pb-8">
-                <p className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                <p className="rounded-2xl bg-brand-50 p-4 text-sm leading-6 text-slate-600">
                   ¿Necesitas acceso como organizador? Escribi a{" "}
-                  <a className="font-semibold text-slate-900" href={`mailto:${TENANT_CONFIG.supportEmail}`}>
+                  <a className="font-semibold text-brand-900" href={`mailto:${TENANT_CONFIG.supportEmail}`}>
                     {TENANT_CONFIG.supportEmail}
                   </a>
                   .
                 </p>
                 <p className="text-center text-sm text-slate-500">
                   ¿Ya tenes una cuenta?{" "}
-                  <Link href={loginHref} className="font-semibold text-slate-900 hover:text-black">
+                  <Link href={loginHref} className="font-semibold text-brand-900 hover:text-brand-700">
                     Iniciar sesion
                   </Link>
                 </p>

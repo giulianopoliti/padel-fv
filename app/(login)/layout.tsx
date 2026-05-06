@@ -11,7 +11,7 @@ export default function LoginLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f7f7_0%,#ffffff_45%,#eef3f9_100%)]">
       {children}
       <Toaster />
     </div>

@@ -33,12 +33,6 @@ const routePermissions: RouteConfig[] = [
     roles: ["PLAYER", "CLUB", "COACH", "ADMIN", "ORGANIZADOR"],
   },
   {
-    path: "/ranking",
-    label: "Ranking",
-    icon: "BarChart",
-    roles: ["PLAYER", "CLUB", "COACH", "ADMIN", "ORGANIZADOR"],
-  },
-  {
     path: "/tournaments",
     label: "Torneos",
     icon: "Trophy",
@@ -83,7 +77,7 @@ export function checkRoutePermission(path: string, role?: Role | null): boolean 
     return role === "ADMIN"
   }
 
-  const publicPaths = ["/", "/login", "/auth/callback", "/ranking", "/register", "/clubes", "/coaches", "/players", "/info", "/complete-google-profile"]
+  const publicPaths = ["/", "/login", "/auth/callback", "/register", "/clubes", "/coaches", "/players", "/info", "/complete-google-profile"]
 
   if (path.startsWith("/tournaments") && !path.startsWith("/tournaments/create")) {
     return true

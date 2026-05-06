@@ -4,5 +4,5 @@ export const dynamic = 'force-dynamic'
 
 // Redirect to upcoming tournaments by default
 export default function TournamentsPage() {
-  redirect('/tournaments/upcoming')
+  redirect('/tournaments/upcoming?type=LONG')
 } 

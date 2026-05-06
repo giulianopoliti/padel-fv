@@ -1,0 +1,3 @@
+[mcp_servers.supabase-develop]
+args = ["@supabase/mcp-server-supabase@latest"]
+command = "npx"
