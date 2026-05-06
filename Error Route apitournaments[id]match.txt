@@ -1,0 +1,78 @@
+Error: Route "/api/tournaments/[id]/matches/[matchId]/universal-result" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at POST (app\api\tournaments\[id]\matches\[matchId]\universal-result\route.ts:47:32)
+  45 | ): Promise<NextResponse<UpdateResultResponse>> {
+  46 |   try {
+> 47 |     const tournamentId = params.id
+     |                                ^
+  48 |     const matchId = params.matchId
+  49 |     const body: UpdateResultRequest = await request.json()
+  50 |
+Error: Route "/api/tournaments/[id]/matches/[matchId]/universal-result" used `params.matchId`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at POST (app\api\tournaments\[id]\matches\[matchId]\universal-result\route.ts:48:27)
+  46 |   try {
+  47 |     const tournamentId = params.id
+> 48 |     const matchId = params.matchId
+     |                           ^
+  49 |     const body: UpdateResultRequest = await request.json()
+  50 |
+  51 |     const { result, finishMatch = true } = body
+[advanceWinnerUsingHierarchy] 🚀 normal_win: 58f59710-2524-4e7e-96d7-2838fd8de9d9 from 448eb1de-fddc-407f-b5cc-e20c0b6f8818
+[advanceWinnerUsingHierarchy] Using service role client for full permissions
+[advanceWinnerUsingHierarchy] 🔧 UPDATE DETAILS: {
+  parent_match_id: '4c069c7e-de86-40e7-9a1c-57c192fd97f7',
+  parent_slot: 1,
+  slotField: 'couple1_id',
+  winnerId: '58f59710-2524-4e7e-96d7-2838fd8de9d9',
+  updateData: { couple1_id: '58f59710-2524-4e7e-96d7-2838fd8de9d9' }
+}
+[advanceWinnerUsingHierarchy] ✅ UPDATE SUCCESS: couple1_id = 58f59710-2524-4e7e-96d7-2838fd8de9d9 in match 4c069c7e-de86-40e7-9a1c-57c192fd97f7
+[advanceWinnerUsingHierarchy] ✅ Winner placed in SEMIFINAL couple1_id
+[checkForOriginalBye] Match 4c069c7e-de86-40e7-9a1c-57c192fd97f7: NOT a BYE - has both couples or neither
+✅ [universal-result] Avance exitoso: Winner advanced to SEMIFINAL - ready to play
+ POST /api/tournaments/761e69ae-da1d-4091-85c7-e5e970e40e8f/matches/448eb1de-fddc-407f-b5cc-e20c0b6f8818/universal-result 200 in 3602ms
+
+
+
+
+
+  updateData: { couple1_id: '58f59710-2524-4e7e-96d7-2838fd8de9d9' }
+}
+[advanceWinnerUsingHierarchy] ✅ UPDATE SUCCESS: couple1_id = 58f59710-2524-4e7e-96d7-2838fd8de9d9 in match 4c069c7e-de86-40e7-9a1c-57c192fd97f7
+[advanceWinnerUsingHierarchy] ✅ Winner placed in SEMIFINAL couple1_id
+[checkForOriginalBye] Match 4c069c7e-de86-40e7-9a1c-57c192fd97f7: NOT a BYE - has both couples or neither
+✅ [universal-result] Avance exitoso: Winner advanced to SEMIFINAL - ready to play
+ POST /api/tournaments/761e69ae-da1d-4091-85c7-e5e970e40e8f/matches/448eb1de-fddc-407f-b5cc-e20c0b6f8818/universal-result 200 in 3602ms
+
+
+
+  updateData: { couple1_id: '58f59710-2524-4e7e-96d7-2838fd8de9d9' }
+}
+[advanceWinnerUsingHierarchy] ✅ UPDATE SUCCESS: couple1_id = 58f59710-2524-4e7e-96d7-2838fd8de9d9 in match 4c069c7e-de86-40e7-9a1c-57c192fd97f7
+[advanceWinnerUsingHierarchy] ✅ Winner placed in SEMIFINAL couple1_id
+[checkForOriginalBye] Match 4c069c7e-de86-40e7-9a1c-57c192fd97f7: NOT a BYE - has both couples or neither
+✅ [universal-result] Avance exitoso: Winner advanced to SEMIFINAL - ready to play
+ POST /api/tournaments/761e69ae-da1d-4091-85c7-e5e970e40e8f/matches/448eb1de-fddc-407f-b5cc-e20c0b6f8818/universal-result 200 in 3602ms
+
+
+  updateData: { couple1_id: '58f59710-2524-4e7e-96d7-2838fd8de9d9' }
+}
+[advanceWinnerUsingHierarchy] ✅ UPDATE SUCCESS: couple1_id = 58f59710-2524-4e7e-96d7-2838fd8de9d9 in match 4c069c7e-de86-40e7-9a1c-57c192fd97f7
+[advanceWinnerUsingHierarchy] ✅ Winner placed in SEMIFINAL couple1_id
+[checkForOriginalBye] Match 4c069c7e-de86-40e7-9a1c-57c192fd97f7: NOT a BYE - has both couples or neither
+✅ [universal-result] Avance exitoso: Winner advanced to SEMIFINAL - ready to play
+ POST /api/tournaments/761e69ae-da1d-4091-85c7-e5e970e40e8f/matches/448eb1de-fddc-407f-b5cc-e20c0b6f8818/universal-result 200 in 3602ms
+  updateData: { couple1_id: '58f59710-2524-4e7e-96d7-2838fd8de9d9' }
+}
+[advanceWinnerUsingHierarchy] ✅ UPDATE SUCCESS: couple1_id = 58f59710-2524-4e7e-96d7-2838fd8de9d9 in match 4c069c7e-de86-40e7-9a1c-57c192fd97f7
+[advanceWinnerUsingHierarchy] ✅ Winner placed in SEMIFINAL couple1_id
+[checkForOriginalBye] Match 4c069c7e-de86-40e7-9a1c-57c192fd97f7: NOT a BYE - has both couples or neither
+  updateData: { couple1_id: '58f59710-2524-4e7e-96d7-2838fd8de9d9' }
+}
+[advanceWinnerUsingHierarchy] ✅ UPDATE SUCCESS: couple1_id = 58f59710-2524-4e7e-96d7-2838fd8de9d9 in match 4c069c7e-de86-40e7-9a1c-57c192fd97f7
+  updateData: { couple1_id: '58f59710-2524-4e7e-96d7-2838fd8de9d9' }
+}
+[advanceWinnerUsingHierarchy] ✅ UPDATE SUCCESS: couple1_id = 58f59710-2524-4e7e-96d7-2838fd8de9d9 in match 4c069c7e-de86-40e7-9a1c-57c192fd97f7
+[advanceWinnerUsingHierarchy] ✅ Winner placed in SEMIFINAL couple1_id
+[checkForOriginalBye] Match 4c069c7e-de86-40e7-9a1c-57c192fd97f7: NOT a BYE - has both couples or neither
+✅ [universal-result] Avance exitoso: Winner advanced to SEMIFINAL - ready to play
+ POST /api/tournaments/761e69ae-da1d-4091-85c7-e5e970e40e8f/matches/448eb1de-fddc-407f-b5cc-e20c0b6f8818/universal-result 200 in 3602ms

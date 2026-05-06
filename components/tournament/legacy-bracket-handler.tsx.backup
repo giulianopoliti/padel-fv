@@ -1,0 +1,116 @@
+"use client"
+
+import { useState, useEffect } from 'react'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Info, Loader2 } from 'lucide-react'
+
+// Componentes existentes
+import ReadOnlyBracketTab from './read-only-bracket-tab'
+
+interface LegacyBracketHandlerProps {
+  tournamentId: string
+  fallback: React.ReactNode
+  tournamentStatus?: string
+}
+
+/**
+ * Handler que decide si mostrar brackets o el componente fallback 
+ * basándose en el tipo de sistema del torneo.
+ * 
+ * REQUERIMIENTO: Para torneos legacy, NO mostrar brackets en vista pública
+ * porque probablemente cambiaremos la lógica de generación.
+ * 
+ * - Legacy: Mostrar fallback (normalmente ReadOnlyMatchesTabNew)
+ * - Nuevo: Mostrar brackets normalmente
+ */
+export default function LegacyBracketHandler({ 
+  tournamentId, 
+  fallback,
+  tournamentStatus
+}: LegacyBracketHandlerProps) {
+  const [isLegacy, setIsLegacy] = useState<boolean | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [showLegacyNotice, setShowLegacyNotice] = useState(false)
+
+  useEffect(() => {
+    const checkSystemType = async () => {
+      if (!tournamentId) {
+        setIsLegacy(true) // Fallback seguro
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        const response = await fetch(`/api/tournaments/${tournamentId}/system-type`)
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+
+        const { isLegacy: legacy } = await response.json()
+        setIsLegacy(legacy)
+        setShowLegacyNotice(legacy) // Mostrar aviso solo para torneos legacy
+        
+        // Log en desarrollo
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[LegacyBracketHandler] Tournament ${tournamentId} brackets:`, 
+            legacy ? 'HIDDEN (legacy)' : 'SHOWN (new system)')
+        }
+        
+      } catch (error: any) {
+        console.warn('[LegacyBracketHandler] Detection failed, defaulting to legacy:', error.message)
+        
+        // Fallback crítico: Si hay error, asumir legacy (ocultar brackets)
+        setIsLegacy(true)
+        setShowLegacyNotice(false) // No mostrar aviso si hubo error
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    checkSystemType()
+  }, [tournamentId])
+
+  // Estado de carga
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-slate-600 mr-3" />
+          <span className="text-slate-600">Cargando vista de brackets...</span>
+        </div>
+        <Skeleton className="h-96 w-full" />
+      </div>
+    )
+  }
+
+  // CASO ESPECIAL: Torneos finalizados SIEMPRE muestran bracket
+  if (tournamentStatus === 'FINISHED_POINTS_CALCULATED') {
+    return <ReadOnlyBracketTab tournamentId={tournamentId} tournamentStatus={tournamentStatus} />
+  }
+
+  // Torneo Legacy: Mostrar fallback (ocultar brackets)
+  if (isLegacy) {
+    return (
+      <>
+        {/* Aviso informativo para usuarios (opcional) */}
+        {showLegacyNotice && (
+          <Alert className="mb-4 border-blue-200 bg-blue-50">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>Vista de Partidos:</strong> Los brackets se están mejorando. 
+              Mientras tanto, puedes ver todos los partidos en esta sección.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {/* Mostrar fallback (normalmente ReadOnlyMatchesTabNew) */}
+        {fallback}
+      </>
+    )
+  }
+
+  // Torneo Nuevo: Mostrar brackets normalmente
+  return <ReadOnlyBracketTab tournamentId={tournamentId} tournamentStatus={tournamentStatus} />
+}

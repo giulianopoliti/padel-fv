@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "supabase-develop": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "@supabase/mcp-server-supabase@latest"
+      ],
+      "env": {}
+    }
+  }
+}

@@ -1,0 +1,1 @@
+/* migracion vacia, para sincronizar con supabase cloud */

@@ -1,0 +1,184 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { User, UserPlus, Users } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import AuthRequiredDialog from "@/components/tournament/auth-required-dialog"
+import RegisterPlayerForm from "@/components/tournament/player/register-player-form"
+import RegisterCoupleForm from "@/components/tournament/player/register-couple-form"
+import { useUser } from "@/contexts/user-context"
+import { Gender } from "@/types"
+import { useToast } from "@/components/ui/use-toast"
+
+interface PublicRegistrationLauncherProps {
+  tournamentId: string
+  tournamentName: string
+  tournamentGender: Gender
+  tournamentPrice?: string | number | null
+  enableTransferProof?: boolean
+  transferAlias?: string | null
+  transferAmount?: number | null
+  buttonLabel?: string
+  buttonClassName?: string
+  fullWidth?: boolean
+}
+
+export default function PublicRegistrationLauncher({
+  tournamentId,
+  tournamentName,
+  tournamentGender,
+  tournamentPrice = null,
+  enableTransferProof = false,
+  transferAlias = null,
+  transferAmount = null,
+  buttonLabel = "Inscribirme",
+  buttonClassName,
+  fullWidth = false,
+}: PublicRegistrationLauncherProps) {
+  const coupleOnlyMode = enableTransferProof
+  const [registerDialogOpen, setRegisterDialogOpen] = useState(false)
+  const [authDialogOpen, setAuthDialogOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<"couple" | "individual">("couple")
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { user, userDetails } = useUser()
+  const { toast } = useToast()
+
+  const redirectBase = useMemo(() => `/tournaments/${tournamentId}`, [tournamentId])
+
+  useEffect(() => {
+    const intent = searchParams.get("intent")
+
+    if (!user || userDetails?.role !== "PLAYER") {
+      return
+    }
+
+    if (intent === "individual" || intent === "couple") {
+      setActiveTab(coupleOnlyMode ? "couple" : intent)
+      setRegisterDialogOpen(true)
+
+      const nextParams = new URLSearchParams(searchParams.toString())
+      nextParams.delete("intent")
+      const nextUrl = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname
+      router.replace(nextUrl, { scroll: false })
+    }
+  }, [coupleOnlyMode, pathname, router, searchParams, user, userDetails?.role])
+
+  const registerHref = `/register?role=PLAYER&redirectTo=${encodeURIComponent(redirectBase)}&intent=${activeTab}`
+  const loginHref = `/login?role=PLAYER&redirectTo=${encodeURIComponent(redirectBase)}&intent=${activeTab}`
+
+  const handleOpen = () => {
+    if (!user) {
+      setAuthDialogOpen(true)
+      return
+    }
+
+    if (userDetails?.role !== "PLAYER" || !userDetails?.player_id) {
+      toast({
+        title: "Perfil requerido",
+        description: "Debes ingresar con una cuenta de jugador para inscribirte.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (coupleOnlyMode) {
+      setActiveTab("couple")
+    }
+
+    setRegisterDialogOpen(true)
+  }
+
+  const handleRegistrationComplete = (success: boolean) => {
+    if (!success) {
+      setRegisterDialogOpen(false)
+      return
+    }
+
+    setRegisterDialogOpen(false)
+    router.refresh()
+  }
+
+  return (
+    <>
+      <Button
+        onClick={handleOpen}
+        className={[fullWidth ? "w-full" : "", buttonClassName || ""].filter(Boolean).join(" ")}
+        size="lg"
+      >
+        <UserPlus className="mr-2 h-4 w-4" />
+        {buttonLabel}
+      </Button>
+
+      <Dialog open={registerDialogOpen} onOpenChange={setRegisterDialogOpen}>
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>InscripciÃ³n al torneo</DialogTitle>
+            <DialogDescription>
+              {coupleOnlyMode
+                ? `Este torneo requiere inscripciÃ³n en pareja con transferencia y comprobante para ${tournamentName}.`
+                : `Completa tu inscripciÃ³n individual o en pareja para ${tournamentName}.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "couple" | "individual")} className="w-full">
+            <TabsList className={`grid w-full ${coupleOnlyMode ? "grid-cols-1" : "grid-cols-2"}`}>
+              <TabsTrigger value="couple" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Pareja
+              </TabsTrigger>
+              {!coupleOnlyMode && (
+                <TabsTrigger value="individual" className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Individual
+                </TabsTrigger>
+              )}
+            </TabsList>
+
+            <TabsContent value="couple" className="mt-4">
+              <RegisterCoupleForm
+                tournamentId={tournamentId}
+                onComplete={handleRegistrationComplete}
+                players={[]}
+                tournamentGender={tournamentGender}
+                transferConfig={{
+                  enabled: enableTransferProof,
+                  alias: transferAlias,
+                  amount: transferAmount,
+                }}
+              />
+            </TabsContent>
+
+            {!coupleOnlyMode && (
+              <TabsContent value="individual" className="mt-4">
+                <RegisterPlayerForm
+                  tournamentId={tournamentId}
+                  tournament={{
+                    id: tournamentId,
+                    name: tournamentName,
+                    price: tournamentPrice ? Number(tournamentPrice) : null,
+                  }}
+                  onComplete={handleRegistrationComplete}
+                />
+              </TabsContent>
+            )}
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      <AuthRequiredDialog
+        open={authDialogOpen}
+        onOpenChange={setAuthDialogOpen}
+        title="Necesitas iniciar sesiÃ³n"
+        description="Para inscribirte en el torneo necesitas una cuenta de jugador."
+        actionText="inscribirte"
+        registerHref={registerHref}
+        loginHref={loginHref}
+      />
+    </>
+  )
+}

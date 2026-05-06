@@ -1,0 +1,4 @@
+-- Migration: Remove permission validations from drag & drop RPCs
+-- Reason: Backend API already validates permissions using checkTournamentPermissions
+-- This allows ORGANIZADOR and ADMIN users to use drag & drop functionality
+-- The backend is responsible for security, RPCs focus on data manipulation
