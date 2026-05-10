@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, Trophy } from 'lucide-react';
+import { ArrowLeft, Users, Trophy, AlertCircle } from 'lucide-react';
 import { useUser } from '@/contexts/user-context';
 import { useTournamentPermissions } from '@/hooks/use-tournament-permissions';
 import { useTournamentInscriptions } from '@/hooks/use-tournament-inscriptions';
@@ -106,7 +106,7 @@ const InscriptionsClient: React.FC<InscriptionsClientProps> = ({
   // HOOKS Y STATE MANAGEMENT CON SWR
   // ========================================
 
-  const { user, userDetails } = useUser();
+  const { user } = useUser();
   const { isOwner: hasManagementPermissions, isLoading: permissionsLoading } = useTournamentPermissions(tournamentId);
 
   // 🚀 SWR Hook for real-time data with optimistic updates
@@ -131,6 +131,9 @@ const InscriptionsClient: React.FC<InscriptionsClientProps> = ({
 
   // Use centralized permissions as the single source of truth
   const isOwner = hasManagementPermissions;
+  const handleRefresh = async () => {
+    await refresh();
+  };
   
   // ========================================
   // RENDER (SIMPLIFICADO CON AMERICANO)
@@ -207,6 +210,26 @@ const InscriptionsClient: React.FC<InscriptionsClientProps> = ({
           ======================================== */}
       <div className="container mx-auto px-4">
         <div className="max-w-7xl mx-auto">
+          {!isLoggedIn && (
+            <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-0.5 h-5 w-5 text-amber-600" />
+                  <div>
+                    <p className="font-medium text-amber-900">Llegaste a la vista técnica de inscripciones</p>
+                    <p className="text-sm text-amber-800">
+                      Si quieres registrarte o iniciar sesión para inscribirte, usa la página principal del torneo.
+                    </p>
+                  </div>
+                </div>
+
+                <Button asChild variant="outline" className="border-amber-300 bg-white text-amber-900 hover:bg-amber-100">
+                  <Link href={`/tournaments/${tournamentId}`}>Ir al torneo</Link>
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-lg shadow-sm mt-6">
             
             <Tabs defaultValue="couples" className="w-full">
@@ -242,7 +265,7 @@ const InscriptionsClient: React.FC<InscriptionsClientProps> = ({
                   // 🚀 Optimistic mutations para UX inmediata
                   onCoupleAdded={addCoupleOptimistic}
                   onCoupleRemoved={removeCoupleOptimistic}
-                  onRefresh={refresh}
+                  onRefresh={handleRefresh}
                 />
               </TabsContent>
 
@@ -266,7 +289,7 @@ const InscriptionsClient: React.FC<InscriptionsClientProps> = ({
                   onPlayerRemoved={removePlayerOptimistic}
                   onPlayersPaired={pairPlayersOptimistic}
                   onCoupleAdded={addCoupleOptimistic} // Para cuando se registra pareja desde tab players
-                  onRefresh={refresh}
+                  onRefresh={handleRefresh}
                 />
               </TabsContent>
             </Tabs>

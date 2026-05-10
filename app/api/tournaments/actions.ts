@@ -17,6 +17,7 @@ import { createApiResponse } from '@/utils/serialization';
 import { markEliminatedCouples } from '@/utils/bracket-seeding-algorithm';
 import { normalizePlayerDni } from '@/lib/utils/player-dni';
 import { findExistingPlayerByIdentity } from '@/lib/utils/player-identity';
+import { ensureLongTournamentGeneralZone } from '@/lib/services/tournaments/long-general-zone';
 
 
 // Sistema unificado de puntos para TODO el torneo
@@ -655,6 +656,50 @@ export async function createTournamentAction(formData: CreateTournamentData & { 
         return { success: false, error: 'Tournament created but no data returned.'} 
     }
 
+    if (newTournament.type === 'LONG') {
+      const zoneEnsureResult = await ensureLongTournamentGeneralZone(newTournament.id)
+
+      if (!zoneEnsureResult.success) {
+        console.error('[createTournamentAction] Failed to ensure LONG general zone:', {
+          tournamentId: newTournament.id,
+          zoneEnsureResult,
+        })
+
+        try {
+          const serviceSupabase = await createClientServiceRole()
+
+          await serviceSupabase
+            .from('zones')
+            .delete()
+            .eq('tournament_id', newTournament.id)
+
+          const { error: rollbackTournamentError } = await serviceSupabase
+            .from('tournaments')
+            .delete()
+            .eq('id', newTournament.id)
+
+          if (rollbackTournamentError) {
+            console.error('[createTournamentAction] Error rolling back tournament after zone failure:', rollbackTournamentError)
+          } else {
+            console.warn('[createTournamentAction] Tournament rolled back after LONG zone setup failure:', newTournament.id)
+          }
+        } catch (rollbackError) {
+          console.error('[createTournamentAction] Unexpected rollback error after zone failure:', rollbackError)
+        }
+
+        return {
+          success: false,
+          error: zoneEnsureResult.error || 'No se pudo completar la creación del torneo LONG.',
+        }
+      }
+
+      console.log('[createTournamentAction] LONG general zone ensured:', {
+        tournamentId: newTournament.id,
+        zoneId: zoneEnsureResult.zoneId,
+        created: zoneEnsureResult.created,
+      })
+    }
+
     // 5. Revalidate paths
     revalidatePath('/my-tournaments');
     revalidatePath(`/my-tournaments/${newTournament.id}`); // For potential direct navigation or future use
@@ -680,7 +725,7 @@ export async function createTournamentAction(formData: CreateTournamentData & { 
     }
     
     // 🚀 NEW: Create automatic zone for LONG tournaments
-    if (newTournament.type === 'LONG') {
+    if (false && newTournament.type === 'LONG') {
       try {
         console.log('[createTournamentAction] Creating automatic zone for LONG tournament');
         
@@ -693,9 +738,9 @@ export async function createTournamentAction(formData: CreateTournamentData & { 
             capacity: newTournament.max_participants || 32
           })
           .select('id')
-          .single();
+          .single() as { data: { id: string }; error: any };
         
-        if (zoneError) {
+        if (zoneError || !zone) {
           console.error('[createTournamentAction] Error creating zone:', zoneError);
           // Don't fail tournament creation, just log the error
           console.warn('[createTournamentAction] Tournament created but zone creation failed');

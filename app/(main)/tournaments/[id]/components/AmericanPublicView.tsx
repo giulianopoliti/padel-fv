@@ -5,6 +5,8 @@ import { Calendar, MapPin, Trophy, Users, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import PublicRegistrationLauncher from "@/components/tournament/public-registration-launcher";
+import TournamentPublicInfoCard from "@/components/tournament/TournamentPublicInfoCard";
+import type { TournamentPublicInfo } from "@/lib/tournaments/public-tournament-details";
 import { Gender } from "@/types";
 import type { AccessLevel, TournamentPermission } from "@/utils/tournament-permissions";
 
@@ -20,6 +22,7 @@ interface AmericanPublicViewProps {
     playerId?: string;
     source?: "admin" | "club_owner" | "organization_member" | "player" | "public";
   };
+  publicInfo: TournamentPublicInfo;
   coupleInscriptions?: any[];
   individualInscriptions?: any[];
 }
@@ -30,6 +33,7 @@ export default function AmericanPublicView({
   accessLevel,
   permissions,
   metadata,
+  publicInfo,
   coupleInscriptions = [],
   individualInscriptions = [],
 }: AmericanPublicViewProps) {
@@ -41,7 +45,6 @@ export default function AmericanPublicView({
     players: individualInscriptions.length,
   };
 
-  const isActive = tournament.status !== "NOT_STARTED";
   const isCanceled = tournament.status === "CANCELED";
   const isAuthenticated = !!metadata.userRole;
   const canRegister = metadata.userRole === "PLAYER";
@@ -80,10 +83,10 @@ export default function AmericanPublicView({
 
             <h1 className="text-4xl lg:text-5xl font-bold mb-4">{tournament.name}</h1>
 
-            {tournament.clubes?.name && (
+            {publicInfo.clubName && (
               <div className="flex items-center justify-center gap-2 text-xl text-blue-100 mb-6">
                 <MapPin className="h-5 w-5" />
-                <span>{tournament.clubes.name}</span>
+                <span>{publicInfo.clubName}</span>
               </div>
             )}
 
@@ -103,13 +106,7 @@ export default function AmericanPublicView({
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 col-span-2 md:col-span-1">
                 <Calendar className="h-8 w-8 mx-auto mb-2" />
                 <div className="text-lg font-bold mt-1">
-                  {tournament.start_date
-                    ? new Date(tournament.start_date).toLocaleDateString("es-ES", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                      })
-                    : "Fecha por definir"}
+                  {publicInfo.startDateLabel || "Fecha por definir"}
                 </div>
                 <div className="text-blue-100 text-sm mt-1">Fecha de inicio</div>
               </div>
@@ -139,81 +136,7 @@ export default function AmericanPublicView({
 
       <div className="container mx-auto px-4 py-8 lg:py-12">
         <div className="max-w-4xl mx-auto space-y-6">
-          <Card>
-            <CardContent className="pt-6">
-              <h2 className="text-xl font-semibold text-slate-900 mb-4">Informacion del torneo</h2>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {tournament.category_name && (
-                  <div>
-                    <h3 className="text-sm font-medium text-slate-500 mb-2">Categoria</h3>
-                    <p className="text-lg font-semibold text-slate-900">{tournament.category_name}</p>
-                  </div>
-                )}
-
-                <div>
-                  <h3 className="text-sm font-medium text-slate-500 mb-2">Genero</h3>
-                  <p className="text-lg font-semibold text-slate-900">
-                    {tournament.gender === "MALE"
-                      ? "Masculino"
-                      : tournament.gender === "FEMALE"
-                        ? "Femenino"
-                        : "Mixto"}
-                  </p>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-medium text-slate-500 mb-2">Estado</h3>
-                  <Badge variant={isActive ? "default" : "secondary"} className="text-sm">
-                    {isActive ? "En curso" : "Proximamente"}
-                  </Badge>
-                </div>
-
-                {tournament.price !== null && (
-                  <div>
-                    <h3 className="text-sm font-medium text-slate-500 mb-2">Precio</h3>
-                    <p className="text-lg font-semibold text-slate-900">
-                      {tournament.price === 0 ? "Gratis" : `$${tournament.price}`}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {tournament.description && (
-                <div className="mt-6 pt-6 border-t border-slate-200">
-                  <h3 className="text-sm font-medium text-slate-500 mb-2">Descripcion</h3>
-                  <p className="text-slate-700 whitespace-pre-wrap">{tournament.description}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {tournament.clubes && (
-            <Card>
-              <CardContent className="pt-6">
-                <h2 className="text-xl font-semibold text-slate-900 mb-4">Club organizador</h2>
-
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <MapPin className="h-5 w-5 text-slate-500 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-slate-900">{tournament.clubes.name}</p>
-                      {tournament.clubes.address && (
-                        <p className="text-sm text-slate-600">{tournament.clubes.address}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {tournament.clubes.phone && (
-                    <div className="flex items-center gap-3">
-                      <Users className="h-5 w-5 text-slate-500" />
-                      <p className="text-slate-700">{tournament.clubes.phone}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <TournamentPublicInfoCard publicInfo={publicInfo} />
 
           {isGuest && (
             <Card className="bg-blue-50 border-blue-200">

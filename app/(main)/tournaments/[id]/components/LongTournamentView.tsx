@@ -1,19 +1,23 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Trophy, Calendar, Users, Clock, CheckCircle, XCircle } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
-import { useUser } from '@/contexts/user-context';
+
 import PlayerTournamentDashboard from '@/components/player/PlayerTournamentDashboard';
 import NotRegisteredView from '@/components/tournament/NotRegisteredView';
+import TournamentPublicInfoCard from '@/components/tournament/TournamentPublicInfoCard';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useUser } from '@/contexts/user-context';
+import type { TournamentPublicInfo } from '@/lib/tournaments/public-tournament-details';
+import { Gender } from '@/types';
+import { createClient } from '@/utils/supabase/client';
 
 interface Tournament {
   id: string;
   name: string;
   type: string;
   status: string;
-  gender?: 'MALE' | 'FEMALE' | 'MIXED';
+  gender?: Gender;
   price?: string | null;
   enable_transfer_proof?: boolean;
   transfer_alias?: string | null;
@@ -38,54 +42,32 @@ interface TournamentStats {
 
 interface LongTournamentViewProps {
   tournamentId: string;
+  tournament: Tournament;
+  publicInfo: TournamentPublicInfo;
 }
 
 /**
- * 🎯 VISTA PRINCIPAL PARA TORNEOS LARGOS
+ * VISTA PRINCIPAL PARA TORNEOS LARGOS
  *
  * Dashboard que detecta el rol del usuario:
  * - PLAYER: Muestra PlayerTournamentDashboard
  * - Otros roles: Dashboard con estadísticas básicas y sidebar
  */
-const LongTournamentView: React.FC<LongTournamentViewProps> = ({ tournamentId }) => {
+const LongTournamentView: React.FC<LongTournamentViewProps> = ({
+  tournamentId,
+  tournament,
+  publicInfo,
+}) => {
   const { userDetails } = useUser();
-  const [tournament, setTournament] = useState<Tournament | null>(null);
   const [stats, setStats] = useState<TournamentStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Detectar si el usuario es un jugador logeado
   const isLoggedInPlayer = userDetails?.role === 'PLAYER';
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchStats = async () => {
       const supabase = createClient();
-      
-      // Obtener datos del torneo
-      const { data: tournamentData } = await supabase
-        .from('tournaments')
-        .select(`
-          id,
-          name,
-          type,
-          status,
-          gender,
-          price,
-          enable_transfer_proof,
-          transfer_alias,
-          transfer_amount,
-          start_date,
-          end_date,
-          category_name,
-          clubes:club_id (
-            name,
-            phone,
-            address
-          )
-        `)
-        .eq('id', tournamentId)
-        .single();
 
-      // Obtener estadísticas básicas
       const [
         { count: inscriptionsCount },
         { count: finishedMatches },
@@ -97,20 +79,19 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({ tournamentId })
         supabase.from('matches').select('*', { count: 'exact', head: true }).eq('tournament_id', tournamentId).eq('status', 'SCHEDULED'),
         supabase.from('fechas').select('*', { count: 'exact', head: true }).eq('tournament_id', tournamentId)
       ]);
-      
-      setTournament(tournamentData as any);
+
       setStats({
         inscriptionsCount: inscriptionsCount || 0,
         finishedMatches: finishedMatches || 0,
         notStartedMatches: notStartedMatches || 0,
         scheduledDatesCount: scheduledDatesCount || 0,
-        status: tournamentData?.status || 'UNKNOWN'
+        status: tournament.status || 'UNKNOWN'
       });
       setLoading(false);
     };
 
-    fetchData();
-  }, [tournamentId]);
+    fetchStats();
+  }, [tournament.status, tournamentId]);
 
   if (loading) {
     return (
@@ -123,15 +104,6 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({ tournamentId })
     );
   }
 
-  if (!tournament) {
-    return (
-      <div className="p-6">
-        <p className="text-destructive">Error al cargar el torneo</p>
-      </div>
-    );
-  }
-
-  // Si es un jugador logeado, mostrar dashboard específico
   if (isLoggedInPlayer) {
     return (
       <PlayerTournamentDashboard
@@ -146,12 +118,12 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({ tournamentId })
           enable_transfer_proof: tournament.enable_transfer_proof,
           transfer_alias: tournament.transfer_alias,
           transfer_amount: tournament.transfer_amount,
+          publicInfo,
         }}
       />
     );
   }
 
-  // Dashboard original para organizadores (userDetails con otro rol)
   if (userDetails && userDetails.role !== 'PLAYER') {
     if (!stats) {
       return (
@@ -160,29 +132,30 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({ tournamentId })
         </div>
       );
     }
-    // Render organizer dashboard aquí (código que sigue abajo)
   } else {
-    // Si no está logeado o no tiene userDetails, mostrar vista de "No inscripto"
     return (
       <div className="p-6 space-y-6">
-        <NotRegisteredView tournamentId={tournamentId} tournament={{
-          id: tournament.id,
-          name: tournament.name,
-          category: tournament.category_name,
-          status: tournament.status,
-          gender: tournament.gender,
-          price: tournament.price,
-          enable_transfer_proof: tournament.enable_transfer_proof,
-          transfer_alias: tournament.transfer_alias,
-          transfer_amount: tournament.transfer_amount,
-        }} />
+        <NotRegisteredView
+          tournamentId={tournamentId}
+          tournament={{
+            id: tournament.id,
+            name: tournament.name,
+            category: tournament.category_name,
+            status: tournament.status,
+            gender: tournament.gender,
+            price: tournament.price,
+            enable_transfer_proof: tournament.enable_transfer_proof,
+            transfer_alias: tournament.transfer_alias,
+            transfer_amount: tournament.transfer_amount,
+            publicInfo,
+          }}
+        />
       </div>
     );
   }
 
   return (
     <div className="p-6 space-y-6">
-      {/* Tournament Header */}
       <div className="space-y-2">
         <div className="flex items-center gap-3">
           <div className="bg-blue-100 p-2 rounded-lg">
@@ -190,19 +163,14 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({ tournamentId })
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">{tournament.name}</h1>
-            <p className="text-muted-foreground">{tournament.clubes?.name || 'Sin organizador'}</p>
+            <p className="text-muted-foreground">{publicInfo.organizerName || publicInfo.clubName || 'Sin organizador'}</p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-1">
             <Calendar className="h-4 w-4" />
-            <span>
-              {tournament.start_date 
-                ? new Date(tournament.start_date).toLocaleDateString('es-ES')
-                : 'Sin fecha'
-              }
-            </span>
+            <span>{publicInfo.startDateLabel || 'Sin fecha'}</span>
           </div>
           <div className="flex items-center gap-1">
             <Clock className="h-4 w-4" />
@@ -211,9 +179,7 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({ tournamentId })
         </div>
       </div>
 
-      {/* Statistics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Parejas Inscriptas */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Parejas Inscriptas</CardTitle>
@@ -225,7 +191,6 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({ tournamentId })
           </CardContent>
         </Card>
 
-        {/* Partidos Terminados */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Partidos Terminados</CardTitle>
@@ -237,7 +202,6 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({ tournamentId })
           </CardContent>
         </Card>
 
-        {/* Partidos Pendientes */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Partidos Pendientes</CardTitle>
@@ -249,7 +213,6 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({ tournamentId })
           </CardContent>
         </Card>
 
-        {/* Fechas Programadas */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Fechas Programadas</CardTitle>
@@ -262,23 +225,24 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({ tournamentId })
         </Card>
       </div>
 
-      {/* Status Banner */}
       <Card className="bg-blue-50 border-blue-200">
         <CardContent className="pt-6">
           <div className="flex items-start gap-3">
             <Trophy className="h-5 w-5 text-blue-600 mt-0.5" />
             <div>
               <h3 className="font-semibold text-blue-900 mb-1">
-                Torneo Largo - Sistema de Fechas
+                Torneo Long - Sistema de Fechas
               </h3>
               <p className="text-blue-700 text-sm">
-                Utiliza la sidebar para navegar entre las diferentes secciones del torneo. 
+                Utiliza la sidebar para navegar entre las diferentes secciones del torneo.
                 Gestiona inscripciones, programa partidos y controla el desarrollo del torneo.
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      <TournamentPublicInfoCard publicInfo={publicInfo} showSchedule={false} />
     </div>
   );
 };

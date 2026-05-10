@@ -1,14 +1,14 @@
 "use client"
 
-import { useUser } from "@/contexts/user-context"
+import { type AuthState, useUser } from "@/contexts/user-context"
 import { Suspense, useMemo, useEffect, useState } from "react"
 import { getLinksForRole } from "@/config/permissions"
-import type { User as AuthUser } from "@supabase/supabase-js"
 
 type Role = "PLAYER" | "CLUB" | "COACH" | "ADMIN" | "ORGANIZADOR"
 
 import NavbarClient from "./navbar-client"
 import SkeletonNavbar from "./skeleton-navbar"
+import { getTenantBranding } from "@/config/tenant"
 
 const publicLinks = [
   {
@@ -30,26 +30,30 @@ const publicLinks = [
 
 const profileLinkPaths = ["/edit-profile", "/panel"]
 
-interface NavbarClientProps {
-  mainLinks: { label: string; icon: string; path: string }[]
-  profileLinks: { label: string; icon: string; path: string }[]
-  user: AuthUser | null
-}
-
-const useNavbarLinks = (userRole: Role | null) => {
+const useNavbarLinks = (userRole: Role | null, authState: AuthState) => {
   return useMemo(() => {
-    const allAuthLinks = userRole ? getLinksForRole(userRole).filter((link) => link.path !== "/ranking") : []
+    if (authState === "session-only" || authState === "error") {
+      return { mainLinks: [], profileLinks: [] }
+    }
 
-    const mainLinks = userRole ? allAuthLinks.filter((link) => !profileLinkPaths.includes(link.path)) : publicLinks
+    if (authState === "guest") {
+      return { mainLinks: publicLinks, profileLinks: [] }
+    }
 
-    const profileLinks = userRole ? allAuthLinks.filter((link) => profileLinkPaths.includes(link.path)) : []
+    const branding = getTenantBranding()
+    const allAuthLinks = userRole
+      ? getLinksForRole(userRole).filter((link) => branding.features.showRankingInNav || link.path !== "/ranking")
+      : []
+
+    const mainLinks = allAuthLinks.filter((link) => !profileLinkPaths.includes(link.path))
+    const profileLinks = allAuthLinks.filter((link) => profileLinkPaths.includes(link.path))
 
     return { mainLinks, profileLinks }
-  }, [userRole])
+  }, [authState, userRole])
 }
 
 export default function Navbar() {
-  const { user, userDetails, loading, authLoading, error } = useUser()
+  const { user, userDetails, authState, loading, authLoading, error } = useUser()
   const [forceShowNavbar, setForceShowNavbar] = useState(false)
 
   useEffect(() => {
@@ -72,11 +76,11 @@ export default function Navbar() {
       return false
     }
 
-    return authLoading || (!!user && loading)
-  }, [authLoading, user, loading, error, forceShowNavbar])
+    return authLoading || authState === "session-only" || (!!user && loading)
+  }, [authLoading, authState, user, loading, error, forceShowNavbar])
 
-  const userRole = userDetails?.role as Role | null
-  const { mainLinks, profileLinks } = useNavbarLinks(userRole)
+  const userRole = authState === "ready" ? (userDetails?.role as Role | null) : null
+  const { mainLinks, profileLinks } = useNavbarLinks(userRole, authState)
 
   return (
     <Suspense fallback={<SkeletonNavbar />}>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import type { TournamentPublicInfo } from '@/lib/tournaments/public-tournament-details';
 import type { AccessLevel, TournamentPermission } from '@/utils/tournament-permissions';
 import AmericanPublicView from './AmericanPublicView';
 import AmericanOrganizerView from './AmericanOrganizerView';
@@ -24,6 +25,7 @@ interface AmericanTournamentOverviewProps {
     playerId?: string;
     source?: 'admin' | 'club_owner' | 'organization_member' | 'player' | 'public';
   };
+  publicInfo: TournamentPublicInfo;
 }
 
 /**
@@ -46,7 +48,8 @@ export default function AmericanTournamentOverview({
   tournament,
   accessLevel,
   permissions,
-  metadata
+  metadata,
+  publicInfo
 }: AmericanTournamentOverviewProps) {
 
   // ========================================
@@ -201,7 +204,8 @@ export default function AmericanTournamentOverview({
           price: tournament.price ?? null,
           enable_transfer_proof: tournament.enable_transfer_proof ?? false,
           transfer_alias: tournament.transfer_alias ?? null,
-          transfer_amount: tournament.transfer_amount ?? null
+          transfer_amount: tournament.transfer_amount ?? null,
+          publicInfo
         }}
       />
     );
@@ -209,7 +213,7 @@ export default function AmericanTournamentOverview({
 
   // PUBLIC_VIEW: Vista pública (GUEST o usuarios sin permisos)
   if (accessLevel === 'PUBLIC_VIEW') {
-    return <AmericanPublicView {...commonProps} />;
+    return <AmericanPublicView {...commonProps} publicInfo={publicInfo} />;
   }
 
   // ========================================

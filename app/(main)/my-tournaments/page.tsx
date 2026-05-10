@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Trophy, BarChart3, TrendingUp, Calendar, Target, CheckCircle2, XCircle } from "lucide-react"
 import Link from "next/link"
-import TournamentCard from "@/app/(main)/panel-cpa/@organizador/components/tournament-card"
+import TournamentCard from "@/app/(main)/panel/@organizador/components/tournament-card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // Componente de carga para usar con Suspense

@@ -45,7 +45,7 @@ export async function updatePlayerAction(
     if (result.success) {
       // Revalidar páginas que muestran jugadores
       revalidatePath('/my-players')
-      revalidatePath('/panel-cpa')
+    revalidatePath('/panel')
     }
 
     return result
@@ -88,7 +88,7 @@ export async function deletePlayerAction(playerId: string) {
     if (result.success) {
       // Revalidar páginas
       revalidatePath('/my-players')
-      revalidatePath('/panel-cpa')
+    revalidatePath('/panel')
     }
 
     return result

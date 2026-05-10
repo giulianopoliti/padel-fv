@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/utils/supabase/server"
-import { findExistingPlayerByIdentity } from "@/lib/utils/player-identity"
+import { checkPlayerIdentity } from "@/app/api/players/actions"
 
 interface CheckIdentityRequestBody {
   firstName?: string
@@ -12,33 +11,21 @@ interface CheckIdentityRequestBody {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as CheckIdentityRequestBody
-    const firstName = (body.firstName || "").trim()
-    const lastName = (body.lastName || "").trim()
-
-    if (!firstName || !lastName) {
-      return NextResponse.json(
-        { error: "firstName y lastName son requeridos" },
-        { status: 400 },
-      )
-    }
-
-    const supabase = await createClient()
-    const identityResult = await findExistingPlayerByIdentity({
-      supabase,
-      firstName,
-      lastName,
+    const result = await checkPlayerIdentity({
+      firstName: body.firstName || "",
+      lastName: body.lastName || "",
       dni: body.dni || null,
       gender: body.gender || null,
     })
 
-    if (identityResult.error) {
+    if (!result.success) {
       return NextResponse.json(
-        { error: identityResult.error },
-        { status: 500 },
+        { error: result.error || "Error interno del servidor" },
+        { status: result.status || 500 },
       )
     }
 
-    if (!identityResult.player) {
+    if (!result.player) {
       return NextResponse.json({
         exists: false,
         matchedBy: null,
@@ -48,14 +35,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       exists: true,
-      matchedBy: identityResult.matchedBy,
+      matchedBy: result.matchedBy,
       player: {
-        id: identityResult.player.id,
-        first_name: identityResult.player.first_name,
-        last_name: identityResult.player.last_name,
-        dni: identityResult.player.dni,
-        score: identityResult.player.score,
-        category_name: identityResult.player.category_name,
+        id: result.player.id,
+        first_name: result.player.first_name,
+        last_name: result.player.last_name,
+        dni: result.player.dni,
+        score: result.player.score,
+        category_name: result.player.category_name,
       },
     })
   } catch (error) {

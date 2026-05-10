@@ -4,7 +4,7 @@ import { createClient, createClientServiceRole } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { PlayerDTO, Gender } from '@/types';
 import { normalizePlayerDni, sanitizeDniInput } from '@/lib/utils/player-dni';
-import { findExistingPlayerByIdentity } from '@/lib/utils/player-identity';
+import { ExistingPlayerMatch, findExistingPlayerByIdentity } from '@/lib/utils/player-identity';
 /**
  * Buscar jugadores existentes por nombre, apellido o DNI
  */
@@ -76,6 +76,94 @@ export async function searchPlayer(searchTerm: string) {
     console.error("[searchPlayer] Error general:", generalError);
     // Devolver array vacío en caso de error para evitar romper la UI
     return [];
+  }
+}
+
+export async function checkPlayerIdentity({
+  firstName,
+  lastName,
+  dni,
+  gender,
+}: {
+  firstName: string
+  lastName: string
+  dni?: string | null
+  gender?: string | null
+}): Promise<{
+  success: boolean
+  exists: boolean
+  matchedBy: "dni" | "name" | null
+  player: ExistingPlayerMatch | null
+  error?: string
+  status?: number
+}> {
+  const normalizedFirstName = firstName.trim()
+  const normalizedLastName = lastName.trim()
+
+  if (!normalizedFirstName || !normalizedLastName) {
+    return {
+      success: false,
+      exists: false,
+      matchedBy: null,
+      player: null,
+      error: "firstName y lastName son requeridos",
+      status: 400,
+    }
+  }
+
+  try {
+    const supabase = await createClient()
+    const identityResult = await findExistingPlayerByIdentity({
+      supabase,
+      firstName: normalizedFirstName,
+      lastName: normalizedLastName,
+      dni: dni || null,
+      gender: gender || null,
+    })
+
+    if (identityResult.error) {
+      return {
+        success: false,
+        exists: false,
+        matchedBy: null,
+        player: null,
+        error: identityResult.error,
+        status: 500,
+      }
+    }
+
+    if (!identityResult.player) {
+      return {
+        success: true,
+        exists: false,
+        matchedBy: null,
+        player: null,
+      }
+    }
+
+    return {
+      success: true,
+      exists: true,
+      matchedBy: identityResult.matchedBy,
+      player: {
+        id: identityResult.player.id,
+        first_name: identityResult.player.first_name,
+        last_name: identityResult.player.last_name,
+        dni: identityResult.player.dni,
+        score: identityResult.player.score,
+        category_name: identityResult.player.category_name,
+      },
+    }
+  } catch (error: any) {
+    console.error("[checkPlayerIdentity] Unexpected error:", error)
+    return {
+      success: false,
+      exists: false,
+      matchedBy: null,
+      player: null,
+      error: error?.message || "Error interno del servidor",
+      status: 500,
+    }
   }
 }
 
@@ -400,7 +488,14 @@ export async function createPlayerForCouple({
   playerData 
 }: { 
   tournamentId: string; 
-  playerData: { first_name: string; last_name: string; gender: string; dni?: string | null; forceCreateNew?: boolean };
+  playerData: {
+    first_name: string;
+    last_name: string;
+    gender: string;
+    dni?: string | null;
+    phone?: string | null;
+    forceCreateNew?: boolean;
+  };
 }) {
   const supabase = await createClient();
   console.log(`[createPlayerForCouple] Creando jugador para pareja en torneo ${tournamentId}`, {
@@ -516,6 +611,7 @@ export async function createPlayerForCouple({
         gender: playerData.gender,
         dni: normalizedDni.dni,
         dni_is_temporary: normalizedDni.dniIsTemporary,
+        phone: playerData.phone?.trim() || null,
         score: categoryData.lower_range ?? 0,
         category_name: categoryName,
         is_categorized: true, // Mark as categorized when creating new player

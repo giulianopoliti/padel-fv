@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { UserPlus, Loader2, AlertCircle, Trophy } from "lucide-react"
+import { checkPlayerIdentity } from "@/app/api/players/actions"
 import PlayerDniDisplay from "@/components/players/player-dni-display"
 
 import { NewPlayerData } from "../types"
@@ -33,13 +34,6 @@ interface ExistingPlayerIdentity {
   dni?: string | null
   score?: number | null
   category_name?: string | null
-}
-
-interface IdentityCheckResponse {
-  exists: boolean
-  matchedBy?: IdentityMatchType
-  player?: ExistingPlayerIdentity | null
-  error?: string
 }
 
 interface NewPlayerFormProps {
@@ -72,22 +66,14 @@ export default function NewPlayerForm({ onSubmit, playerNumber, tournamentGender
     try {
       const normalizedDni = values.dni?.trim() || ""
 
-      const identityResponse = await fetch("/api/players/check-identity", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          firstName: values.first_name,
-          lastName: values.last_name,
-          dni: normalizedDni || null,
-          gender: values.gender,
-        }),
+      const identityData = await checkPlayerIdentity({
+        firstName: values.first_name,
+        lastName: values.last_name,
+        dni: normalizedDni || null,
+        gender: values.gender,
       })
 
-      const identityData = (await identityResponse.json()) as IdentityCheckResponse
-
-      if (!identityResponse.ok) {
+      if (!identityData.success) {
         throw new Error(identityData.error || "No se pudo verificar la identidad del jugador")
       }
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
+import { mapTournamentToPublicInfo } from '@/lib/tournaments/public-tournament-details';
 import { checkTournamentAccess } from '@/utils/tournament-permissions';
 import AmericanTournamentOverview from './components/AmericanTournamentOverview';
 import LongTournamentView from './components/LongTournamentView';
@@ -45,6 +46,11 @@ export default async function TournamentPage({ params }: TournamentPageProps) {
         email,
         cover_image_url,
         courts
+      ),
+      organization:organizaciones (
+        id,
+        name,
+        phone
       )
     `)
     .eq('id', tournamentId)
@@ -62,6 +68,7 @@ export default async function TournamentPage({ params }: TournamentPageProps) {
 
   // ✅ Sistema V2: Una sola llamada, soporte GUEST, type-safe
   const access = await checkTournamentAccess(user?.id || null, tournamentId);
+  const publicInfo = mapTournamentToPublicInfo(tournament);
 
   // ========================================
   // ROUTING POR TIPO DE TORNEO
@@ -69,7 +76,7 @@ export default async function TournamentPage({ params }: TournamentPageProps) {
 
   if (tournament.type === 'LONG') {
     // ➜ SISTEMA LARGO: Dashboard con estadísticas
-    return <LongTournamentView tournamentId={tournamentId} />;
+    return <LongTournamentView tournamentId={tournamentId} tournament={tournament} publicInfo={publicInfo} />;
   }
 
   // ➜ SISTEMA AMERICANO: Overview con props V2
@@ -80,6 +87,7 @@ export default async function TournamentPage({ params }: TournamentPageProps) {
       accessLevel={access.accessLevel}
       permissions={access.permissions}
       metadata={access.metadata}
+      publicInfo={publicInfo}
     />
   );
 } 

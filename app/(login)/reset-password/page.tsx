@@ -109,8 +109,8 @@ export default function ResetPasswordPage() {
   // Loading state while checking session
   if (isValidSession === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#f7f7f7_0%,#ffffff_50%,#eef3f9_100%)] p-4">
-        <Card className="w-full max-w-md shadow-lg border-0">
+      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#0a1224_0%,#0f1a34_50%,#162857_100%)] p-4 text-white">
+        <Card className="w-full max-w-md border border-white/10 bg-brand-900/70 shadow-lg backdrop-blur-sm">
           <CardContent className="flex justify-center items-center py-8">
             <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-brand-600"></div>
           </CardContent>
@@ -122,8 +122,8 @@ export default function ResetPasswordPage() {
   // Invalid session - show error
   if (!isValidSession) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#f7f7f7_0%,#ffffff_50%,#eef3f9_100%)] p-4">
-        <Card className="w-full max-w-md shadow-lg border-0">
+      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#0a1224_0%,#0f1a34_50%,#162857_100%)] p-4 text-white">
+        <Card className="w-full max-w-md border border-white/10 bg-brand-900/70 shadow-lg backdrop-blur-sm">
           <CardHeader className="space-y-1 pb-6">
             <div className="mb-4 flex justify-center">
               <CPALogo />
@@ -133,24 +133,24 @@ export default function ResetPasswordPage() {
                 <Lock className="h-8 w-8 text-red-600" />
               </div>
             </div>
-            <CardTitle className="text-2xl font-bold text-center text-slate-800">
+            <CardTitle className="text-2xl font-bold text-center text-white">
               Link Inválido
             </CardTitle>
-            <CardDescription className="text-center text-slate-600">
+            <CardDescription className="text-center text-slate-300">
               El link para restablecer contraseña es inválido o ha expirado
             </CardDescription>
           </CardHeader>
 
           <CardFooter className="flex flex-col space-y-3">
             <Link href="/forgot-password" className="w-full">
-              <Button className="w-full bg-brand-600 hover:bg-brand-700">
+              <Button className="w-full bg-court-500 text-brand-900 hover:bg-court-400">
                 Solicitar nuevo link
               </Button>
             </Link>
             
             <Link 
               href="/login" 
-              className="flex items-center justify-center gap-2 text-sm font-medium text-slate-600 hover:text-brand-900"
+              className="flex items-center justify-center gap-2 text-sm font-medium text-slate-300 hover:text-court-300"
             >
               <ArrowLeft className="h-4 w-4" />
               Volver al inicio de sesión
@@ -164,8 +164,8 @@ export default function ResetPasswordPage() {
   // Success state
   if (isPasswordReset) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#f7f7f7_0%,#ffffff_50%,#eef3f9_100%)] p-4">
-        <Card className="w-full max-w-md shadow-lg border-0">
+      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#0a1224_0%,#0f1a34_50%,#162857_100%)] p-4 text-white">
+        <Card className="w-full max-w-md border border-white/10 bg-brand-900/70 shadow-lg backdrop-blur-sm">
           <CardHeader className="space-y-1 pb-6">
             <div className="mb-4 flex justify-center">
               <CPALogo />
@@ -175,10 +175,10 @@ export default function ResetPasswordPage() {
                 <CheckCircle className="h-8 w-8 text-brand-700" />
               </div>
             </div>
-            <CardTitle className="text-2xl font-bold text-center text-slate-800">
+            <CardTitle className="text-2xl font-bold text-center text-white">
               ¡Contraseña Actualizada!
             </CardTitle>
-            <CardDescription className="text-center text-slate-600">
+            <CardDescription className="text-center text-slate-300">
               Tu contraseña ha sido restablecida correctamente
             </CardDescription>
           </CardHeader>
@@ -186,7 +186,7 @@ export default function ResetPasswordPage() {
           <CardFooter className="flex flex-col space-y-3">
             <Button 
               onClick={() => router.push("/login")}
-              className="w-full bg-brand-600 hover:bg-brand-700"
+              className="w-full bg-court-500 text-brand-900 hover:bg-court-400"
             >
               Iniciar sesión
             </Button>
@@ -198,8 +198,8 @@ export default function ResetPasswordPage() {
 
   // Reset password form
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#f7f7f7_0%,#ffffff_50%,#eef3f9_100%)] p-4">
-      <Card className="w-full max-w-md shadow-lg border-0">
+    <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#0a1224_0%,#0f1a34_50%,#162857_100%)] p-4 text-white">
+      <Card className="w-full max-w-md border border-white/10 bg-brand-900/70 shadow-lg backdrop-blur-sm">
         <CardHeader className="space-y-1 pb-6">
           <div className="mb-4 flex justify-center">
             <CPALogo />
@@ -209,10 +209,10 @@ export default function ResetPasswordPage() {
               <Lock className="h-8 w-8 text-brand-600" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-center text-slate-800">
+          <CardTitle className="text-2xl font-bold text-center text-white">
             Nueva Contraseña
           </CardTitle>
-          <CardDescription className="text-center text-slate-600">
+          <CardDescription className="text-center text-slate-300">
             Ingresa tu nueva contraseña
           </CardDescription>
         </CardHeader>
@@ -229,7 +229,7 @@ export default function ResetPasswordPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isSubmitting}
-                  className="h-11 border-brand-100 pr-10"
+                  className="h-11 border-white/10 bg-white/5 pr-10 text-white placeholder:text-slate-400"
                   autoComplete="new-password"
                   required
                 />
@@ -259,7 +259,7 @@ export default function ResetPasswordPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={isSubmitting}
-                  className="h-11 border-brand-100 pr-10"
+                  className="h-11 border-white/10 bg-white/5 pr-10 text-white placeholder:text-slate-400"
                   autoComplete="new-password"
                   required
                 />
@@ -289,7 +289,7 @@ export default function ResetPasswordPage() {
           <CardFooter className="flex flex-col space-y-3">
             <Button 
               type="submit" 
-              className="w-full h-11 bg-brand-600 hover:bg-brand-700"
+              className="w-full h-11 bg-court-500 text-brand-900 hover:bg-court-400"
               disabled={isSubmitting}
             >
               {isSubmitting ? "Actualizando..." : "Actualizar contraseña"}
@@ -297,7 +297,7 @@ export default function ResetPasswordPage() {
             
             <Link 
               href="/login" 
-              className="flex items-center justify-center gap-2 text-sm font-medium text-slate-600 hover:text-brand-900"
+              className="flex items-center justify-center gap-2 text-sm font-medium text-slate-300 hover:text-court-300"
             >
               <ArrowLeft className="h-4 w-4" />
               Volver al inicio de sesión

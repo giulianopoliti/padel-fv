@@ -1,6 +1,6 @@
-"use server"
+﻿"use server"
 
-import { createClient } from "@/utils/supabase/server"
+import { createClient, createClientServiceRole } from "@/utils/supabase/server"
 import { revalidatePath } from 'next/cache'
 import { validateAndFormatPhone } from '@/utils/phone'
 import { normalizePlayerDni, sanitizeDniInput } from '@/lib/utils/player-dni'
@@ -60,6 +60,34 @@ async function checkPlayerByDNI(dni: string, supabase: any) {
   
   console.log(`[checkPlayerByDNI] Found player:`, existingPlayer);
   return { success: true, player: existingPlayer };
+}
+
+async function deleteAuthUserSafely(userId: string) {
+  try {
+    const adminSupabase = await createClientServiceRole()
+    const { error } = await adminSupabase.auth.admin.deleteUser(userId)
+
+    if (error) {
+      console.error(`[register-actions] Could not delete auth user ${userId}:`, error)
+    }
+  } catch (error) {
+    console.error(`[register-actions] Unexpected error deleting auth user ${userId}:`, error)
+  }
+}
+
+async function cleanupRegisteredUser(userId: string) {
+  try {
+    const adminSupabase = await createClientServiceRole()
+    const { error } = await adminSupabase.from('users').delete().eq('id', userId)
+
+    if (error) {
+      console.error(`[register-actions] Could not delete public user ${userId}:`, error)
+    }
+  } catch (error) {
+    console.error(`[register-actions] Unexpected error deleting public user ${userId}:`, error)
+  }
+
+  await deleteAuthUserSafely(userId)
 }
 
 function sanitizeRedirectTo(redirectTo: string | null): string | null {
@@ -138,11 +166,11 @@ function advancedNormalize(str: string | null | undefined): string {
   return str
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, ' ')                    // Múltiples espacios → uno
-    .replace(/[.,-]/g, '')                   // Quita puntuación
+    .replace(/\s+/g, ' ')                    // MÃºltiples espacios â†’ uno
+    .replace(/[.,-]/g, '')                   // Quita puntuaciÃ³n
     .normalize('NFD')                        // Descompone acentos
     .replace(/[\u0300-\u036f]/g, '')         // Quita marcas de acento
-    .replace(/[^a-z0-9\s]/g, '')             // Solo letras, números, espacios
+    .replace(/[^a-z0-9\s]/g, '')             // Solo letras, nÃºmeros, espacios
     .trim();
 }
 
@@ -205,7 +233,7 @@ function superFlexibleNameMatch(existing: string, provided: string): {
   }
 
   // NIVEL 2: Uno contiene al otro - MEJORADO para segundos nombres
-  // Caso especial: "Giuliano" está contenido en "Giuliano Agustin"
+  // Caso especial: "Giuliano" estÃ¡ contenido en "Giuliano Agustin"
   if (normalizedExisting.includes(normalizedProvided) || normalizedProvided.includes(normalizedExisting)) {
     // Si uno es substring del otro al inicio (caso de segundos nombres)
     if (normalizedProvided.startsWith(normalizedExisting + ' ') ||
@@ -219,7 +247,7 @@ function superFlexibleNameMatch(existing: string, provided: string): {
     }
   }
 
-  // NIVEL 3: Palabras en común (para nombres compuestos)
+  // NIVEL 3: Palabras en comÃºn (para nombres compuestos)
   const existingWords = normalizedExisting.split(' ').filter(w => w.length > 1);
   const providedWords = normalizedProvided.split(' ').filter(w => w.length > 1);
 
@@ -234,7 +262,7 @@ function superFlexibleNameMatch(existing: string, provided: string): {
           commonWords += 1;
           break;
         }
-        // Match flexible de palabra (máximo 1 error)
+        // Match flexible de palabra (mÃ¡ximo 1 error)
         if (existingWord.length > 2 && providedWord.length > 2) {
           if (levenshteinDistance(existingWord, providedWord) <= 1) {
             commonWords += 0.8; // Peso menor para matches con typo
@@ -250,7 +278,7 @@ function superFlexibleNameMatch(existing: string, provided: string): {
     }
   }
 
-  // NIVEL 4: Similitud por distancia de edición (mínimo 80%)
+  // NIVEL 4: Similitud por distancia de ediciÃ³n (mÃ­nimo 80%)
   const similarity = calculateSimilarity(normalizedExisting, normalizedProvided);
   if (similarity >= 0.8) {
     return { isMatch: true, confidence: similarity, reason: 'edit_distance' };
@@ -294,12 +322,12 @@ function validatePlayerLinking(existingPlayer: any, formData: FormData) {
     lastName || ''
   );
 
-  // También comparar nombres completos
+  // TambiÃ©n comparar nombres completos
   const fullExistingName = `${existingPlayer.first_name || ''} ${existingPlayer.last_name || ''}`.trim();
   const fullProvidedName = `${firstName || ''} ${lastName || ''}`.trim();
   const fullNameResult = superFlexibleNameMatch(fullExistingName, fullProvidedName);
 
-  // Determinar si es válido (múltiples criterios)
+  // Determinar si es vÃ¡lido (mÃºltiples criterios)
   // MEJORADO: Aceptar si:
   // 1. Ambos nombres coinciden con confianza >= 0.7
   // 2. Nombre completo coincide con confianza >= 0.8
@@ -376,7 +404,7 @@ export async function confirmPlayerLinking(playerId: string, tempUserId: string,
     return {
       success: true,
       matched: true,
-      message: `¡Cuenta vinculada exitosamente! Tu perfil de jugador existente ha sido conectado con tu nueva cuenta.`,
+      message: `Â¡Cuenta vinculada exitosamente! Tu perfil de jugador existente ha sido conectado con tu nueva cuenta.`,
       playerData: {
         name: `${playerCheck.first_name} ${playerCheck.last_name}`,
         score: playerCheck.score || 0,
@@ -437,7 +465,7 @@ export async function confirmPlayerLinkingWithFormData(
     return {
       success: true,
       matched: true,
-      message: `¡Cuenta vinculada exitosamente! Tu perfil de jugador existente ha sido conectado con tu nueva cuenta y datos actualizados.`,
+      message: `Â¡Cuenta vinculada exitosamente! Tu perfil de jugador existente ha sido conectado con tu nueva cuenta y datos actualizados.`,
       playerData: {
         name: `${playerCheck.first_name} ${playerCheck.last_name}`,
         score: playerCheck.score || 0,
@@ -587,7 +615,7 @@ export async function checkDNIConflictBeforeRegistration(formData: FormData): Pr
       
       return {
         success: false,
-        error: 'Este DNI ya está registrado con un nombre diferente. Contacta al administrador para resolver este conflicto.',
+        error: 'Este DNI ya estÃ¡ registrado con un nombre diferente. Contacta al administrador para resolver este conflicto.',
         showConflictReport: true,
         conflictData: {
           dni: normalizedDni.dni,
@@ -632,10 +660,10 @@ export async function registerAndLinkToExistingPlayer(formData: FormData, player
     
     // Basic validation
     if (!email || !password) {
-      return { success: false, error: 'Email y contraseña son requeridos.' };
+      return { success: false, error: 'Email y contraseÃ±a son requeridos.' };
     }
     if (password.length < 6) {
-      return { success: false, error: 'La contraseña debe tener al menos 6 caracteres.' };
+      return { success: false, error: 'La contraseÃ±a debe tener al menos 6 caracteres.' };
     }
     
     // Double-check that the player doesn't already have a user linked
@@ -663,12 +691,12 @@ export async function registerAndLinkToExistingPlayer(formData: FormData, player
 
     if (signUpError) {
       console.error('[registerAndLinkToExistingPlayer] Supabase auth signUp error:', signUpError);
-      return { success: false, error: `Error de autenticación: ${signUpError.message}` };
+      return { success: false, error: `Error de autenticaciÃ³n: ${signUpError.message}` };
     }
 
     const authUser = authData.user;
     if (!authUser) {
-      return { success: false, error: 'Error al crear usuario de autenticación.' };
+      return { success: false, error: 'Error al crear usuario de autenticaciÃ³n.' };
     }
     
     console.log(`[registerAndLinkToExistingPlayer] Auth user created: ${authUser.id}`);
@@ -682,23 +710,17 @@ export async function registerAndLinkToExistingPlayer(formData: FormData, player
 
     if (userInsertError) {
       console.error('[registerAndLinkToExistingPlayer] Error inserting user into users table:', userInsertError);
-      // Clean up auth user if database insert fails
-      await supabase.auth.admin.deleteUser(authUser.id);
+      await deleteAuthUserSafely(authUser.id);
       return { success: false, error: `Error al crear perfil de usuario: ${userInsertError.message}` };
     }
     
     // 3. Link to existing player
-    const { error: linkError } = await supabase
-      .from('players')
-      .update({ user_id: authUser.id })
-      .eq('id', playerId);
-    
-    if (linkError) {
-      console.error(`[registerAndLinkToExistingPlayer] Error linking user to player:`, linkError);
-      // Clean up user and auth records
-      await supabase.from('users').delete().eq('id', authUser.id);
-      await supabase.auth.admin.deleteUser(authUser.id);
-      return { success: false, error: `Error al vincular cuenta: ${linkError.message}` };
+    const linkResult = await linkUserToExistingPlayer(playerId, authUser.id, supabase, formData)
+
+    if (!linkResult.success) {
+      console.error(`[registerAndLinkToExistingPlayer] Error linking user to player:`, linkResult.error);
+      await cleanupRegisteredUser(authUser.id);
+      return { success: false, error: `Error al vincular cuenta: ${linkResult.error}` };
     }
     
     console.log(`[registerAndLinkToExistingPlayer] Successfully linked user ${authUser.id} to player ${playerId}`);
@@ -708,7 +730,7 @@ export async function registerAndLinkToExistingPlayer(formData: FormData, player
     return {
       success: true,
       matched: true,
-      message: `¡Cuenta creada y vinculada exitosamente! Tu perfil de jugador existente ha sido conectado con tu nueva cuenta.`,
+      message: `Â¡Cuenta creada y vinculada exitosamente! Tu perfil de jugador existente ha sido conectado con tu nueva cuenta.`,
       playerData: {
         name: `${playerCheck.first_name} ${playerCheck.last_name}`,
         score: playerCheck.score || 0,
@@ -725,46 +747,148 @@ export async function registerAndLinkToExistingPlayer(formData: FormData, player
 }
 
 export async function register(formData: FormData): Promise<RegisterResult> {
-  // const cookieStore = cookies() // Removed, assuming createClient handles cookies internally or doesn't need it explicitly here.
   const supabase = await createClient()
 
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const role = formData.get('role') as 'PLAYER' | 'CLUB' | 'COACH' | 'ORGANIZADOR'
 
-  // Basic validation
   if (!email || !password || !role) {
-    return { error: 'Email, contraseña y rol son requeridos.', success: false };
+    return { error: 'Email, contraseña y rol son requeridos.', success: false }
   }
+
   if (password.length < 6) {
-    return { error: 'La contraseña debe tener al menos 6 caracteres.', success: false };
+    return { error: 'La contraseña debe tener al menos 6 caracteres.', success: false }
   }
 
   try {
-    // 1. Sign up the user in Supabase Auth
+    let pendingExistingPlayer: Awaited<ReturnType<typeof checkPlayerByDNI>>['player'] | null = null
+
+    if (role === 'CLUB') {
+      const clubName = formData.get('clubName') as string
+      const phone = formData.get('phone') as string | null
+
+      if (!clubName) {
+        return { error: 'El nombre del club es requerido.', success: false }
+      }
+
+      if (!phone || phone.trim() === '') {
+        return { error: 'El teléfono del club es requerido.', success: false }
+      }
+
+      const phoneValidation = validateAndFormatPhone(phone ?? '', 'AR')
+      if (!phoneValidation.isValid || !phoneValidation.e164) {
+        return { error: phoneValidation.error || 'Teléfono inválido.', success: false }
+      }
+    } else if (role === 'PLAYER') {
+      const firstName = formData.get('firstName') as string
+      const lastName = formData.get('lastName') as string
+      const normalizedDni = normalizePlayerDni(formData.get('dni') as string | null)
+      const rawGender = formData.get('gender') as string | null
+
+      if (!firstName || !lastName) {
+        return { error: 'Nombre y apellido son requeridos para jugadores.', success: false }
+      }
+
+      if (!rawGender || !['MALE', 'FEMALE'].includes(rawGender)) {
+        return { error: 'Debes seleccionar género Masculino o Femenino.', success: false }
+      }
+
+      if (normalizedDni.dni) {
+        const playerCheckResult = await checkPlayerByDNI(normalizedDni.dni, supabase)
+
+        if (!playerCheckResult.success) {
+          return { error: `Error al verificar DNI: ${playerCheckResult.error}`, success: false }
+        }
+
+        if (playerCheckResult.player) {
+          const existingPlayer = playerCheckResult.player
+
+          if (existingPlayer.user_id) {
+            return {
+              error: 'Ya existe una cuenta vinculada a este DNI. Si es tu cuenta, inicia sesión en lugar de registrarte.',
+              success: false,
+            }
+          }
+
+          const validation = validatePlayerLinking(existingPlayer, formData)
+          if (!validation.isValid) {
+            return {
+              error: `El nombre proporcionado (${validation.providedName}) no coincide con el registrado para este DNI (${validation.existingName}). Verifica tus datos.`,
+              success: false,
+            }
+          }
+
+          pendingExistingPlayer = existingPlayer
+        }
+      }
+    } else if (role === 'COACH') {
+      const firstName = formData.get('firstName') as string
+      const lastName = formData.get('lastName') as string
+
+      if (!firstName || !lastName) {
+        return { error: 'Nombre y apellido son requeridos para entrenadores.', success: false }
+      }
+    } else if (role === 'ORGANIZADOR') {
+      const organizationName = formData.get('organizationName') as string
+      const organizationPhone = formData.get('organizationPhone') as string | null
+      const responsibleFirstName = formData.get('responsibleFirstName') as string
+      const responsibleLastName = formData.get('responsibleLastName') as string
+      const responsibleDni = formData.get('responsibleDni') as string
+
+      if (!organizationName) {
+        return { error: 'El nombre de la organización es requerido.', success: false }
+      }
+      if (!responsibleFirstName || !responsibleLastName) {
+        return { error: 'Nombre y apellido del responsable son requeridos.', success: false }
+      }
+      if (!responsibleDni) {
+        return { error: 'El DNI del responsable es requerido.', success: false }
+      }
+      if (!organizationPhone || organizationPhone.trim() === '') {
+        return { error: 'El teléfono de la organización es requerido.', success: false }
+      }
+
+      const phoneValidation = validateAndFormatPhone(organizationPhone ?? '', 'AR')
+      if (!phoneValidation.isValid || !phoneValidation.e164) {
+        return { error: phoneValidation.error || 'Teléfono de organización inválido.', success: false }
+      }
+    }
+
+    if (role === 'PLAYER' && pendingExistingPlayer) {
+      return {
+        success: true,
+        requiresConfirmation: true,
+        message: 'Encontramos un jugador registrado con este DNI. ¿Es tu perfil?',
+        existingPlayer: {
+          id: pendingExistingPlayer.id,
+          name: `${pendingExistingPlayer.first_name} ${pendingExistingPlayer.last_name}`,
+          score: pendingExistingPlayer.score || 0,
+          category: pendingExistingPlayer.category_name || 'Sin categorizar',
+          dni: pendingExistingPlayer.dni,
+          isExistingPlayer: true,
+        },
+      }
+    }
+
     const { data: authData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        // emailRedirectTo: `${origin}/auth/callback`, // Adjust if you have email confirmation
-      },
-    });
+      options: {},
+    })
 
     if (signUpError) {
-      console.error('[RegisterAction] Supabase auth signUp error:', signUpError);
-      return { error: `Error de autenticación: ${signUpError.message}`, success: false };
+      console.error('[RegisterAction] Supabase auth signUp error:', signUpError)
+      return { error: `Error de autenticación: ${signUpError.message}`, success: false }
     }
-
-    console.log('[RegisterAction] authData from signUp:', JSON.stringify(authData, null, 2));
 
     if (!authData.user) {
-      console.error('[RegisterAction] No user data returned from signUp.');
-      return { error: 'No se pudo crear el usuario en autenticación.', success: false };
+      console.error('[RegisterAction] No user data returned from signUp.')
+      return { error: 'No se pudo crear el usuario en autenticación.', success: false }
     }
-    
-    const authUserId = authData.user.id;
 
-    // 2. Insert into public.users table
+    const authUserId = authData.user.id
+
     const { data: publicUser, error: publicUserError } = await supabase
       .from('users')
       .insert({
@@ -772,37 +896,26 @@ export async function register(formData: FormData): Promise<RegisterResult> {
         email: email,
         role: role,
       })
-      .select('id') // Select the id of the newly created public user
-      .single();
-
-    console.log('[RegisterAction] publicUser insert result:', JSON.stringify({ data: publicUser, error: publicUserError }, null, 2));
+      .select('id')
+      .single()
 
     if (publicUserError || !publicUser) {
-      console.error('[RegisterAction] Error inserting into public.users:', publicUserError);
-      // Attempt to clean up Supabase auth user if public.users insert fails?
-      // For now, just return error. Consider cleanup strategy.
-      return { error: `Error creando perfil de usuario: ${publicUserError?.message || 'Datos de usuario público no retornados.'}`, success: false };
+      console.error('[RegisterAction] Error inserting into public.users:', publicUserError)
+      await deleteAuthUserSafely(authUserId)
+      return { error: `Error creando perfil de usuario: ${publicUserError?.message || 'Datos de usuario público no retornados.'}`, success: false }
     }
 
-    const publicUsersTableId = publicUser.id;
-
-    // 3. Insert into role-specific table
-    let roleTableError: any = null;
+    const publicUsersTableId = publicUser.id
+    let roleTableError: any = null
 
     if (role === 'CLUB') {
-      const clubName = formData.get('clubName') as string;
-      const address = formData.get('address') as string | null;
-      const phone = formData.get('phone') as string | null;
-      if (!clubName) {
-        // Consider cleanup if this fails after user creation
-        return { error: 'El nombre del club es requerido.', success: false };
-      }
-      if (!phone || phone.trim() === '') {
-        return { error: 'El teléfono del club es requerido.', success: false };
-      }
+      const clubName = formData.get('clubName') as string
+      const address = formData.get('address') as string | null
+      const phone = formData.get('phone') as string | null
+      const phoneValidation = validateAndFormatPhone(phone ?? '', 'AR')
 
-      const phoneValidation = validateAndFormatPhone(phone, 'AR')
       if (!phoneValidation.isValid || !phoneValidation.e164) {
+        await cleanupRegisteredUser(authUserId)
         return { error: phoneValidation.error || 'Teléfono inválido.', success: false }
       }
 
@@ -810,136 +923,55 @@ export async function register(formData: FormData): Promise<RegisterResult> {
         name: clubName,
         address: address,
         phone: phoneValidation.e164,
-        user_id: publicUsersTableId, // Link to public.users table id
-      });
-      roleTableError = error;
+        user_id: publicUsersTableId,
+      })
+      roleTableError = error
     } else if (role === 'PLAYER') {
-      const firstName = formData.get('firstName') as string;
-      const lastName = formData.get('lastName') as string;
-      const normalizedDni = normalizePlayerDni(formData.get('dni') as string | null);
-      const phone = formData.get('phone') as string | null;
-      const rawGender = formData.get('gender') as string | null;
-      const dateOfBirth = formData.get('dateOfBirth') as string | null;
+      const firstName = formData.get('firstName') as string
+      const lastName = formData.get('lastName') as string
+      const normalizedDni = normalizePlayerDni(formData.get('dni') as string | null)
+      const phone = formData.get('phone') as string | null
+      const rawGender = formData.get('gender') as string | null
+      const dateOfBirth = formData.get('dateOfBirth') as string | null
 
-      if (!firstName || !lastName) {
-        return { error: 'Nombre y apellido son requeridos para jugadores.', success: false };
-      }
-
-      // Validación estricta de género
-      if (!rawGender || !['MALE', 'FEMALE'].includes(rawGender)) {
-        return { error: 'Debes seleccionar género Masculino o Femenino.', success: false };
-      }
-      const gender = rawGender as 'MALE' | 'FEMALE';
-
-      // Check if player exists by DNI (only if DNI is provided)
-      if (normalizedDni.dni) {
-        console.log(`[register] Checking for existing player with DNI: ${normalizedDni.dni}`);
-        
-        const playerCheckResult = await checkPlayerByDNI(normalizedDni.dni, supabase);
-        
-        if (!playerCheckResult.success) {
-          return { error: `Error al verificar DNI: ${playerCheckResult.error}`, success: false };
-        }
-        
-        if (playerCheckResult.player) {
-          const existingPlayer = playerCheckResult.player;
-          
-          // Check if player already has a user account linked
-          if (existingPlayer.user_id) {
-            console.log(`[register] Player with DNI ${normalizedDni.dni} already has a user account linked`);
-            return { 
-              error: 'Ya existe una cuenta vinculada a este DNI. Si es tu cuenta, inicia sesión en lugar de registrarte.', 
-              success: false 
-            };
-          }
-          
-          // Validate that the names match
-          const validation = validatePlayerLinking(existingPlayer, formData);
-          
-          if (!validation.isValid) {
-            console.log(`[register] Name mismatch for DNI ${normalizedDni.dni}:`, validation);
-            return { 
-              error: `El nombre proporcionado (${validation.providedName}) no coincide con el registrado para este DNI (${validation.existingName}). Verifica tus datos.`, 
-              success: false 
-            };
-          }
-          
-          // Found existing player - return for confirmation instead of automatic linking
-          console.log(`[register] Found existing player ${existingPlayer.id} for DNI ${normalizedDni.dni}, requesting user confirmation`);
-          
-          return {
-            success: true,
-            requiresConfirmation: true,
-            message: `Encontramos un jugador registrado con este DNI. ¿Es tu perfil?`,
-            existingPlayer: {
-              id: existingPlayer.id,
-              name: validation.existingName,
-              score: existingPlayer.score || 0,
-              category: existingPlayer.category_name || 'Sin categorizar',
-              dni: existingPlayer.dni,
-              isExistingPlayer: true
-            },
-            tempUserId: publicUsersTableId, // Store for later linking
-          };
-        }
-      }
-      
-      // No existing player found or no DNI provided - create new player
-      console.log(`[register] Creating new player for user ${publicUsersTableId}`);
-      
       const { error } = await supabase.from('players').insert({
         first_name: firstName,
         last_name: lastName,
         dni: normalizedDni.dni,
         dni_is_temporary: normalizedDni.dniIsTemporary,
         phone: phone,
-        gender: gender,
+        gender: rawGender as 'MALE' | 'FEMALE',
         date_of_birth: dateOfBirth === '' ? null : dateOfBirth,
         user_id: publicUsersTableId,
-        score: 0, // Default score for new player
-        is_categorized: false, // New player needs to be categorized when first registering for a tournament
-      });
-      roleTableError = error;
+        score: 0,
+        is_categorized: false,
+      })
+      roleTableError = error
     } else if (role === 'COACH') {
-      const firstName = formData.get('firstName') as string;
-      const lastName = formData.get('lastName') as string;
-       if (!firstName || !lastName) {
-        return { error: 'Nombre y apellido son requeridos para entrenadores.', success: false };
-      }
+      const firstName = formData.get('firstName') as string
+      const lastName = formData.get('lastName') as string
+
       const { error } = await supabase.from('coaches').insert({
-        name: firstName, // coaches table uses 'name' for first_name
+        name: firstName,
         last_name: lastName,
         user_id: publicUsersTableId,
-      });
-      roleTableError = error;
+      })
+      roleTableError = error
     } else if (role === 'ORGANIZADOR') {
-      const organizationName = formData.get('organizationName') as string;
-      const organizationDescription = formData.get('organizationDescription') as string | null;
-      const organizationPhone = formData.get('organizationPhone') as string | null;
-      const responsibleFirstName = formData.get('responsibleFirstName') as string;
-      const responsibleLastName = formData.get('responsibleLastName') as string;
-      const responsibleDni = formData.get('responsibleDni') as string;
-      const responsiblePosition = formData.get('responsiblePosition') as string;
+      const organizationName = formData.get('organizationName') as string
+      const organizationDescription = formData.get('organizationDescription') as string | null
+      const organizationPhone = formData.get('organizationPhone') as string | null
+      const responsibleFirstName = formData.get('responsibleFirstName') as string
+      const responsibleLastName = formData.get('responsibleLastName') as string
+      const responsibleDni = formData.get('responsibleDni') as string
+      const responsiblePosition = formData.get('responsiblePosition') as string
+      const phoneValidation = validateAndFormatPhone(organizationPhone ?? '', 'AR')
 
-      if (!organizationName) {
-        return { error: 'El nombre de la organización es requerido.', success: false };
-      }
-      if (!responsibleFirstName || !responsibleLastName) {
-        return { error: 'Nombre y apellido del responsable son requeridos.', success: false };
-      }
-      if (!responsibleDni) {
-        return { error: 'El DNI del responsable es requerido.', success: false };
-      }
-      if (!organizationPhone || organizationPhone.trim() === '') {
-        return { error: 'El teléfono de la organización es requerido.', success: false };
-      }
-
-      const phoneValidation = validateAndFormatPhone(organizationPhone, 'AR')
       if (!phoneValidation.isValid || !phoneValidation.e164) {
+        await cleanupRegisteredUser(authUserId)
         return { error: phoneValidation.error || 'Teléfono de organización inválido.', success: false }
       }
 
-      // First create the organization
       const { data: organizationData, error: orgError } = await supabase.from('organizaciones').insert({
         name: organizationName,
         description: organizationDescription,
@@ -948,50 +980,49 @@ export async function register(formData: FormData): Promise<RegisterResult> {
         responsible_last_name: responsibleLastName,
         responsible_dni: responsibleDni,
         responsible_position: responsiblePosition,
-        is_active: false, // Requires manual approval
-      }).select('id').single();
+        is_active: false,
+      }).select('id').single()
 
       if (orgError) {
-        console.error('[RegisterAction] Error creating organization:', orgError);
-        return { error: `Error creando organización: ${orgError.message}`, success: false };
+        console.error('[RegisterAction] Error creating organization:', orgError)
+        await cleanupRegisteredUser(authUserId)
+        return { error: `Error creando organización: ${orgError.message}`, success: false }
       }
 
-      // Then create the organization member with admin/owner role
       const { error: memberError } = await supabase.from('organization_members').insert({
         organizacion_id: organizationData.id,
         user_id: publicUsersTableId,
-        member_role: 'admin', // Owner/admin of the organization
-        is_active: false, // Requires manual approval
-      });
+        member_role: 'admin',
+        is_active: false,
+      })
 
-      roleTableError = memberError;
+      roleTableError = memberError
 
       if (!roleTableError) {
         return {
           success: true,
           message: 'Organización registrada exitosamente. Tu cuenta está pendiente de aprobación por parte del administrador.',
           redirectUrl: '/pending-approval',
-        };
+        }
       }
     }
 
     if (roleTableError) {
-      console.error(`[RegisterAction] Error inserting into ${role} table:`, roleTableError);
-      // Consider cleanup strategy for auth.user and public.users entry
-      return { error: `Error creando perfil de ${role.toLowerCase()}: ${roleTableError.message}`, success: false };
+      console.error(`[RegisterAction] Error inserting into ${role} table:`, roleTableError)
+      await cleanupRegisteredUser(authUserId)
+      return { error: `Error creando perfil de ${role.toLowerCase()}: ${roleTableError.message}`, success: false }
     }
-    
-    // Revalidate relevant paths
-    revalidatePath('/', 'layout'); // Revalidate all pages or specific ones like /admin/users if you have one
+
+    revalidatePath('/', 'layout')
 
     return {
       success: true,
       message: '¡Registro completado! Serás redirigido al dashboard.',
       redirectUrl: role === 'PLAYER' ? buildPlayerRedirectUrl(formData) : '/panel',
-    };
-
+    }
   } catch (e: any) {
-    console.error('[RegisterAction] Unexpected error:', e);
-    return { error: `Error inesperado: ${e.message}`, success: false };
+    console.error('[RegisterAction] Unexpected error:', e)
+    return { error: `Error inesperado: ${e.message}`, success: false }
   }
-} 
+}
+

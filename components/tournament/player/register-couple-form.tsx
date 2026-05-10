@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { registerCoupleForTournament } from "@/app/api/tournaments/actions"
-import { createPlayerForCouple, checkPlayersPhones, updatePlayerPhone } from "@/app/api/players/actions"
+import { checkPlayerIdentity, createPlayerForCouple, checkPlayersPhones, updatePlayerPhone } from "@/app/api/players/actions"
 import { useUser } from "@/contexts/user-context"
 import { Search, UserPlus, AlertCircle, Users, User, Phone, CreditCard, Loader2, Trophy, Upload, CheckCircle2 } from "lucide-react"
 import { Gender } from "@/types"
@@ -33,13 +33,6 @@ interface PlayerInfo {
 
 type IdentityMatchType = "dni" | "name"
 
-interface IdentityCheckResponse {
-  exists: boolean
-  matchedBy?: IdentityMatchType
-  player?: PlayerInfo | null
-  error?: string
-}
-
 // Interface para datos de verificacion de telefono
 interface PhoneCheckData {
   id: string
@@ -49,11 +42,36 @@ interface PhoneCheckData {
   needsPhone: boolean
 }
 
+const parseJsonResponse = async <T,>(response: Response, fallbackMessage: string): Promise<T> => {
+  const responseText = await response.text()
+
+  if (!responseText) {
+    return {} as T
+  }
+
+  try {
+    return JSON.parse(responseText) as T
+  } catch (error) {
+    console.error("[RegisterCoupleForm] Invalid JSON response", {
+      url: response.url,
+      status: response.status,
+      bodyPreview: responseText.slice(0, 250),
+      error,
+    })
+    throw new Error(fallbackMessage)
+  }
+}
+
 // Esquema de validación para jugador
 const playerFormSchema = z.object({
   firstName: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
   lastName: z.string().min(2, "El apellido debe tener al menos 2 caracteres"),
-  phone: z.string().min(6, "El teléfono debe tener al menos 6 caracteres"),
+  phone: z
+    .string()
+    .optional()
+    .refine((value) => !value || value.trim().length === 0 || value.trim().length >= 6, {
+      message: "El teléfono debe tener al menos 6 caracteres",
+    }),
   dni: z.string().optional(),
   gender: z.nativeEnum(Gender),
 })
@@ -195,25 +213,25 @@ export default function RegisterCoupleForm({
   }
 
   // Verificar telefonos antes de registrar pareja
-  const handleCheckPhonesAndRegister = async () => {
-    if (!userDetails?.player_id || !selectedCompanionId) {
+  const handleCheckPhonesAndRegister = async (companionId = selectedCompanionId) => {
+    if (!userDetails?.player_id || !companionId) {
       toast({
         title: "Selección incompleta",
         description: "Debe seleccionar un compañero para formar la pareja",
         variant: "destructive",
       })
-      return
+      return false
     }
 
     if (!validateTransferProofRequirements()) {
-      return
+      return false
     }
 
     setIsCheckingPhones(true)
 
     try {
       console.log("[RegisterCoupleForm] Verificando telefonos de jugadores...")
-      const result = await checkPlayersPhones(userDetails.player_id, selectedCompanionId)
+      const result = await checkPlayersPhones(userDetails.player_id, companionId)
 
       if (!result.success) {
         toast({
@@ -221,7 +239,7 @@ export default function RegisterCoupleForm({
           description: result.error || "No se pudo verificar los teléfonos",
           variant: "destructive",
         })
-        return
+        return false
       }
 
       setPhoneCheckResult({
@@ -230,15 +248,19 @@ export default function RegisterCoupleForm({
         atLeastOneHasPhone: result.atLeastOneHasPhone,
         noneHasPhone: result.noneHasPhone
       })
+      setSelectedCompanionId(companionId)
+      setPlayer1Phone(result.player1?.needsPhone ? result.player1.phone || "" : "")
+      setPlayer2Phone(result.player2?.needsPhone ? result.player2.phone || "" : "")
 
       // Si al menos uno tiene telefono, proceder con el registro directamente
       if (result.atLeastOneHasPhone) {
         console.log("[RegisterCoupleForm] Al menos un jugador tiene telefono, procediendo con registro...")
-        await executeRegistration()
+        return await registerCoupleWithCompanion(companionId)
       } else {
         // Ninguno tiene telefono, mostrar formulario para agregar al menos uno
         console.log("[RegisterCoupleForm] Ningun jugador tiene telefono, mostrando formulario...")
         setShowPhoneForm(true)
+        return false
       }
     } catch (error) {
       console.error("[RegisterCoupleForm] Error al verificar telefonos:", error)
@@ -247,6 +269,7 @@ export default function RegisterCoupleForm({
         description: "Ocurrió un error al verificar los teléfonos",
         variant: "destructive",
       })
+      return false
     } finally {
       setIsCheckingPhones(false)
     }
@@ -365,7 +388,7 @@ export default function RegisterCoupleForm({
       console.error("Error al registrar pareja:", error)
       toast({
         title: "Error inesperado",
-        description: "Ocurrió un error al procesar la solicitud",
+        description: error instanceof Error ? error.message : "Ocurrió un error al procesar la solicitud",
         variant: "destructive",
       })
       onComplete(false)
@@ -423,6 +446,7 @@ export default function RegisterCoupleForm({
         last_name: data.lastName,
         gender: data.gender,
         dni: data.dni || null,
+        phone: data.phone,
         forceCreateNew,
       },
     })
@@ -437,7 +461,7 @@ export default function RegisterCoupleForm({
       return false
     }
 
-    return registerCoupleWithCompanion(newPlayerResult.playerId)
+    return handleCheckPhonesAndRegister(newPlayerResult.playerId)
   }
 
   const resetIdentityModalState = () => {
@@ -453,7 +477,7 @@ export default function RegisterCoupleForm({
     setShowIdentityModal(false)
     setIsSubmitting(true)
     try {
-      await registerCoupleWithCompanion(existingIdentityPlayer.id)
+      await handleCheckPhonesAndRegister(existingIdentityPlayer.id)
     } catch (error) {
       console.error("[RegisterCoupleForm] Error al registrar con jugador existente:", error)
       toast({
@@ -517,22 +541,14 @@ export default function RegisterCoupleForm({
 
     try {
       const normalizedDni = data.dni?.trim() || ""
-      const identityResponse = await fetch("/api/players/check-identity", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          firstName: data.firstName,
-          lastName: data.lastName,
-          dni: normalizedDni || null,
-          gender: data.gender,
-        }),
+      const identityData = await checkPlayerIdentity({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        dni: normalizedDni || null,
+        gender: data.gender,
       })
 
-      const identityData = (await identityResponse.json()) as IdentityCheckResponse
-
-      if (!identityResponse.ok) {
+      if (!identityData.success) {
         throw new Error(identityData.error || "No se pudo verificar la identidad del jugador")
       }
 
@@ -591,7 +607,7 @@ export default function RegisterCoupleForm({
       console.error("Error al registrar pareja:", error)
       toast({
         title: "Error inesperado",
-        description: "Ocurrió un error al procesar la solicitud",
+        description: error instanceof Error ? error.message : "Ocurrió un error al procesar la solicitud",
         variant: "destructive",
       })
       onComplete(false)
@@ -642,7 +658,10 @@ export default function RegisterCoupleForm({
         body: formData,
       })
 
-      const result = await response.json()
+      const result = await parseJsonResponse<{ message?: string }>(
+        response,
+        "El servidor devolvió una respuesta inválida al registrar la pareja.",
+      )
 
       if (!response.ok) {
         return {
@@ -829,7 +848,7 @@ export default function RegisterCoupleForm({
         </div>
         <CardTitle className="text-xl font-semibold text-gray-900">Inscripción en Pareja</CardTitle>
         <p className="text-sm text-gray-600">
-          Elegi a tu compañero y completa la inscripcion en pocos pasos.
+          Primero carga a tu compañero. Si todavía no tiene cuenta, puedes crearle un perfil básico acá mismo.
         </p>
       </CardHeader>
 
@@ -846,24 +865,33 @@ export default function RegisterCoupleForm({
           </div>
         </div>
 
-        <Tabs defaultValue="search" className="w-full">
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Paso 2</p>
+          <h3 className="mt-2 text-base font-semibold text-slate-900">Cómo quieres cargar a tu compañero</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Usa <span className="font-semibold text-slate-800">Nuevo compañero</span> si todavía no tiene cuenta o nunca fue cargado.
+            Si ya existe en el sistema, usa <span className="font-semibold text-slate-800">Ya está cargado</span>.
+          </p>
+        </div>
+
+        <Tabs defaultValue="new" className="w-full">
           <TabsList className="grid w-full grid-cols-2 bg-gray-100">
-            <TabsTrigger value="search" className="data-[state=active]:bg-white data-[state=active]:text-blue-600">
-              <Search className="mr-2 h-4 w-4" />
-              Buscar compañero
-            </TabsTrigger>
             <TabsTrigger value="new" className="data-[state=active]:bg-white data-[state=active]:text-blue-600">
               <UserPlus className="mr-2 h-4 w-4" />
               Nuevo compañero
+            </TabsTrigger>
+            <TabsTrigger value="search" className="data-[state=active]:bg-white data-[state=active]:text-blue-600">
+              <Search className="mr-2 h-4 w-4" />
+              Ya está cargado
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="search" className="space-y-4 py-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Paso 2</p>
-              <h3 className="mt-2 text-base font-semibold text-slate-900">Elegi a tu compañero</h3>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Compañero ya cargado</p>
+              <h3 className="mt-2 text-base font-semibold text-slate-900">Busca a alguien que ya exista en el sistema</h3>
               <p className="mt-1 text-sm text-slate-600">
-                Busca un jugador existente y seleccionalo para continuar.
+                Usa esta opción solo si tu compañero ya tiene cuenta o ya fue cargado antes en un torneo o por un club.
               </p>
             </div>
 
@@ -875,12 +903,12 @@ export default function RegisterCoupleForm({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-sm font-medium text-gray-700">
-                        Buscar compañero para el torneo
+                        Buscar compañero ya cargado
                       </FormLabel>
                       <FormControl>
                         <div className="flex flex-col gap-2 sm:flex-row">
                           <Input
-                            placeholder="Nombre, apellido o DNI"
+                            placeholder="Nombre, apellido o DNI del compañero"
                             className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                             {...field}
                           />
@@ -994,7 +1022,7 @@ export default function RegisterCoupleForm({
                   <Phone className="h-4 w-4 text-amber-600" />
                   <AlertTitle className="text-amber-800">Telefono requerido</AlertTitle>
                   <AlertDescription className="text-amber-700">
-                    Ninguno de los jugadores tiene telefono registrado. Por favor, agrega el telefono de al menos uno de ustedes para completar la inscripcion.
+                    Para completar la inscripción necesitamos al menos un teléfono de contacto de la pareja. Con que uno de los dos lo cargue aquí, alcanza.
                   </AlertDescription>
                 </Alert>
 
@@ -1004,7 +1032,7 @@ export default function RegisterCoupleForm({
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                         <Phone className="h-4 w-4" />
-                        Telefono de {phoneCheckResult.player1.firstName} {phoneCheckResult.player1.lastName} (Tu)
+                        Tu teléfono ({phoneCheckResult.player1.firstName} {phoneCheckResult.player1.lastName})
                       </label>
                       <Input
                         type="tel"
@@ -1023,7 +1051,7 @@ export default function RegisterCoupleForm({
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                         <Phone className="h-4 w-4" />
-                        Telefono de {phoneCheckResult.player2.firstName} {phoneCheckResult.player2.lastName}
+                        Teléfono de tu compañero ({phoneCheckResult.player2.firstName} {phoneCheckResult.player2.lastName})
                       </label>
                       <Input
                         type="tel"
@@ -1074,10 +1102,10 @@ export default function RegisterCoupleForm({
 
           <TabsContent value="new" className="py-4">
             <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Paso 2</p>
-              <h3 className="mt-2 text-base font-semibold text-slate-900">Carga a tu compañero</h3>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Nuevo compañero</p>
+              <h3 className="mt-2 text-base font-semibold text-slate-900">Tu compañero todavía no tiene cuenta</h3>
               <p className="mt-1 text-sm text-slate-600">
-                Si todavía no existe en el sistema, crea su perfil y continua con la inscripcion.
+                Completa sus datos para crearle un perfil básico y continuar. No necesita tener cuenta para que puedas inscribir la pareja.
               </p>
             </div>
             
@@ -1124,9 +1152,9 @@ export default function RegisterCoupleForm({
                   />
                 </div>
 
-                <FormField
-                  control={playerForm.control}
-                  name="phone"
+                  <FormField
+                    control={playerForm.control}
+                    name="phone"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-sm font-medium text-gray-700">
@@ -1140,6 +1168,9 @@ export default function RegisterCoupleForm({
                           {...field}
                         />
                       </FormControl>
+                      <p className="text-xs text-gray-500">
+                        Opcional si al menos uno de los dos ya tiene teléfono cargado.
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}

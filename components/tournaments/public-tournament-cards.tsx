@@ -1,7 +1,11 @@
+"use client"
+
 import Link from "next/link"
+import PublicRegistrationLauncher from "@/components/tournament/public-registration-launcher"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Gender } from "@/types"
 import { CalendarDays, Clock3, MapPin, Tag, Trophy } from "lucide-react"
 
 export interface PublicTournamentSummary {
@@ -9,17 +13,22 @@ export interface PublicTournamentSummary {
   name: string
   status: string
   category?: string | null
+  categoryName?: string | null
   gender?: string | null
-  type?: "LONG" | "AMERICAN"
+  type?: "LONG" | "AMERICAN" | string | null
   startDate?: string | null
   endDate?: string | null
   price?: number | string | null
   award?: string | null
   enablePublicInscriptions?: boolean
   club?: {
+    id?: string | null
     name?: string | null
     address?: string | null
   } | null
+  enableTransferProof?: boolean
+  transferAlias?: string | null
+  transferAmount?: number | null
 }
 
 interface PublicTournamentCardsProps {
@@ -103,12 +112,16 @@ const formatPrice = (price: number | string | null | undefined) => {
   return price
 }
 
-const getRegistrationHref = (tournament: PublicTournamentSummary) => {
-  if (tournament.enablePublicInscriptions) {
-    return `/tournaments/${tournament.id}/inscriptions`
+const resolveTournamentGender = (gender: string | null | undefined): Gender => {
+  if (gender === Gender.FEMALE) {
+    return Gender.FEMALE
   }
 
-  return `/tournaments/${tournament.id}`
+  if (gender === Gender.MIXED) {
+    return Gender.MIXED
+  }
+
+  return Gender.MALE
 }
 
 export function PublicTournamentCards({
@@ -118,9 +131,9 @@ export function PublicTournamentCards({
 }: PublicTournamentCardsProps) {
   if (tournaments.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-brand-200 bg-white px-6 py-12 text-center shadow-sm">
-        <h3 className="text-xl font-bold text-brand-900">{emptyTitle}</h3>
-        <p className="mx-auto mt-3 max-w-2xl text-slate-500">{emptyDescription}</p>
+      <div className="rounded-3xl border border-dashed border-white/20 bg-white/5 px-5 py-10 text-center shadow-sm backdrop-blur-sm sm:px-6 sm:py-12">
+        <h3 className="text-xl font-bold text-white">{emptyTitle}</h3>
+        <p className="mx-auto mt-3 max-w-2xl text-slate-300">{emptyDescription}</p>
       </div>
     )
   }
@@ -131,48 +144,48 @@ export function PublicTournamentCards({
         const priceLabel = formatPrice(tournament.price)
 
         return (
-          <Card key={tournament.id} className="overflow-hidden border-brand-100 shadow-sm transition-shadow hover:border-brand-200 hover:shadow-md">
-            <CardContent className="p-5 sm:p-6">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <Card key={tournament.id} className="overflow-hidden border-white/10 bg-brand-800/70 shadow-sm transition-shadow hover:border-court-500/40 hover:shadow-md">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0 flex-1 space-y-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="bg-brand-600 text-white hover:bg-brand-600">
-                      {typeLabel[tournament.type || "LONG"]}
+                    <Badge className="bg-court-500 text-brand-900 hover:bg-court-500">
+                      {typeLabel[(tournament.type || "LONG") as keyof typeof typeLabel] || tournament.type || "Torneo"}
                     </Badge>
-                    {tournament.category ? (
-                      <Badge variant="outline" className="border-brand-200 bg-brand-50 text-brand-800">
-                        {tournament.category}
+                    {tournament.category || tournament.categoryName ? (
+                      <Badge variant="outline" className="border-court-500/30 bg-court-500/10 text-court-200">
+                        {tournament.category || tournament.categoryName}
                       </Badge>
                     ) : null}
                     {tournament.gender ? (
-                      <Badge variant="outline" className="border-slate-200 text-slate-600">
+                      <Badge variant="outline" className="border-white/10 text-slate-300">
                         {genderLabel[tournament.gender as keyof typeof genderLabel] || tournament.gender}
                       </Badge>
                     ) : null}
                   </div>
 
                   <div>
-                    <h3 className="text-2xl font-black tracking-tight text-brand-900">{tournament.name}</h3>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <h3 className="text-xl font-black tracking-tight text-white sm:text-2xl">{tournament.name}</h3>
+                    <p className="mt-1 text-sm text-slate-300">
                       {tournament.type === "AMERICAN"
                         ? "Formato rapido con horario puntual y registro simple."
                         : "Liga con fechas programadas y seguimiento durante la semana."}
                     </p>
                   </div>
 
-                  <div className="grid gap-3 text-sm text-slate-700 sm:grid-cols-2">
-                    <div className="flex items-start gap-3 rounded-2xl bg-brand-50 px-4 py-3">
-                      <CalendarDays className="mt-0.5 h-4 w-4 text-brand-600" />
+                  <div className="grid gap-3 text-sm text-slate-200 sm:grid-cols-2">
+                    <div className="flex items-start gap-3 rounded-2xl bg-white/5 px-3 py-3 sm:px-4">
+                      <CalendarDays className="mt-0.5 h-4 w-4 text-court-300" />
                       <div>
-                        <p className="font-semibold text-brand-900">Fecha</p>
+                        <p className="font-semibold text-white">Fecha</p>
                         <p>{formatSchedule(tournament)}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-3 rounded-2xl bg-brand-50 px-4 py-3">
-                      <Clock3 className="mt-0.5 h-4 w-4 text-brand-600" />
+                    <div className="flex items-start gap-3 rounded-2xl bg-white/5 px-3 py-3 sm:px-4">
+                      <Clock3 className="mt-0.5 h-4 w-4 text-court-300" />
                       <div>
-                        <p className="font-semibold text-brand-900">Horario</p>
+                        <p className="font-semibold text-white">Horario</p>
                         <p>
                           {tournament.startDate
                             ? hasExplicitTime(tournament.startDate)
@@ -183,18 +196,18 @@ export function PublicTournamentCards({
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-3 rounded-2xl bg-brand-50 px-4 py-3">
-                      <MapPin className="mt-0.5 h-4 w-4 text-brand-600" />
+                    <div className="flex items-start gap-3 rounded-2xl bg-white/5 px-3 py-3 sm:px-4">
+                      <MapPin className="mt-0.5 h-4 w-4 text-court-300" />
                       <div>
-                        <p className="font-semibold text-brand-900">Club</p>
+                        <p className="font-semibold text-white">Club</p>
                         <p>{tournament.club?.name || "Sede a confirmar"}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-3 rounded-2xl bg-brand-50 px-4 py-3">
-                      <Trophy className="mt-0.5 h-4 w-4 text-brand-600" />
+                    <div className="flex items-start gap-3 rounded-2xl bg-white/5 px-3 py-3 sm:px-4">
+                      <Trophy className="mt-0.5 h-4 w-4 text-court-300" />
                       <div>
-                        <p className="font-semibold text-brand-900">Detalle</p>
+                        <p className="font-semibold text-white">Detalle</p>
                         <p>{tournament.club?.address || tournament.award || "Informacion disponible al abrir el torneo"}</p>
                       </div>
                     </div>
@@ -203,13 +216,13 @@ export function PublicTournamentCards({
                   {(priceLabel || tournament.award) ? (
                     <div className="flex flex-wrap gap-2">
                       {priceLabel ? (
-                        <div className="inline-flex items-center gap-2 rounded-full bg-court-100 px-3 py-1 text-sm font-semibold text-brand-900">
+                        <div className="inline-flex items-center gap-2 rounded-full bg-court-500 px-3 py-1 text-sm font-semibold text-brand-900">
                           <Tag className="h-3.5 w-3.5" />
                           Inscripcion {priceLabel}
                         </div>
                       ) : null}
                       {tournament.award ? (
-                        <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700">
+                        <div className="inline-flex items-center gap-2 rounded-full bg-court-500/15 px-3 py-1 text-sm font-semibold text-court-200">
                           <Trophy className="h-3.5 w-3.5" />
                           {tournament.award}
                         </div>
@@ -219,10 +232,18 @@ export function PublicTournamentCards({
                 </div>
 
                 <div className="flex w-full flex-col gap-3 lg:w-56">
-                  <Button asChild className="h-11 bg-brand-600 text-base font-semibold text-white hover:bg-brand-700">
-                    <Link href={getRegistrationHref(tournament)}>Inscribirme</Link>
-                  </Button>
-                  <Button asChild variant="outline" className="h-11 border-brand-200 text-base font-semibold text-brand-700 hover:bg-brand-50">
+                  <PublicRegistrationLauncher
+                    tournamentId={tournament.id}
+                    tournamentName={tournament.name}
+                    tournamentGender={resolveTournamentGender(tournament.gender)}
+                    tournamentPrice={tournament.price ?? null}
+                    enableTransferProof={tournament.enableTransferProof || false}
+                    transferAlias={tournament.transferAlias || null}
+                    transferAmount={tournament.transferAmount || null}
+                    buttonClassName="h-11 bg-court-500 text-base font-semibold text-brand-900 hover:bg-court-400"
+                    fullWidth
+                  />
+                  <Button asChild variant="outline" className="h-11 border-white/20 bg-white/5 text-base font-semibold text-white hover:bg-white/10">
                     <Link href={`/tournaments/${tournament.id}`}>Ver detalles</Link>
                   </Button>
                 </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useUser } from '@/contexts/user-context';
 
@@ -17,51 +17,69 @@ interface UseUserClubsReturn {
 
 export function useUserClubs(): UseUserClubsReturn {
   const { user, userDetails, loading: isUserLoading } = useUser();
+  const userId = user?.id ?? null;
   const userRole = userDetails?.role;
   const [clubs, setClubs] = useState<Club[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [defaultClubId, setDefaultClubId] = useState<string | null>(null);
-  
-  const supabase = createClient();
+  const lastLoadedKeyRef = useRef<string | null>(null);
+
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
-    async function fetchClubs() {
-      if (isUserLoading) return;
-      
-      if (!user || !userRole) {
-        setIsLoading(false);
-        return;
-      }
+    const loadKey = userId && userRole ? `${userId}:${userRole}` : null;
 
+    if (isUserLoading) {
+      return;
+    }
+
+    if (!loadKey) {
+      lastLoadedKeyRef.current = null;
+      setClubs([]);
+      setDefaultClubId(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
+    if (lastLoadedKeyRef.current === loadKey) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function fetchClubs() {
       try {
         setIsLoading(true);
         setError(null);
 
         if (userRole === 'ORGANIZADOR') {
-          console.log('🏢 [useUserClubs] Loading clubs for ORGANIZADOR, user:', user?.id);
-          
-          // Get organization clubs for the user - query through organizacion_id
+          console.log('[useUserClubs] Loading clubs for ORGANIZADOR, user:', userId);
+
           const { data: orgMembers, error: memberError } = await supabase
             .from('organization_members')
             .select('organizacion_id')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .eq('is_active', true);
 
-          console.log('🏢 [useUserClubs] User organizations:', { orgMembers, memberError });
+          if (isCancelled) return;
+
+          console.log('[useUserClubs] User organizations:', { orgMembers, memberError });
 
           if (memberError) {
             throw new Error(`Error al cargar organizaciones del usuario: ${memberError.message}`);
           }
 
           if (!orgMembers || orgMembers.length === 0) {
-            console.log('🏢 [useUserClubs] No organizations found for user');
+            lastLoadedKeyRef.current = loadKey;
             setClubs([]);
+            setDefaultClubId(null);
             setError('No perteneces a ninguna organización');
             return;
           }
 
-          const organizationIds = orgMembers.map(member => member.organizacion_id);
+          const organizationIds = orgMembers.map((member) => member.organizacion_id);
 
           const { data: orgClubs, error: orgError } = await supabase
             .from('organization_clubs')
@@ -74,65 +92,91 @@ export function useUserClubs(): UseUserClubsReturn {
             `)
             .in('organizacion_id', organizationIds);
 
-          console.log('🏢 [useUserClubs] Organization query result:', { orgClubs, orgError });
+          if (isCancelled) return;
+
+          console.log('[useUserClubs] Organization query result:', { orgClubs, orgError });
 
           if (orgError) {
             throw new Error(`Error al cargar clubes de organización: ${orgError.message}`);
           }
 
-          // Transform the data to match our Club interface
-          const managedClubs = orgClubs?.map(oc => ({
-            id: oc.clubes.id,
-            name: oc.clubes.name,
-            source: 'organization' as const
+          const managedClubs = orgClubs?.map((organizationClub) => ({
+            id: organizationClub.clubes.id,
+            name: organizationClub.clubes.name,
+            source: 'organization' as const,
           })) || [];
 
-          console.log('🏢 [useUserClubs] Managed clubs result:', managedClubs);
-          
-          if (managedClubs && managedClubs.length > 0) {
+          console.log('[useUserClubs] Managed clubs result:', managedClubs);
+
+          lastLoadedKeyRef.current = loadKey;
+
+          if (managedClubs.length > 0) {
             setClubs(managedClubs);
-            // Don't auto-select for organizers - they must choose
             setDefaultClubId(null);
-          } else {
-            setClubs([]);
-            setError('No tienes clubes asociados a tu organización');
+            return;
           }
-        } else if (userRole === 'CLUB') {
-          console.log('🏠 [useUserClubs] Loading club for CLUB user');
-          const supabase = createClient();
-          
+
+          setClubs([]);
+          setDefaultClubId(null);
+          setError('No tienes clubes asociados a tu organización');
+          return;
+        }
+
+        if (userRole === 'CLUB') {
+          console.log('[useUserClubs] Loading club for CLUB user');
+
           const { data: clubData, error: clubError } = await supabase
             .from('clubes')
             .select('id, name')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .single();
 
+          if (isCancelled) return;
+
+          lastLoadedKeyRef.current = loadKey;
+
           if (!clubError && clubData) {
-            const clubsList = [{ 
-              id: clubData.id, 
-              name: clubData.name, 
-              source: 'owned' as const 
-            }];
-            setClubs(clubsList);
-            // Auto-select for club users
+            setClubs([
+              {
+                id: clubData.id,
+                name: clubData.name,
+                source: 'owned' as const,
+              },
+            ]);
             setDefaultClubId(clubData.id);
-            console.log('🏠 [useUserClubs] Loaded club:', clubData);
-          } else {
-            setClubs([]);
-            setError('No se pudo encontrar tu club');
+            console.log('[useUserClubs] Loaded club:', clubData);
+            return;
           }
+
+          setClubs([]);
+          setDefaultClubId(null);
+          setError('No se pudo encontrar tu club');
+          return;
         }
+
+        lastLoadedKeyRef.current = loadKey;
+        setClubs([]);
+        setDefaultClubId(null);
       } catch (err: any) {
-        console.error('❌ [useUserClubs] Error loading clubs:', err);
+        if (isCancelled) return;
+
+        console.error('[useUserClubs] Error loading clubs:', err);
         setError(err.message || 'Error al cargar clubes');
         setClubs([]);
+        setDefaultClubId(null);
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
     }
 
     fetchClubs();
-  }, [user, userRole, isUserLoading]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isUserLoading, supabase, userId, userRole]);
 
   return {
     clubs,

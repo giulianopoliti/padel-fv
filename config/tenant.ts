@@ -1,12 +1,16 @@
 export interface TenantBranding {
+  key: "padel-fv" | "padel-elite"
   siteName: string
   shortName: string
   siteDomain: string
   supportEmail: string
   tenantOrganizationSlug: string
   logo: {
+    navbar: string
+    hero: string
     onLight: string
     onDark: string
+    mark?: string
   }
   assets: {
     favicon: string
@@ -20,45 +24,109 @@ export interface TenantBranding {
     description: string
   }
   home: {
+    variant: "padel-fv" | "padel-elite"
     title: string
     subtitle: string
     ctaPrimary: string
     ctaSecondary: string
   }
+  features: {
+    publicRanking: boolean
+    showRankingInNav: boolean
+    showTransferProofHighlights: boolean
+    playerPanelVariant: "default" | "padel-elite"
+  }
 }
 
-const defaultBranding: TenantBranding = {
-  siteName: "Padel FV",
-  shortName: "Padel FV",
-  siteDomain: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
-  supportEmail: "hola@padelfv.com",
-  tenantOrganizationSlug: process.env.NEXT_PUBLIC_TENANT_ORGANIZATION_SLUG || "padel-fv",
-  logo: {
-    // These SVGs wrap embedded raster artwork, so we use them as fixed brand assets.
-    onLight: "/FV%20-%20LOGO%20SIN%20FONDO%20-%20LETRA%20AZUL.svg",
-    onDark: "/FV%20-%20LOGO%20SIN%20FONDO%20-%20LETRA%20BLANCA.svg",
+const tenantBranding: Record<TenantBranding["key"], TenantBranding> = {
+  "padel-fv": {
+    key: "padel-fv",
+    siteName: "Padel FV",
+    shortName: "Padel FV",
+    siteDomain: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+    supportEmail: "hola@padelfv.com",
+    tenantOrganizationSlug: process.env.NEXT_PUBLIC_TENANT_ORGANIZATION_SLUG || "padel-fv",
+    logo: {
+      // These SVGs wrap embedded raster artwork, so we use them as fixed brand assets.
+      navbar: "/tenants/padel-fv/FV%20-%20LOGO%20SIN%20FONDO%20-%20LETRA%20BLANCA.svg",
+      hero: "/tenants/padel-fv/FV%20-%20LOGO%20SIN%20FONDO%20-%20LETRA%20AZUL.svg",
+      onLight: "/tenants/padel-fv/FV%20-%20LOGO%20SIN%20FONDO%20-%20LETRA%20AZUL.svg",
+      onDark: "/tenants/padel-fv/FV%20-%20LOGO%20SIN%20FONDO%20-%20LETRA%20BLANCA.svg",
+    },
+    assets: {
+      favicon: "/favicon.ico",
+      appleTouchIcon: "/apple-touch-icon.png",
+      manifest: "/site.webmanifest",
+      placeholderLogo: "/placeholder-logo.svg",
+      placeholderUser: "/placeholder-user.jpg",
+    },
+    seo: {
+      title: "Padel FV",
+      description: "Proximos torneos, sedes y registro simple para el circuito de Padel FV.",
+    },
+    home: {
+      variant: "padel-fv",
+      title: "Padel FV",
+      subtitle: "Todos los proximos torneos del circuito en una vista simple, clara y lista para inscribirte.",
+      ctaPrimary: "Ver proximos torneos",
+      ctaSecondary: "Ver clubes",
+    },
+    features: {
+      publicRanking: false,
+      showRankingInNav: false,
+      showTransferProofHighlights: false,
+      playerPanelVariant: "default",
+    },
   },
-  assets: {
-    favicon: "/favicon.ico",
-    appleTouchIcon: "/apple-touch-icon.png",
-    manifest: "/site.webmanifest",
-    placeholderLogo: "/placeholder-logo.svg",
-    placeholderUser: "/placeholder-user.jpg",
-  },
-  seo: {
-    title: "Padel FV",
-    description: "Proximos torneos, sedes y registro simple para el circuito de Padel FV.",
-  },
-  home: {
-    title: "Padel FV",
-    subtitle: "Todos los proximos torneos del circuito en una vista simple, clara y lista para inscribirte.",
-    ctaPrimary: "Ver proximos torneos",
-    ctaSecondary: "Ver clubes",
+  "padel-elite": {
+    key: "padel-elite",
+    siteName: "PadelElite",
+    shortName: "TPE Padel",
+    siteDomain: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+    supportEmail: "info@padel-elite.com",
+    tenantOrganizationSlug: process.env.NEXT_PUBLIC_TENANT_ORGANIZATION_SLUG || "padel-elite",
+    logo: {
+      navbar: "/tenants/padel-elite/tpe-logo-text.svg",
+      hero: "/tenants/padel-elite/tpe-logo-text.svg",
+      mark: "/tenants/padel-elite/tpe-logo-mark.svg",
+      onLight: "/tenants/padel-elite/tpe-logo-text.svg",
+      onDark: "/tenants/padel-elite/tpe-logo-text.svg",
+    },
+    assets: {
+      favicon: "/favicon.ico",
+      appleTouchIcon: "/apple-touch-icon.png",
+      manifest: "/site.webmanifest",
+      placeholderLogo: "/placeholder-logo.svg",
+      placeholderUser: "/placeholder-user.jpg",
+    },
+    seo: {
+      title: "PadelElite",
+      description: "Torneos semanales de padel con inscripcion clara, rapida y centrada en la experiencia del jugador.",
+    },
+    home: {
+      variant: "padel-elite",
+      title: "Proximos torneos de PadelElite",
+      subtitle: "Toda la agenda semanal en un formato claro: categoria, horario, sede e inscripcion desde el primer vistazo.",
+      ctaPrimary: "Ver torneos",
+      ctaSecondary: "Ver clubes",
+    },
+    features: {
+      publicRanking: true,
+      showRankingInNav: true,
+      showTransferProofHighlights: true,
+      playerPanelVariant: "padel-elite",
+    },
   },
 }
 
 export function getTenantBranding(): TenantBranding {
-  return defaultBranding
+  const tenantKey = process.env.NEXT_PUBLIC_TENANT_KEY as TenantBranding["key"] | undefined
+
+  if (tenantKey && tenantKey in tenantBranding) {
+    return tenantBranding[tenantKey]
+  }
+
+  return tenantBranding["padel-fv"]
 }
 
 export const TENANT_CONFIG = getTenantBranding()

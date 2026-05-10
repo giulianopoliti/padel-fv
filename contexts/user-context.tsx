@@ -1,209 +1,272 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/utils/supabase/client";
-import { useSupabase } from "@/components/supabase-provider";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { User as AuthUser } from "@supabase/supabase-js";
-import type { DetailedUserDetails } from "@/types";
+
 import { signout as serverSignout } from "@/app/auth/login/actions";
+import { useSupabase } from "@/components/supabase-provider";
+import type { DetailedUserDetails } from "@/types";
+import { supabase } from "@/utils/supabase/client";
+
+export type AuthState = "guest" | "session-only" | "ready" | "error";
 
 interface UserContextType {
-  user: AuthUser | null;      
+  user: AuthUser | null;
   userDetails: DetailedUserDetails | null;
-  loading: boolean;           // Para operaciones de refresh
-  authLoading: boolean;       // Estado de carga de autenticación (por ahora simple)
+  authState: AuthState;
+  loading: boolean;
+  authLoading: boolean;
   error: string | null;
-  refreshUserDetails: () => Promise<void>;
+  refreshUserDetails: (targetUser?: AuthUser | null) => Promise<DetailedUserDetails | null>;
   logout: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType>({
-  user: null, 
+  user: null,
   userDetails: null,
+  authState: "guest",
   loading: false,
   authLoading: false,
   error: null,
-  refreshUserDetails: async () => {},
+  refreshUserDetails: async () => null,
   logout: async () => {},
 });
 
-export const UserProvider = ({ 
-  children, 
-  initialUserDetails 
-}: { 
+const hasRequiredRoleId = (details: DetailedUserDetails | null) => {
+  if (!details?.role) {
+    return false;
+  }
+
+  const role = details.role as string;
+
+  switch (role) {
+    case "PLAYER":
+      return !!details.player_id;
+    case "CLUB":
+      return !!details.club_id;
+    case "COACH":
+      return !!details.coach_id;
+    case "ORGANIZADOR":
+      return !!details.organizador_id;
+    case "ADMIN":
+      return true;
+    default:
+      return false;
+  }
+};
+
+const isProfileReady = (authUser: AuthUser | null, details: DetailedUserDetails | null) => {
+  if (!authUser || !details) {
+    return false;
+  }
+
+  if (details.id !== authUser.id) {
+    return false;
+  }
+
+  return hasRequiredRoleId(details);
+};
+
+export const UserProvider = ({
+  children,
+  initialUserDetails,
+}: {
   children: React.ReactNode;
   initialUserDetails: DetailedUserDetails | null;
 }) => {
-  // 🚀 OPTIMIZACIÓN FASE 2: Usar initialUser del servidor
   const { user: serverUser } = useSupabase();
-  
   const [user, setUser] = useState<AuthUser | null>(serverUser);
   const [userDetails, setUserDetails] = useState<DetailedUserDetails | null>(initialUserDetails);
   const [loading, setLoading] = useState(false);
-  const [authLoading] = useState(false); // Placeholder, ajustar si se implementa un loader real
+  const [authLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+  const userDetailsRef = useRef<DetailedUserDetails | null>(initialUserDetails);
+  const userRef = useRef<AuthUser | null>(serverUser);
+  const refreshInFlightRef = useRef<Promise<DetailedUserDetails | null> | null>(null);
+  const lastAutoRefreshUserIdRef = useRef<string | null>(null);
 
-  // 🚀 OPTIMIZACIÓN FASE 2: Función para refrescar detalles del usuario (para updates futuros)
-  const refreshUserDetails = useCallback(async () => {
-    if (!user) {
-      setUserDetails(null);
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Llamar a una API route que use getUserDetails
-      const response = await fetch('/api/user/refresh', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+  useEffect(() => {
+    userDetailsRef.current = userDetails;
+  }, [userDetails]);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const latest = await response.json();
-      
-      if (latest.error) {
-        throw new Error(latest.error);
-      }
-      
-      setUserDetails(latest.data);
-      console.log('[UserContext] User details refreshed successfully');
-    } catch (err: any) {
-      console.error('[UserContext] Error refreshing user details:', err);
-      setError("No se pudo actualizar tus datos. Intenta refrescar la página.");
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    userRef.current = user;
   }, [user]);
 
-  // 🔧 OPTIMIZACIÓN FASE 2: Logout simplificado
+  const refreshUserDetails = useCallback(async (targetUser?: AuthUser | null) => {
+    const currentAuthUser = targetUser ?? userRef.current ?? serverUser ?? null;
+
+    if (!currentAuthUser) {
+      setUserDetails(null);
+      setError(null);
+      lastAutoRefreshUserIdRef.current = null;
+      return null;
+    }
+
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
+    }
+
+    const refreshPromise = (async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch("/api/user/refresh", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.error || `HTTP error! status: ${response.status}`);
+        }
+
+        lastAutoRefreshUserIdRef.current = currentAuthUser.id;
+        setUserDetails(payload.data ?? null);
+        return payload.data ?? null;
+      } catch (err: any) {
+        console.error("[UserContext] Error refreshing user details:", err);
+        setUserDetails(null);
+        setError(err.message || "No se pudo actualizar tus datos. Intenta refrescar la página.");
+        return null;
+      } finally {
+        setLoading(false);
+        refreshInFlightRef.current = null;
+      }
+    })();
+
+    refreshInFlightRef.current = refreshPromise;
+    return refreshPromise;
+  }, [serverUser]);
+
   const logout = useCallback(async () => {
     console.log("[UserContext] Starting logout process...");
     setError(null);
-    
-    const previousUser = user;
-    const previousUserDetails = userDetails;
-    
-    console.log("[UserContext] Clearing state optimistically...");
     setUser(null);
     setUserDetails(null);
-    
+
     try {
-      console.log("[UserContext] Calling server signout...");
-      const result = await serverSignout(); 
-      
-      console.log("[UserContext] Server signout result:", result);
-      
-      if (result.success) {
-        console.log("[UserContext] Logout completed successfully");
+      const result = await serverSignout();
+
+      if (result.success || result.error === "Auth session missing!") {
         return;
-      } else {
-        console.warn("[UserContext] Server signout failed:", result.error);
-        
-        if (result.error === 'Auth session missing!') {
-          console.log("[UserContext] Session already missing, logout successful");
-          return;
-        }
-        
-        console.log("[UserContext] Attempting direct Supabase logout...");
-        const { error: directLogoutError } = await supabase.auth.signOut({ scope: 'local' });
-        
-        if (directLogoutError) {
-          console.error("[UserContext] Direct logout also failed:", directLogoutError);
-          throw new Error(`Logout failed: ${directLogoutError.message}`);
-        }
-        
-        console.log("[UserContext] Direct logout successful");
+      }
+
+      const { error: directLogoutError } = await supabase.auth.signOut({ scope: "local" });
+
+      if (directLogoutError) {
+        throw new Error(`Logout failed: ${directLogoutError.message}`);
       }
     } catch (err: any) {
       console.error("[UserContext] Logout error:", err);
-      
-      console.log("[UserContext] Keeping optimistic logout despite error");
-      
-      if (typeof window !== 'undefined') {
-        console.log("[UserContext] Force redirecting to login due to error...");
+
+      if (typeof window !== "undefined") {
         setTimeout(() => {
-          window.location.href = '/login';
+          window.location.href = "/login";
         }, 1000);
         return;
       }
-      
-      setError(err.message || "Error al cerrar sesión, pero la sesión se cerró localmente.");
-    } 
-  }, [user, userDetails, router]);
 
-  // 🚀 OPTIMIZACIÓN FASE 2: Effect simplificado para manejar cambios de autenticación
+      setError(err.message || "Error al cerrar sesión, pero la sesión se cerró localmente.");
+    }
+  }, []);
+
   useEffect(() => {
-    let isMounted = true;
-    
-    // 🔧 Sincronizar usuario con el servidor
-    if (serverUser && isMounted) {
-      setUser(serverUser);
-      // Si no tenemos detalles y tenemos usuario, pero el servidor no envió detalles,
-      // puede ser que necesitemos refrescar
-      if (!userDetails && serverUser) {
-        console.log("[UserContext] Server user detected but no details, keeping null for now");
-      }
-    } else if (!serverUser && isMounted) {
+    if (!serverUser) {
       setUser(null);
       setUserDetails(null);
+      setError(null);
+      lastAutoRefreshUserIdRef.current = null;
+      return;
     }
 
-    // 🔧 Auth state listener simplificado
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!isMounted) return;
+    setUser((previousUser) => {
+      if (previousUser?.id === serverUser.id) {
+        return previousUser;
+      }
+      return serverUser;
+    });
 
-        console.log("[UserContext] Auth state changed:", event);
-        
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
+    const hasDetailsForCurrentUser = userDetailsRef.current?.id === serverUser.id;
+    const alreadyAutoRefreshedCurrentUser = lastAutoRefreshUserIdRef.current === serverUser.id;
 
-        if (currentUser) {
-          if (event === 'SIGNED_IN') {
-            console.log("[UserContext] User signed in, will need to refresh page for server-side details");
-            // En lugar de hacer fetch aquí, dejamos que el servidor maneje los detalles
-            // en el próximo refresh de página
-          }
-        } else {
-          setUserDetails(null);
-          setError(null);
+    if (!hasDetailsForCurrentUser && !alreadyAutoRefreshedCurrentUser) {
+      void refreshUserDetails(serverUser);
+    }
+  }, [refreshUserDetails, serverUser]);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("[UserContext] Auth state changed:", event);
+
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+
+      if (!currentUser) {
+        setUserDetails(null);
+        setError(null);
+        lastAutoRefreshUserIdRef.current = null;
+        return;
+      }
+
+      if (userDetailsRef.current?.id && userDetailsRef.current.id !== currentUser.id) {
+        setUserDetails(null);
+        lastAutoRefreshUserIdRef.current = null;
+      }
+
+      if (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        const hasDetailsForCurrentUser = userDetailsRef.current?.id === currentUser.id;
+        const alreadyAutoRefreshedCurrentUser = lastAutoRefreshUserIdRef.current === currentUser.id;
+
+        if (!hasDetailsForCurrentUser && !alreadyAutoRefreshedCurrentUser) {
+          await refreshUserDetails(currentUser);
         }
       }
-    );
+    });
 
     return () => {
-      isMounted = false;
       subscription?.unsubscribe();
     };
-  }, [serverUser, userDetails]);
+  }, [refreshUserDetails]);
 
-  // 🔧 OPTIMIZACIÓN FASE 2: Memoización mejorada
-  const contextValue = useMemo(() => ({ 
+  const authState: AuthState = useMemo(() => {
+    if (!user) {
+      return "guest";
+    }
+
+    if (isProfileReady(user, userDetails)) {
+      return "ready";
+    }
+
+    if (error) {
+      return "error";
+    }
+
+    return "session-only";
+  }, [error, user, userDetails]);
+
+  const contextValue = useMemo(() => ({
     user,
     userDetails,
+    authState,
     loading,
     authLoading,
     error,
     refreshUserDetails,
-    logout
-  }), [user, userDetails, loading, authLoading, error, refreshUserDetails, logout]);
+    logout,
+  }), [authLoading, authState, error, loading, logout, refreshUserDetails, user, userDetails]);
 
   return <UserContext.Provider value={contextValue}>{children}</UserContext.Provider>;
-}; 
+};
 
 export const useUser = () => {
   const context = useContext(UserContext);
   if (context === undefined) {
-    throw new Error('useUser must be used within a UserProvider');
+    throw new Error("useUser must be used within a UserProvider");
   }
   return context;
 };

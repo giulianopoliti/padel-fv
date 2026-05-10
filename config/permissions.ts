@@ -1,3 +1,5 @@
+import { getTenantBranding } from "@/config/tenant"
+
 type Role = "PLAYER" | "CLUB" | "COACH" | "ADMIN" | "ORGANIZADOR"
 
 export type IconName =
@@ -30,6 +32,12 @@ const routePermissions: RouteConfig[] = [
     path: "/panel",
     label: "Mi Panel",
     icon: "LayoutDashboard",
+    roles: ["PLAYER", "CLUB", "COACH", "ADMIN", "ORGANIZADOR"],
+  },
+  {
+    path: "/ranking",
+    label: "Ranking",
+    icon: "BarChart",
     roles: ["PLAYER", "CLUB", "COACH", "ADMIN", "ORGANIZADOR"],
   },
   {
@@ -77,7 +85,19 @@ export function checkRoutePermission(path: string, role?: Role | null): boolean 
     return role === "ADMIN"
   }
 
-  const publicPaths = ["/", "/login", "/auth/callback", "/register", "/clubes", "/coaches", "/players", "/info", "/complete-google-profile"]
+  const branding = getTenantBranding()
+  const publicPaths = [
+    "/",
+    "/login",
+    "/auth/callback",
+    "/register",
+    "/clubes",
+    "/coaches",
+    "/players",
+    "/info",
+    "/complete-google-profile",
+    ...(branding.features.publicRanking ? ["/ranking"] : []),
+  ]
 
   if (path.startsWith("/tournaments") && !path.startsWith("/tournaments/create")) {
     return true
@@ -92,7 +112,7 @@ export function checkRoutePermission(path: string, role?: Role | null): boolean 
     return !!role
   }
 
-  if (publicPaths.some((publicPath) => path.startsWith(publicPath))) {
+  if (publicPaths.some((publicPath) => path === publicPath || path.startsWith(`${publicPath}/`))) {
     return true
   }
 

@@ -39,10 +39,10 @@ function cleanupExpiredCache() {
 setInterval(cleanupExpiredCache, 10 * 60 * 1000)
 
 // Protected routes that require authentication
-const DASHBOARD_PATH = "/panel-cpa"
+const DASHBOARD_PATH = "/panel"
 const ADMIN_DASHBOARD_PATH = "/admin"
 const ADMIN_LOGIN_PATH = "/admin-login"
-const PROTECTED_ROUTES = [DASHBOARD_PATH, "/edit-profile", "/profile"]
+const PROTECTED_ROUTES = [DASHBOARD_PATH, "/panel-cpa", "/edit-profile", "/profile"]
 const ADMIN_ROUTES = [ADMIN_DASHBOARD_PATH] // Routes that require ADMIN role
 
 export async function updateSession(request: NextRequest) {

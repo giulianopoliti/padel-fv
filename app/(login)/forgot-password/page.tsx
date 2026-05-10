@@ -66,8 +66,8 @@ export default function ForgotPasswordPage() {
 
   if (isEmailSent) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#f7f7f7_0%,#ffffff_50%,#eef3f9_100%)] p-4">
-        <Card className="w-full max-w-md shadow-lg border-0">
+      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#0a1224_0%,#0f1a34_50%,#162857_100%)] p-4 text-white">
+        <Card className="w-full max-w-md border border-white/10 bg-brand-900/70 shadow-lg backdrop-blur-sm">
           <CardHeader className="space-y-1 pb-6">
             <div className="flex justify-center mb-4">
               <CPALogo />
@@ -77,17 +77,17 @@ export default function ForgotPasswordPage() {
                 <CheckCircle className="h-8 w-8 text-brand-700" />
               </div>
             </div>
-            <CardTitle className="text-2xl font-bold text-center text-slate-800">
+            <CardTitle className="text-2xl font-bold text-center text-white">
               Email Enviado
             </CardTitle>
-            <CardDescription className="text-center text-slate-600">
+            <CardDescription className="text-center text-slate-300">
               Te hemos enviado un link para restablecer tu contraseña
             </CardDescription>
           </CardHeader>
           
           <CardContent className="space-y-4 text-center">
             <div className="space-y-2">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-slate-300">
                 Revisa tu bandeja de entrada en:
               </p>
               <p className="rounded-lg bg-brand-50 px-3 py-2 font-semibold text-brand-900">
@@ -108,14 +108,14 @@ export default function ForgotPasswordPage() {
                 setIsEmailSent(false)
                 setEmail("")
               }}
-              className="w-full border-brand-100 text-brand-700 hover:bg-brand-50"
+              className="w-full border-white/10 bg-white/5 text-white hover:bg-white/10"
             >
               Enviar a otro email
             </Button>
             
             <Link 
               href="/login" 
-              className="flex items-center justify-center gap-2 text-sm font-medium text-slate-600 hover:text-brand-900"
+              className="flex items-center justify-center gap-2 text-sm font-medium text-slate-300 hover:text-court-300"
             >
               <ArrowLeft className="h-4 w-4" />
               Volver al inicio de sesión
@@ -127,8 +127,8 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#f7f7f7_0%,#ffffff_50%,#eef3f9_100%)] p-4">
-        <Card className="w-full max-w-md shadow-lg border-0">
+      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#0a1224_0%,#0f1a34_50%,#162857_100%)] p-4 text-white">
+        <Card className="w-full max-w-md border border-white/10 bg-brand-900/70 shadow-lg backdrop-blur-sm">
         <CardHeader className="space-y-1 pb-6">
           <div className="flex justify-center mb-4">
             <CPALogo />
@@ -138,10 +138,10 @@ export default function ForgotPasswordPage() {
                 <Mail className="h-8 w-8 text-brand-600" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-center text-slate-800">
+          <CardTitle className="text-2xl font-bold text-center text-white">
             ¿Olvidaste tu contraseña?
           </CardTitle>
-          <CardDescription className="text-center text-slate-600">
+          <CardDescription className="text-center text-slate-300">
             Ingresa tu email y te enviaremos un link para restablecer tu contraseña
           </CardDescription>
         </CardHeader>
@@ -157,7 +157,7 @@ export default function ForgotPasswordPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isSubmitting}
-                className="h-11 border-brand-100"
+                className="h-11 border-white/10 bg-white/5 text-white placeholder:text-slate-400"
                 autoComplete="email"
                 required
               />
@@ -181,7 +181,7 @@ export default function ForgotPasswordPage() {
             
             <Link 
               href="/login" 
-              className="flex items-center justify-center gap-2 text-sm font-medium text-slate-600 hover:text-brand-900"
+              className="flex items-center justify-center gap-2 text-sm font-medium text-slate-300 hover:text-court-300"
             >
               <ArrowLeft className="h-4 w-4" />
               Volver al inicio de sesión

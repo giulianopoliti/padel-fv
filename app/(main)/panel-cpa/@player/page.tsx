@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { User, Trophy, Calendar, MapPin, Users, Edit, Clock, Swords, Target } from "lucide-react"
 import Link from "next/link"
-import { getPlayerDashboardData, getPlayerInscribedTournaments, getPlayerUpcomingTournaments } from "@/app/api/panel-cpa/actions"
+import { getPlayerDashboardData, getPlayerInscribedTournaments, getPlayerUpcomingTournaments } from "@/app/api/panel/actions"
 import { InscribedTournamentsCard } from "./components/inscribed-tournaments-card"
 import { getCategoryColor } from "@/lib/utils/category-colors"
 
@@ -42,8 +42,8 @@ export default async function PlayerDashboard() {
     : { inscribedTournaments: [] }
 
   // Obtener próximos torneos usando Edge Function optimizada
-  const { upcomingTournaments } = playerData?.id && playerData.category_name
-    ? await getPlayerUpcomingTournaments(playerData.id, playerData.category_name)
+  const { upcomingTournaments } = playerData?.id
+    ? await getPlayerUpcomingTournaments(playerData.id)
     : { upcomingTournaments: [] }
 
   // Format date with day of week and time

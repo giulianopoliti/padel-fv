@@ -142,59 +142,59 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(135deg,#f7f7f7_0%,#ffffff_50%,#eef3f9_100%)]">
+    <div className="min-h-screen bg-[linear-gradient(135deg,#0a1224_0%,#0f1a34_50%,#162857_100%)] text-white">
       <div className="container mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-8">
         <div className="mb-8 flex items-center justify-between">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition-colors hover:text-brand-900"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-200 transition-colors hover:text-court-300"
           >
             <ArrowLeft className="h-4 w-4" />
             Volver al inicio
           </Link>
-          <BrandLogo variant="navbar" surface="light" />
+          <BrandLogo variant="navbar" surface="dark" />
         </div>
 
         <div className="grid flex-1 items-center gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-          <section className="space-y-6 rounded-[2rem] border border-brand-100 bg-white/80 p-8 shadow-sm backdrop-blur-sm lg:p-12">
-            <div className="inline-flex items-center rounded-full bg-brand-900 px-4 py-1 text-sm font-medium text-white">
+          <section className="space-y-6 rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-sm backdrop-blur-sm lg:p-12">
+            <div className="inline-flex items-center rounded-full bg-court-500 px-4 py-1 text-sm font-medium text-brand-900">
               Acceso unificado
             </div>
             <div className="space-y-4">
-              <h1 className="max-w-xl text-4xl font-black tracking-tight text-brand-900 lg:text-5xl">
+              <h1 className="max-w-xl text-4xl font-black tracking-tight text-white lg:text-5xl">
                 Ingresa a {TENANT_CONFIG.siteName} desde un unico acceso.
               </h1>
-              <p className="max-w-2xl text-base leading-7 text-slate-600 lg:text-lg">
+              <p className="max-w-2xl text-base leading-7 text-slate-200 lg:text-lg">
                 Jugadores y organizadores usan el mismo login. Si tu cuenta tiene permisos de organizacion,
                 el sistema te lleva automaticamente a tu panel.
               </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-brand-100 bg-white p-5">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Jugadores</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-court-300">Jugadores</h2>
+                <p className="mt-3 text-sm leading-6 text-slate-200">
                   Podes registrarte desde este mismo sitio, gestionar tu perfil e inscribirte a torneos.
                 </p>
               </div>
-              <div className="rounded-2xl border border-brand-100 bg-white p-5">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Organizacion</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-court-300">Organizacion</h2>
+                <p className="mt-3 text-sm leading-6 text-slate-200">
                   Las cuentas con permisos de organizacion se habilitan manualmente y comparten este mismo acceso.
                 </p>
               </div>
             </div>
           </section>
 
-          <Card className="overflow-hidden rounded-[2rem] border-0 bg-white shadow-2xl">
-            <div className="h-2 bg-gradient-to-r from-brand-700 via-brand-600 to-court-500" />
+          <Card className="overflow-hidden rounded-[2rem] border border-white/10 bg-brand-900/70 shadow-2xl backdrop-blur-sm">
+            <div className="h-2 bg-gradient-to-r from-court-400 via-court-500 to-court-300" />
             <CardHeader className="space-y-3 px-8 pt-8 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-900">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5">
                 <BrandLogo variant="navbar" surface="dark" className="h-10 w-auto" />
               </div>
               <div>
-                <CardTitle className="text-2xl font-bold text-slate-900">Iniciar sesion</CardTitle>
-                <CardDescription className="mt-2 text-sm leading-6 text-slate-600">
+                <CardTitle className="text-2xl font-bold text-white">Iniciar sesion</CardTitle>
+                <CardDescription className="mt-2 text-sm leading-6 text-slate-300">
                   Usa tu email y contraseña. Si ya sos parte del staff organizador, vas a entrar con ese mismo usuario.
                 </CardDescription>
               </div>
@@ -214,7 +214,7 @@ export default function LoginPage() {
                     autoComplete="email"
                     required
                     disabled={isSubmitting}
-                    className="h-12 rounded-xl border-brand-100"
+                    className="h-12 rounded-xl border-white/10 bg-white/5 text-white placeholder:text-slate-400"
                   />
                 </div>
 
@@ -230,12 +230,12 @@ export default function LoginPage() {
                       autoComplete="current-password"
                       required
                       disabled={isSubmitting}
-                      className="h-12 rounded-xl border-brand-100 pr-12"
+                      className="h-12 rounded-xl border-white/10 bg-white/5 pr-12 text-white"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((prev) => !prev)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-700"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-white"
                       aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                     >
                       {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -244,7 +244,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="flex justify-end">
-                  <Link href="/forgot-password" className="text-sm font-medium text-slate-600 hover:text-brand-900">
+                  <Link href="/forgot-password" className="text-sm font-medium text-slate-300 hover:text-court-300">
                     ¿Olvidaste tu contraseña?
                   </Link>
                 </div>
@@ -252,7 +252,7 @@ export default function LoginPage() {
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="h-12 w-full rounded-xl bg-brand-600 text-base font-semibold text-white hover:bg-brand-700"
+                  className="h-12 w-full rounded-xl bg-court-500 text-base font-semibold text-brand-900 hover:bg-court-400"
                 >
                   {isSubmitting ? (
                     <span className="inline-flex items-center gap-2">
@@ -275,7 +275,7 @@ export default function LoginPage() {
                   variant="outline"
                   onClick={handleGoogleLogin}
                   disabled={isSubmitting}
-                  className="h-12 w-full rounded-xl border-brand-100 text-base font-medium text-brand-700 hover:bg-brand-50"
+                  className="h-12 w-full rounded-xl border-white/10 bg-white/5 text-base font-medium text-white hover:bg-white/10"
                 >
                   Continuar con Google
                 </Button>
@@ -283,16 +283,16 @@ export default function LoginPage() {
             </CardContent>
 
             <CardFooter className="flex flex-col gap-4 px-8 pb-8">
-              <div className="rounded-2xl bg-brand-50 p-4 text-sm leading-6 text-slate-600">
+              <div className="rounded-2xl bg-white/5 p-4 text-sm leading-6 text-slate-200">
                 Si necesitas acceso como organizador y todavia no lo tenes habilitado, escribi a{" "}
-                <a className="font-semibold text-brand-900" href={`mailto:${TENANT_CONFIG.supportEmail}`}>
+                <a className="font-semibold text-court-300" href={`mailto:${TENANT_CONFIG.supportEmail}`}>
                   {TENANT_CONFIG.supportEmail}
                 </a>
                 .
               </div>
-              <p className="text-center text-sm text-slate-500">
+              <p className="text-center text-sm text-slate-300">
                 ¿Todavia no tenes cuenta?{" "}
-                <Link href={registerHref} className="font-semibold text-brand-900 hover:text-brand-700">
+                <Link href={registerHref} className="font-semibold text-court-300 hover:text-court-200">
                   Crear usuario jugador
                 </Link>
               </p>

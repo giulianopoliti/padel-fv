@@ -59,19 +59,19 @@ export default function TournamentsLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f7f7_0%,#ffffff_40%,#f4f7fb_100%)]">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#223765_0%,#243b6c_45%,#1f335d_100%)] text-white">
       {(userDetails?.role === "CLUB" || userDetails?.role === "ORGANIZADOR") ? (
-        <div className="border-b border-brand-100 bg-white">
+        <div className="border-b border-white/10 bg-[#213761]/82">
           <div className="container mx-auto px-6 py-4">
             <div className="flex justify-end">
               <div className="flex flex-col gap-3 sm:flex-row">
-                <Button asChild className="bg-brand-600 text-white hover:bg-brand-700">
+                <Button asChild className="bg-court-500 text-brand-900 hover:bg-court-400">
                   <Link href="/my-tournaments">
                     <Settings className="mr-2 h-4 w-4" />
                     Gestionar Mis Torneos
                   </Link>
                 </Button>
-                <Button asChild variant="outline" className="border-brand-200 text-brand-700 hover:bg-brand-50">
+                <Button asChild variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10">
                   <Link href="/tournaments/create">
                     <Plus className="mr-2 h-4 w-4" />
                     Crear Nuevo Torneo
@@ -85,12 +85,12 @@ export default function TournamentsLayout({
 
       <div className="container mx-auto max-w-6xl px-6 py-12">
         <div className="mb-10">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">Padel FV</p>
-          <h1 className="mb-4 text-4xl font-black tracking-tight text-brand-900">{title}</h1>
-          <p className="max-w-3xl text-lg text-slate-600">{description}</p>
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-court-300">Padel FV</p>
+          <h1 className="mb-4 text-4xl font-black tracking-tight text-white">{title}</h1>
+          <p className="max-w-3xl text-lg text-slate-200">{description}</p>
         </div>
 
-        <div className="mb-10 space-y-6 rounded-3xl border border-brand-100 bg-white p-6 shadow-sm">
+        <div className="mb-10 space-y-6 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-sm backdrop-blur-sm">
           <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 transform text-gray-400" size={18} />
@@ -98,15 +98,15 @@ export default function TournamentsLayout({
                 placeholder="Buscar torneos..."
                 value={searchTerm}
                 onChange={(e) => handleSearch(e.target.value)}
-                className="pl-10 text-gray-600 placeholder:text-gray-400 focus:border-brand-300 focus:ring-brand-200"
+                className="border-white/10 bg-white/5 pl-10 text-white placeholder:text-slate-400 focus:border-court-500/50 focus:ring-court-500/20"
               />
             </div>
 
-            <div className="grid w-full max-w-md grid-cols-2 rounded-2xl bg-brand-100/70 p-1">
+            <div className="grid w-full max-w-md grid-cols-2 rounded-2xl border border-white/10 bg-white/5 p-1">
               <Link
                 href={buildTypeHref("LONG")}
                 className={`rounded-xl px-4 py-3 text-center text-sm font-semibold transition-colors ${
-                  currentType === "LONG" ? "bg-white text-brand-700 shadow-sm" : "text-slate-600 hover:text-brand-900"
+                  currentType === "LONG" ? "bg-court-500 text-brand-900 shadow-sm" : "text-slate-300 hover:text-white"
                 }`}
               >
                 Ligas
@@ -114,7 +114,7 @@ export default function TournamentsLayout({
               <Link
                 href={buildTypeHref("AMERICAN")}
                 className={`rounded-xl px-4 py-3 text-center text-sm font-semibold transition-colors ${
-                  currentType === "AMERICAN" ? "bg-white text-brand-700 shadow-sm" : "text-slate-600 hover:text-brand-900"
+                  currentType === "AMERICAN" ? "bg-court-500 text-brand-900 shadow-sm" : "text-slate-300 hover:text-white"
                 }`}
               >
                 Americanos
@@ -125,7 +125,7 @@ export default function TournamentsLayout({
           <TournamentFilters categories={categories} clubs={clubs} />
         </div>
 
-        <div className="rounded-3xl border border-brand-100 bg-white p-6 shadow-sm">{children}</div>
+        <div className="rounded-3xl border border-white/10 bg-[#1b2d52]/76 p-6 shadow-sm backdrop-blur-sm">{children}</div>
       </div>
     </div>
   )

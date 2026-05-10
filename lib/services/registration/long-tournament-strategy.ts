@@ -10,6 +10,7 @@
  */
 
 import { BaseRegistrationStrategy } from './registration-strategy.interface'
+import { ensureLongTournamentGeneralZone } from '@/lib/services/tournaments/long-general-zone'
 import { checkAndSetPlayerOrganizador } from '@/utils/player-organizador'
 import { normalizePlayerDni } from '@/lib/utils/player-dni'
 import { findExistingPlayerByIdentity } from '@/lib/utils/player-identity'
@@ -521,12 +522,27 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
     try {
       console.log(`[LongStrategy] 🎯 INICIANDO assignCoupleToGeneralZone: tournament=${tournamentId}, couple=${coupleId}`)
 
+      const ensuredZoneResult = await ensureLongTournamentGeneralZone(tournamentId)
+      if (!ensuredZoneResult.success) {
+        console.error('[LongStrategy] Error ensuring LONG general zone:', {
+          tournamentId,
+          coupleId,
+          ensuredZoneResult,
+        })
+        return {
+          success: false,
+          error: ensuredZoneResult.error || 'No se encontrÃ³ zona para el torneo'
+        }
+      }
+
       // Buscar la zona del torneo (debe haber una sola para LONG)
       const { data: zone, error: zoneError } = await supabase
         .from('zones')
         .select('id')
         .eq('tournament_id', tournamentId)
-        .single()
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
 
       if (zoneError) {
         console.error('[LongStrategy] Error buscando zona:', zoneError)

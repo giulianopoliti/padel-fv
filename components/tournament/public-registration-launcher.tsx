@@ -45,7 +45,7 @@ export default function PublicRegistrationLauncher({
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, userDetails } = useUser()
+  const { user, userDetails, authState, refreshUserDetails } = useUser()
   const { toast } = useToast()
 
   const redirectBase = useMemo(() => `/tournaments/${tournamentId}`, [tournamentId])
@@ -53,7 +53,16 @@ export default function PublicRegistrationLauncher({
   useEffect(() => {
     const intent = searchParams.get("intent")
 
-    if (!user || userDetails?.role !== "PLAYER") {
+    if (!user || !intent) {
+      return
+    }
+
+    if (authState === "session-only") {
+      void refreshUserDetails(user)
+      return
+    }
+
+    if (authState !== "ready" || userDetails?.role !== "PLAYER" || !userDetails?.player_id) {
       return
     }
 
@@ -66,18 +75,31 @@ export default function PublicRegistrationLauncher({
       const nextUrl = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname
       router.replace(nextUrl, { scroll: false })
     }
-  }, [coupleOnlyMode, pathname, router, searchParams, user, userDetails?.role])
+  }, [authState, coupleOnlyMode, pathname, refreshUserDetails, router, searchParams, user, userDetails?.player_id, userDetails?.role])
 
   const registerHref = `/register?role=PLAYER&redirectTo=${encodeURIComponent(redirectBase)}&intent=${activeTab}`
   const loginHref = `/login?role=PLAYER&redirectTo=${encodeURIComponent(redirectBase)}&intent=${activeTab}`
 
-  const handleOpen = () => {
+  const handleOpen = async () => {
     if (!user) {
       setAuthDialogOpen(true)
       return
     }
 
-    if (userDetails?.role !== "PLAYER" || !userDetails?.player_id) {
+    const resolvedUserDetails =
+      authState === "ready" && userDetails?.id === user.id
+        ? userDetails
+        : await refreshUserDetails(user)
+
+    if (!resolvedUserDetails) {
+      toast({
+        title: "Estamos preparando tu cuenta",
+        description: "La sesión se abrió, pero todavía estamos cargando tu perfil. Intenta nuevamente en unos segundos.",
+      })
+      return
+    }
+
+    if (resolvedUserDetails.role !== "PLAYER" || !resolvedUserDetails.player_id) {
       toast({
         title: "Perfil requerido",
         description: "Debes ingresar con una cuenta de jugador para inscribirte.",
@@ -100,7 +122,7 @@ export default function PublicRegistrationLauncher({
     }
 
     setRegisterDialogOpen(false)
-    router.refresh()
+    window.location.assign(redirectBase)
   }
 
   return (

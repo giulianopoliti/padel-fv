@@ -1,66 +1,35 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Progress } from '@/components/ui/progress';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  FormDescription,
-} from '@/components/ui/form';
-import { createClient } from '@/utils/supabase/client';
-import { useRouter } from 'next/navigation';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Check, CheckCircle, AlertCircle, Loader2, ArrowLeft, ArrowRight, Trophy, FileText, Settings, CalendarDays, Users, Tag, Award, Building2, Sparkles, Info, Clock, Calendar, X } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+
 import { createTournamentAction } from '@/app/api/tournaments/actions';
 import { useUser } from '@/contexts/user-context';
-import { useUserClubs } from '@/hooks/use-user-clubs';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import {
-  Trophy,
-  Calendar,
-  Clock,
-  Users,
-  FileText,
-  Tag,
-  ArrowLeft,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  Building2,
-  Sparkles,
-  MapPin,
-  Settings,
-  Info,
-  CalendarDays,
-  X,
-  Award,
-} from 'lucide-react';
-import Link from 'next/link';
 import { getPresetOptionsByType } from '@/config/tournament-format-presets';
+import { useUserClubs } from '@/hooks/use-user-clubs';
 import { buildTournamentFormatConfig } from '@/lib/services/tournament-format-config-builder';
+import { cn } from '@/lib/utils';
 import type { TournamentFormatPresetId } from '@/types/tournament-format-v2';
+import { createClient } from '@/utils/supabase/client';
+import { useRouter } from 'next/navigation';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Progress } from '@/components/ui/progress';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Category {
   name: string;
@@ -82,6 +51,27 @@ const PRESET_OPTIONS = {
   LONG: getPresetOptionsByType('LONG'),
 } as const;
 
+const STEP_TITLES = [
+  {
+    id: 1,
+    title: 'Base',
+    description: 'Identidad y formato',
+    icon: FileText,
+  },
+  {
+    id: 2,
+    title: 'Agenda',
+    description: 'Fechas del torneo',
+    icon: CalendarDays,
+  },
+  {
+    id: 3,
+    title: 'Cierre',
+    description: 'Cupo y revisión final',
+    icon: Trophy,
+  },
+] as const;
+
 const tournamentSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   description: z.string().optional(),
@@ -94,7 +84,7 @@ const tournamentSchema = z.object({
     required_error: 'Selecciona un género',
   }),
   start_date: z.string().min(1, 'La fecha de inicio es obligatoria'),
-  start_time: z.string().optional(), // Optional for LONG tournaments
+  start_time: z.string().optional(),
   end_date: z.string().optional(),
   end_time: z.string().optional(),
   max_participants: z.number().min(2, 'Mínimo 2 parejas').max(64, 'Máximo 64 parejas').optional(),
@@ -102,12 +92,11 @@ const tournamentSchema = z.object({
   extra_club_ids: z.array(z.string()).default([]),
   price: z.number().int('El precio debe ser un número entero').min(0, 'El precio no puede ser negativo').max(32767, 'El precio es demasiado alto').optional(),
   award: z.string().optional(),
-  single_bracket_advance_count: z.number().int().min(2, 'MÃ­nimo 2 parejas').optional(),
+  single_bracket_advance_count: z.number().int().min(2, 'Mínimo 2 parejas').optional(),
   gold_count: z.number().int().min(0, 'No puede ser negativo').optional(),
   silver_count: z.number().int().min(0, 'No puede ser negativo').optional(),
   eliminated_count: z.number().int().min(0, 'No puede ser negativo').optional(),
 }).refine((data) => {
-  // For AMERICAN tournaments, start_time is required
   if (data.type === 'AMERICAN' && !data.start_time) {
     return false;
   }
@@ -116,7 +105,6 @@ const tournamentSchema = z.object({
   message: 'Para torneos americanos, la hora de inicio es obligatoria',
   path: ['start_time'],
 }).refine((data) => {
-  // For LONG tournaments, end_date is required
   if (data.type === 'LONG' && !data.end_date) {
     return false;
   }
@@ -133,18 +121,65 @@ const tournamentSchema = z.object({
 
 type TournamentFormData = z.infer<typeof tournamentSchema>;
 
+const TYPE_COPY = {
+  AMERICAN: {
+    title: 'Americano',
+    description: 'Pensado para resolverse en un solo día, con horarios más definidos.',
+    badge: '1 día',
+  },
+  LONG: {
+    title: 'Long',
+    description: 'Ideal para una competencia distribuida en varios días con cierre estimado.',
+    badge: 'Varios días',
+  },
+} as const;
+
+const formatInputDate = (date: string) => {
+  if (!date) return 'Sin definir';
+  const parsed = new Date(`${date}T12:00:00`);
+  return parsed.toLocaleDateString('es-AR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
+const formatCurrency = (value?: number) => {
+  if (value === undefined || value === null) return 'Sin definir';
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(value);
+};
+
+const getPresetMeta = (presetId: string) => {
+  const preset = [...PRESET_OPTIONS.AMERICAN, ...PRESET_OPTIONS.LONG].find((option) => option.presetId === presetId);
+  if (!preset) return [];
+
+  const zoneLabel = preset.zoneMode === 'MULTI_ZONE' ? 'Múltiples zonas' : 'Zona única';
+  const stageLabel = preset.zoneStage === 'ROUND_ROBIN' ? 'Todos contra todos' : `${preset.targetMatchesPerCouple ?? 0} partidos por pareja`;
+  const bracketLabel = preset.bracketMode === 'SINGLE'
+    ? 'Llave única'
+    : preset.bracketMode === 'GOLD_SILVER'
+      ? 'Copa Oro y Plata'
+      : 'Campeón directo';
+
+  return [zoneLabel, stageLabel, bracketLabel];
+};
+
 export default function TournamentCreateForm() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const { user, userDetails, loading: isUserLoading } = useUser();
-  const { clubs, isLoading: isClubsLoading, error: clubsError } = useUserClubs();
-  
+  const { clubs, isLoading: isClubsLoading, error: clubsError, defaultClubId } = useUserClubs();
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [formProgress, setFormProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState(1);
 
   const form = useForm<TournamentFormData>({
     resolver: zodResolver(tournamentSchema),
@@ -172,50 +207,38 @@ export default function TournamentCreateForm() {
   });
 
   const watchedValues = form.watch();
-  const isAmericanTournament = watchedValues.type === 'AMERICAN';
   const selectedType = watchedValues.type;
-  const presetOptions = selectedType ? PRESET_OPTIONS[selectedType] : [];
+  const isAmericanTournament = selectedType === 'AMERICAN';
+  const presetOptions = PRESET_OPTIONS[selectedType];
   const selectedPreset = presetOptions.find((preset) => preset.presetId === watchedValues.format_preset);
+  const extraClubIds = form.watch('extra_club_ids') || [];
   const userRole = userDetails?.role;
+  const selectedClub = clubs.find((club) => club.id === watchedValues.club_id);
+  const selectedExtraClubs = clubs.filter((club) => extraClubIds.includes(club.id));
+  const progressValue = (currentStep / STEP_TITLES.length) * 100;
 
-  // Calcular progreso del formulario
-  useEffect(() => {
-    const requiredFields = ['name', 'category_name', 'type', 'format_preset', 'gender', 'start_date', 'start_time', 'club_id'];
-    const conditionalFields = isAmericanTournament ? [] : ['end_date', 'end_time'];
-    const allRequiredFields = [...requiredFields, ...conditionalFields];
-    
-    const filledFields = allRequiredFields.filter(field => {
-      const value = watchedValues[field as keyof TournamentFormData];
-      return value !== '' && value !== undefined && value !== null;
-    });
-    
-    const progress = (filledFields.length / allRequiredFields.length) * 100;
-    setFormProgress(progress);
-  }, [watchedValues, isAmericanTournament]);
-
-  // Cargar categorías
   useEffect(() => {
     async function fetchCategories() {
       if (isUserLoading) return;
-      
+
       if (!user) {
         router.push('/login');
         return;
       }
-      
+
       try {
         setIsLoading(true);
         setError(null);
-        
+
         const { data: categoriesData, error: categoriesError } = await supabase
           .from('categories')
           .select('name')
           .order('name');
-          
+
         if (categoriesError) {
           throw new Error(`Error al cargar categorías: ${categoriesError.message}`);
         }
-        
+
         setCategories(categoriesData || []);
       } catch (err: any) {
         console.error('Error fetching categories:', err);
@@ -224,17 +247,19 @@ export default function TournamentCreateForm() {
         setIsLoading(false);
       }
     }
-    
+
     fetchCategories();
   }, [user, isUserLoading, supabase, router]);
 
-  // Resetear fechas de finalización cuando cambia a torneo americano
   useEffect(() => {
-    if (isAmericanTournament) {
+    if (selectedType === 'AMERICAN') {
       form.setValue('end_date', '');
       form.setValue('end_time', '');
+    } else {
+      form.setValue('start_time', '');
+      form.setValue('end_time', '');
     }
-  }, [isAmericanTournament, form]);
+  }, [selectedType, form]);
 
   useEffect(() => {
     if (!selectedType) return;
@@ -272,14 +297,12 @@ export default function TournamentCreateForm() {
     }
   }, [selectedPreset, form]);
 
-  // Auto-asignar club_id cuando el usuario es CLUB
   useEffect(() => {
-    if (userRole !== 'ORGANIZADOR' && clubs.length > 0 && !form.getValues('club_id')) {
-      form.setValue('club_id', clubs[0].id);
+    if (userRole !== 'ORGANIZADOR' && defaultClubId && !form.getValues('club_id')) {
+      form.setValue('club_id', defaultClubId);
     }
-  }, [clubs, userRole, form]);
+  }, [defaultClubId, userRole, form]);
 
-  // Si cambia el club principal, eliminarlo de extra_club_ids si estaba seleccionado
   useEffect(() => {
     const subscription = form.watch((values, { name }) => {
       if (name === 'club_id') {
@@ -290,45 +313,99 @@ export default function TournamentCreateForm() {
         }
       }
     });
+
     return () => subscription.unsubscribe();
   }, [form]);
 
-  const extraClubIds = form.watch('extra_club_ids') || [];
   const handleToggleExtraClub = (clubId: string) => {
     const mainId = form.getValues('club_id');
     if (!clubId || clubId === mainId) return;
-    const set = new Set<string>(extraClubIds);
-    if (set.has(clubId)) {
-      set.delete(clubId);
+
+    const next = new Set<string>(extraClubIds);
+    if (next.has(clubId)) {
+      next.delete(clubId);
     } else {
-      set.add(clubId);
+      next.add(clubId);
     }
-    form.setValue('extra_club_ids', Array.from(set));
+
+    form.setValue('extra_club_ids', Array.from(next), { shouldValidate: true });
+  };
+
+  const getStepFields = () => {
+    if (currentStep === 1) {
+      const baseFields: (keyof TournamentFormData)[] = ['name', 'category_name', 'type', 'format_preset', 'gender', 'club_id'];
+
+      if (selectedPreset?.advancementConfig.kind === 'SINGLE') {
+        baseFields.push('single_bracket_advance_count');
+      }
+
+      if (selectedPreset?.advancementConfig.kind === 'GOLD_SILVER') {
+        baseFields.push('gold_count', 'silver_count', 'eliminated_count');
+      }
+
+      return baseFields;
+    }
+
+    if (currentStep === 2) {
+      return isAmericanTournament
+        ? ['start_date', 'start_time']
+        : ['start_date', 'end_date'];
+    }
+
+    return [];
+  };
+
+  const handleNextStep = async () => {
+    const fields = getStepFields();
+    const isValid = fields.length === 0 ? true : await form.trigger(fields);
+
+    if (!isValid) return;
+    setCurrentStep((previous) => Math.min(previous + 1, STEP_TITLES.length));
+  };
+
+  const handlePreviousStep = () => {
+    setCurrentStep((previous) => Math.max(previous - 1, 1));
+  };
+
+  const handleCreateTournament = async () => {
+    if (isSubmitting) return;
+    await form.handleSubmit(onSubmit)();
+  };
+
+  const handleFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (isSubmitting) return;
+
+    if (currentStep < STEP_TITLES.length) {
+      await handleNextStep();
+      return;
+    }
+
+    await handleCreateTournament();
   };
 
   const onSubmit = async (data: TournamentFormData) => {
+    if (currentStep < STEP_TITLES.length) {
+      await handleNextStep();
+      return;
+    }
+
     setError(null);
     setSuccessMessage(null);
     setIsSubmitting(true);
 
     try {
-      // ✅ FIXED: Simple UTC conversion without manual timezone adjustments
       const formatDateTime = (date: string, time?: string) => {
         if (!date) return null;
-        
-        // For LONG tournaments without time, use start of day in Argentina timezone
+
         if (!time) {
-          // Create date at noon to avoid timezone issues with date-only values
           const dateObj = new Date(`${date}T12:00:00`);
           return dateObj.toISOString();
         }
-        
-        // For AMERICAN tournaments with time, create proper timestamp
+
         const fullTime = time.length === 5 ? `${time}:00` : time;
         const localDate = new Date(`${date}T${fullTime}`);
-        
-        // Simply convert to ISO string - the browser will handle the local timezone
-        // and toISOString() will give us proper UTC
         return localDate.toISOString();
       };
 
@@ -355,17 +432,17 @@ export default function TournamentCreateForm() {
       };
 
       const result = await createTournamentAction(dataForAction);
-      
+
       if (result.success && result.tournament?.id) {
         setSuccessMessage('¡Torneo creado exitosamente! Redirigiendo...');
-        
         router.refresh();
         setTimeout(() => {
           window.location.href = `/tournaments/${result.tournament.id}`;
         }, 2000);
-      } else {
-        throw new Error(result.error || 'Error desconocido al crear el torneo');
+        return;
       }
+
+      throw new Error(result.error || 'Error desconocido al crear el torneo');
     } catch (err: any) {
       setError(err.message || 'Error al crear el torneo');
     } finally {
@@ -382,233 +459,493 @@ export default function TournamentCreateForm() {
             <div className="absolute inset-0 h-12 w-12 rounded-full border-2 border-slate-200 animate-pulse mx-auto" />
           </div>
           <div className="space-y-2">
-            <p className="text-lg font-medium text-slate-900">Preparando formulario...</p>
-            <p className="text-sm text-slate-500">Cargando categorías y configuración</p>
+            <p className="text-lg font-medium text-slate-900">Preparando asistente...</p>
+            <p className="text-sm text-slate-500">Cargando categorías, clubes y configuración</p>
           </div>
         </div>
       </div>
     );
   }
 
-  const selectedClub = clubs.find(club => club.id === watchedValues.club_id);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      {/* Header Elegante */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-slate-200/50 sticky top-0 z-10 shadow-sm transition-all duration-300 animate-in slide-in-from-top-4">
+      <div className="bg-white/85 backdrop-blur-sm border-b border-slate-200/60 sticky top-0 z-10 shadow-sm">
         <div className="container mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <Button asChild variant="ghost" size="sm" className="text-slate-600 hover:text-slate-900 transition-colors duration-200 hover:scale-105">
+          <div className="flex items-center justify-between gap-4">
+            <Button asChild variant="ghost" size="sm" className="text-slate-600 hover:text-slate-900">
               <Link href="/tournaments">
-                <ArrowLeft className="h-4 w-4 mr-2 transition-transform duration-200 group-hover:-translate-x-1" />
+                <ArrowLeft className="h-4 w-4 mr-2" />
                 Volver
               </Link>
             </Button>
-            
-            <div className="text-center space-y-1 animate-in fade-in-0 duration-500">
+
+            <div className="text-center">
               <div className="flex items-center justify-center gap-2">
-                <Sparkles className="h-6 w-6 text-slate-900 animate-pulse" />
-                <h1 className="text-3xl font-light text-slate-900">Crear Torneo</h1>
+                <Sparkles className="h-5 w-5 text-slate-900" />
+                <h1 className="text-3xl font-light text-slate-900">Crear torneo</h1>
               </div>
-              <p className="text-slate-500 font-light">Configura tu torneo con elegancia y precisión</p>
+              <p className="text-sm text-slate-500 mt-1">Un flujo más claro, con el mismo backend de siempre.</p>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <Trophy className="h-7 w-7 text-slate-900 transition-transform duration-300 hover:rotate-12" />
+
+            <div className="flex items-center gap-2 text-right">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Paso actual</p>
+                <p className="text-sm font-medium text-slate-800">{currentStep} de {STEP_TITLES.length}</p>
+              </div>
+              <Trophy className="h-7 w-7 text-slate-900" />
             </div>
           </div>
-          
-          {/* Progress Bar */}
-          <div className="mt-6 space-y-2 animate-in slide-in-from-bottom-2 duration-700">
+
+          <div className="mt-6 space-y-4">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-500">Progreso del formulario</span>
-              <span className="text-slate-700 font-medium transition-all duration-300">{Math.round(formProgress)}%</span>
+              <span className="text-slate-500">Progreso del asistente</span>
+              <span className="text-slate-700 font-medium">{STEP_TITLES[currentStep - 1].title}</span>
             </div>
-            <Progress value={formProgress} className="h-1.5 transition-all duration-500" />
+            <Progress value={progressValue} className="h-2" />
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              {STEP_TITLES.map((step) => {
+                const Icon = step.icon;
+                const isActive = currentStep === step.id;
+                const isCompleted = currentStep > step.id;
+
+                return (
+                  <div
+                    key={step.id}
+                    className={cn(
+                      'rounded-2xl border px-4 py-3 transition-colors',
+                      isActive && 'border-slate-900 bg-slate-900 text-white shadow-sm',
+                      isCompleted && 'border-emerald-200 bg-emerald-50 text-emerald-900',
+                      !isActive && !isCompleted && 'border-slate-200 bg-white/70 text-slate-600'
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={cn(
+                          'flex h-10 w-10 items-center justify-center rounded-full border',
+                          isActive && 'border-white/30 bg-white/10',
+                          isCompleted && 'border-emerald-200 bg-white',
+                          !isActive && !isCompleted && 'border-slate-200 bg-white'
+                        )}
+                      >
+                        {isCompleted ? <Check className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Paso {step.id}: {step.title}</p>
+                        <p className={cn('text-xs mt-1', isActive ? 'text-slate-200' : isCompleted ? 'text-emerald-700' : 'text-slate-500')}>
+                          {step.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="container mx-auto px-6 py-8">
-        <div className="max-w-4xl mx-auto">
-          {/* Alerts */}
+        <div className="mx-auto max-w-5xl space-y-6">
           {error && (
-            <Alert className="mb-6 border-red-200/50 bg-red-50/50 backdrop-blur-sm animate-in slide-in-from-top-2 fade-in-0 duration-400">
-              <AlertCircle className="h-4 w-4 text-red-600 animate-pulse" />
+            <Alert className="border-red-200/60 bg-red-50/70">
+              <AlertCircle className="h-4 w-4 text-red-600" />
               <AlertDescription className="text-red-700">{error}</AlertDescription>
             </Alert>
           )}
 
           {clubsError && (
-            <Alert className="mb-6 border-red-200/50 bg-red-50/50 backdrop-blur-sm animate-in slide-in-from-top-2 fade-in-0 duration-400">
-              <AlertCircle className="h-4 w-4 text-red-600 animate-pulse" />
+            <Alert className="border-red-200/60 bg-red-50/70">
+              <AlertCircle className="h-4 w-4 text-red-600" />
               <AlertDescription className="text-red-700">{clubsError}</AlertDescription>
             </Alert>
           )}
 
           {successMessage && (
-            <Alert className="mb-6 border-emerald-200/50 bg-emerald-50/50 backdrop-blur-sm animate-in slide-in-from-top-2 fade-in-0 duration-400">
-              <CheckCircle className="h-4 w-4 text-emerald-600 animate-bounce" />
+            <Alert className="border-emerald-200/60 bg-emerald-50/70">
+              <CheckCircle className="h-4 w-4 text-emerald-600" />
               <AlertDescription className="text-emerald-700">{successMessage}</AlertDescription>
             </Alert>
           )}
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              {/* Información Básica */}
-              <Card className="border-slate-200/50 shadow-sm bg-white/50 backdrop-blur-sm transition-all duration-300 hover:shadow-md hover:bg-white/70 animate-in slide-in-from-bottom-4 fade-in-0 duration-600">
-                <CardHeader className="border-b border-slate-100/50 bg-slate-50/30 transition-colors duration-300 hover:bg-slate-50/50">
-                  <CardTitle className="flex items-center text-xl font-light text-slate-900 transition-colors duration-200">
-                    <FileText className="h-5 w-5 mr-3 text-slate-700 transition-transform duration-200 group-hover:scale-110" />
-                    Información Básica
-                  </CardTitle>
-                  <CardDescription className="text-slate-500 transition-colors duration-200 hover:text-slate-600">
-                    Dale nombre y personalidad a tu torneo
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6 p-8">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-slate-700 font-medium">
-                          Nombre del Torneo
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Ej: Torneo Primavera 2024"
-                            className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70 transition-all duration-300 focus:scale-[1.02] hover:bg-white/90 focus:shadow-sm"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+            <form onSubmit={handleFormSubmit} className="space-y-6">
+              {currentStep === 1 && (
+                <Card className="border-slate-200/60 bg-white/75 shadow-sm backdrop-blur-sm">
+                  <CardHeader className="border-b border-slate-100 bg-slate-50/60">
+                    <CardTitle className="flex items-center gap-3 text-xl font-light text-slate-900">
+                      <Settings className="h-5 w-5 text-slate-700" />
+                      Datos base del torneo
+                    </CardTitle>
+                    <CardDescription className="text-slate-500">
+                      Primero definimos qué torneo estás creando y bajo qué formato va a competir.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-8 p-8">
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-slate-700 font-medium">Nombre del torneo</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Ej: Torneo Apertura Club Norte"
+                                className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-slate-700 font-medium">
-                          Descripción
-                        </FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Describe tu torneo, premios, reglas especiales..."
-                            className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70 resize-none transition-colors min-h-[100px]"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription className="text-slate-500">
-                          Opcional - Ayuda a los jugadores a entender mejor tu torneo
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Configuración del Torneo */}
-              <Card className="border-slate-200/50 shadow-sm bg-white/50 backdrop-blur-sm transition-all duration-300 hover:shadow-md hover:bg-white/70 animate-in slide-in-from-bottom-4 fade-in-0 duration-700">
-                <CardHeader className="border-b border-slate-100/50 bg-slate-50/30 transition-colors duration-300 hover:bg-slate-50/50">
-                  <CardTitle className="flex items-center text-xl font-light text-slate-900 transition-colors duration-200">
-                    <Settings className="h-5 w-5 mr-3 text-slate-700 transition-transform duration-200 group-hover:rotate-45" />
-                    Configuración del Torneo
-                  </CardTitle>
-                  <CardDescription className="text-slate-500 transition-colors duration-200 hover:text-slate-600">
-                    Define las características técnicas de la competencia
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-8 p-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <FormField
-                      control={form.control}
-                      name="category_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-slate-700 font-medium">
-                            Categoría
-                          </FormLabel>
-                          <FormControl>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <SelectTrigger className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70">
-                                <SelectValue placeholder="Selecciona una categoría" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {categories.map(cat => (
-                                  <SelectItem key={cat.name} value={cat.name}>
-                                    <div className="flex items-center gap-2">
-                                      <Tag className="h-3 w-3" />
-                                      {cat.name}
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Club Selector */}
-                    <FormField
-                      control={form.control}
-                      name="club_id"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-slate-700 font-medium">
-                            <Building2 className="h-4 w-4 inline mr-1" />
-                            {userRole === 'ORGANIZADOR' ? 'Club' : 'Tu Club'}
-                          </FormLabel>
-                          <FormControl>
-                            {userRole === 'ORGANIZADOR' ? (
-                              <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
-                                <SelectTrigger className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70">
-                                  <SelectValue placeholder="Selecciona un club" />
+                      <FormField
+                        control={form.control}
+                        name="category_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-slate-700 font-medium">Categoría</FormLabel>
+                            <FormControl>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <SelectTrigger className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900">
+                                  <SelectValue placeholder="Selecciona una categoría" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {clubs.map(club => (
-                                    <SelectItem key={club.id} value={club.id}>
-                                      <div className="flex items-center gap-2">
-                                        <Building2 className="h-4 w-4" />
-                                        <span>{club.name}</span>
-                                        <Badge variant="secondary" className="text-xs">
-                                          {club.source === 'owned' ? 'Propio' : 'Organización'}
-                                        </Badge>
-                                      </div>
+                                  {categories.map((category) => (
+                                    <SelectItem key={category.name} value={category.name}>
+                                      {category.name}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                            ) : (
-                              <div className="relative">
-                                <Input
-                                  value={clubs[0]?.name || ''}
-                                  disabled
-                                  className="border-slate-200/50 bg-slate-50/70 pr-10"
-                                />
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                  <Badge variant="outline" className="text-xs">
-                                    Tu club
-                                  </Badge>
-                                </div>
-                              </div>
-                            )}
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-slate-700 font-medium">Descripción</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Contá brevemente de qué se trata el torneo, cómo querés presentarlo o qué detalle deben saber los jugadores."
+                              className="min-h-[110px] resize-none border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                              {...field}
+                            />
                           </FormControl>
-                          {userRole === 'ORGANIZADOR' && clubs.length === 0 && (
-                            <FormDescription className="text-amber-600">
-                              No tienes clubes asociados a tu organización
-                            </FormDescription>
-                          )}
+                          <FormDescription className="text-slate-500">
+                            Opcional, pero ayuda mucho a que la convocatoria se entienda mejor.
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+
+                    <FormField
+                      control={form.control}
+                      name="type"
+                      render={({ field }) => (
+                        <FormItem className="space-y-4">
+                          <div>
+                            <FormLabel className="text-slate-700 font-medium">Tipo de torneo</FormLabel>
+                            <p className="text-sm text-slate-500 mt-1">Elegí primero si el torneo se juega en una jornada o en varios días.</p>
+                          </div>
+                          <FormControl>
+                            <RadioGroup
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              className="grid grid-cols-1 gap-4 md:grid-cols-2"
+                            >
+                              {(['AMERICAN', 'LONG'] as const).map((type) => {
+                                const isSelected = field.value === type;
+                                const copy = TYPE_COPY[type];
+
+                                return (
+                                  <label
+                                    key={type}
+                                    className={cn(
+                                      'flex cursor-pointer rounded-2xl border p-5 transition-all',
+                                      isSelected
+                                        ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                                        : 'border-slate-200 bg-white/80 text-slate-800 hover:border-slate-300'
+                                    )}
+                                  >
+                                    <RadioGroupItem value={type} className="mt-1 border-current text-current" />
+                                    <div className="ml-4 flex-1">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <p className="text-base font-medium">{copy.title}</p>
+                                          <p className={cn('mt-1 text-sm', isSelected ? 'text-slate-200' : 'text-slate-500')}>
+                                            {copy.description}
+                                          </p>
+                                        </div>
+                                        <Badge variant={isSelected ? 'secondary' : 'outline'} className={cn(isSelected && 'bg-white/10 text-white border-white/20')}>
+                                          {copy.badge}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </RadioGroup>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="format_preset"
+                      render={({ field }) => (
+                        <FormItem className="space-y-4">
+                          <div>
+                            <FormLabel className="text-slate-700 font-medium">Formato dentro de {TYPE_COPY[selectedType].title}</FormLabel>
+                            <p className="text-sm text-slate-500 mt-1">
+                              Acá definís cómo se organiza la competencia: zonas, cantidad de partidos y si termina en llave o copas.
+                            </p>
+                          </div>
+                          <FormControl>
+                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                              {presetOptions.map((preset) => {
+                                const isSelected = field.value === preset.presetId;
+                                const presetMeta = getPresetMeta(preset.presetId);
+
+                                return (
+                                  <button
+                                    key={preset.presetId}
+                                    type="button"
+                                    onClick={() => field.onChange(preset.presetId)}
+                                    className={cn(
+                                      'rounded-2xl border p-5 text-left transition-all',
+                                      isSelected
+                                        ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                                        : 'border-slate-200 bg-white/80 text-slate-800 hover:border-slate-300 hover:bg-white'
+                                    )}
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div>
+                                        <p className="text-base font-medium">{preset.display.name}</p>
+                                        <p className={cn('mt-2 text-sm leading-relaxed', isSelected ? 'text-slate-200' : 'text-slate-500')}>
+                                          {preset.display.description}
+                                        </p>
+                                      </div>
+                                      {isSelected && (
+                                        <div className="rounded-full border border-white/20 bg-white/10 p-2">
+                                          <Check className="h-4 w-4" />
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                      {presetMeta.map((item) => (
+                                        <Badge
+                                          key={item}
+                                          variant="outline"
+                                          className={cn(
+                                            'border-current/20 bg-transparent',
+                                            isSelected ? 'text-white' : 'text-slate-600'
+                                          )}
+                                        >
+                                          {item}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {selectedPreset && (
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5">
+                        <div className="flex items-start gap-3">
+                          <Info className="h-5 w-5 text-slate-700 mt-0.5" />
+                          <div className="space-y-3">
+                            <div>
+                              <p className="font-medium text-slate-900">{selectedPreset.display.name}</p>
+                              <p className="text-sm text-slate-600 mt-1">{selectedPreset.display.description}</p>
+                            </div>
+
+                            {selectedPreset.advancementConfig.kind === 'SINGLE' && (
+                              <FormField
+                                control={form.control}
+                                name="single_bracket_advance_count"
+                                render={({ field }) => (
+                                  <FormItem className="max-w-xs">
+                                    <FormLabel className="text-slate-700 font-medium">Parejas que avanzan a la llave</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        type="number"
+                                        min="2"
+                                        className="border-slate-200/60 bg-white/90 focus:border-slate-900 focus:ring-slate-900"
+                                        value={field.value ?? ''}
+                                        onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : undefined)}
+                                      />
+                                    </FormControl>
+                                    <FormDescription className="text-slate-500">
+                                      Podés ajustar cuántas parejas pasan a la etapa final.
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
+                            {selectedPreset.advancementConfig.kind === 'GOLD_SILVER' && (
+                              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                <FormField
+                                  control={form.control}
+                                  name="gold_count"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-slate-700 font-medium">Copa Oro</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          className="border-slate-200/60 bg-white/90 focus:border-slate-900 focus:ring-slate-900"
+                                          value={field.value ?? ''}
+                                          onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : undefined)}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="silver_count"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-slate-700 font-medium">Copa Plata</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          className="border-slate-200/60 bg-white/90 focus:border-slate-900 focus:ring-slate-900"
+                                          value={field.value ?? ''}
+                                          onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : undefined)}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="eliminated_count"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-slate-700 font-medium">Eliminadas</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          className="border-slate-200/60 bg-white/90 focus:border-slate-900 focus:ring-slate-900"
+                                          value={field.value ?? ''}
+                                          onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : undefined)}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <Separator className="bg-slate-100" />
+
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="gender"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-slate-700 font-medium">Género</FormLabel>
+                            <FormControl>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <SelectTrigger className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900">
+                                  <SelectValue placeholder="Selecciona género" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="MALE">Masculino</SelectItem>
+                                  <SelectItem value="FEMALE">Femenino</SelectItem>
+                                  <SelectItem value="MIXED">Mixto</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="club_id"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-slate-700 font-medium">
+                              <Building2 className="h-4 w-4 inline mr-1" />
+                              {userRole === 'ORGANIZADOR' ? 'Club principal' : 'Tu club'}
+                            </FormLabel>
+                            <FormControl>
+                              {userRole === 'ORGANIZADOR' ? (
+                                <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
+                                  <SelectTrigger className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900">
+                                    <SelectValue placeholder="Selecciona un club" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {clubs.map((club) => (
+                                      <SelectItem key={club.id} value={club.id}>
+                                        <div className="flex items-center gap-2">
+                                          <span>{club.name}</span>
+                                          <Badge variant="secondary" className="text-xs">
+                                            {club.source === 'owned' ? 'Propio' : 'Organización'}
+                                          </Badge>
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <div className="relative">
+                                  <Input
+                                    value={clubs[0]?.name || ''}
+                                    disabled
+                                    className="border-slate-200/60 bg-slate-50/80 pr-24"
+                                  />
+                                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                    <Badge variant="outline" className="text-xs">Asignado</Badge>
+                                  </div>
+                                </div>
+                              )}
+                            </FormControl>
+                            {userRole === 'ORGANIZADOR' && clubs.length === 0 && (
+                              <FormDescription className="text-amber-600">
+                                No tenés clubes asociados a tu organización.
+                              </FormDescription>
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
                     {userRole === 'ORGANIZADOR' && clubs.length > 0 && (
                       <FormField
@@ -628,11 +965,12 @@ export default function TournamentCreateForm() {
                                     role="combobox"
                                     aria-expanded="false"
                                     aria-label="Seleccionar clubes adicionales"
-                                    className="w-full justify-between inline-flex items-center h-10 rounded-md border border-slate-200/50 bg-white/70 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                    tabIndex={0}
+                                    className="inline-flex h-11 w-full items-center justify-between rounded-md border border-slate-200/60 bg-white/80 px-3 py-2 text-sm text-slate-700 ring-offset-background focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
                                   >
-                                    <span className="text-left text-slate-700">
-                                      {extraClubIds.length === 0 ? 'Selecciona clubes adicionales' : `${extraClubIds.length} seleccionado${extraClubIds.length > 1 ? 's' : ''}`}
+                                    <span>
+                                      {extraClubIds.length === 0
+                                        ? 'Sumar clubes relacionados al torneo'
+                                        : `${extraClubIds.length} club${extraClubIds.length > 1 ? 'es' : ''} adicional${extraClubIds.length > 1 ? 'es' : ''}`}
                                     </span>
                                   </button>
                                 </PopoverTrigger>
@@ -654,8 +992,7 @@ export default function TournamentCreateForm() {
                                               onCheckedChange={() => handleToggleExtraClub(club.id)}
                                               aria-label={`Seleccionar ${club.name}`}
                                             />
-                                            <Building2 className="h-4 w-4 text-slate-700" />
-                                            <span className="flex-1 text-slate-700">{club.name}</span>
+                                            <span className="flex-1">{club.name}</span>
                                             <Badge variant="secondary" className="text-xs">
                                               {club.source === 'owned' ? 'Propio' : 'Organización'}
                                             </Badge>
@@ -667,401 +1004,111 @@ export default function TournamentCreateForm() {
                                 </PopoverContent>
                               </Popover>
                             </FormControl>
-                            {extraClubIds.length > 0 && (
+                            <FormDescription className="text-slate-500">
+                              Opcional. Sirve para vincular el torneo a más de un club sin cambiar el backend actual.
+                            </FormDescription>
+                            {selectedExtraClubs.length > 0 && (
                               <div className="mt-3 flex flex-wrap gap-2">
-                                {extraClubIds.map((id) => {
-                                  const c = clubs.find((cl) => cl.id === id);
-                                  if (!c) return null;
-                                  return (
-                                    <Badge key={id} variant="outline" className="px-2 py-1 text-xs bg-white/70 border-slate-200/70">
-                                      <span className="mr-2 text-slate-700">{c.name}</span>
-                                      <button
-                                        type="button"
-                                        aria-label={`Quitar ${c.name}`}
-                                        onClick={() => handleToggleExtraClub(id)}
-                                        className="inline-flex items-center justify-center rounded-sm hover:bg-slate-100 text-slate-600"
-                                      >
-                                        <X className="h-3.5 w-3.5" />
-                                      </button>
-                                    </Badge>
-                                  );
-                                })}
+                                {selectedExtraClubs.map((club) => (
+                                  <Badge key={club.id} variant="outline" className="border-slate-200 bg-white/80 px-2 py-1">
+                                    <span className="mr-2">{club.name}</span>
+                                    <button
+                                      type="button"
+                                      aria-label={`Quitar ${club.name}`}
+                                      onClick={() => handleToggleExtraClub(club.id)}
+                                      className="rounded-sm text-slate-500 hover:bg-slate-100"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </Badge>
+                                ))}
                               </div>
                             )}
-                            <FormDescription className="text-slate-500">
-                              Opcional - Selecciona otros clubes relacionados a tu torneo.
-                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     )}
-                  </div>
+                  </CardContent>
+                </Card>
+              )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={form.control}
-                      name="format_preset"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-slate-700 font-medium">
-                            Formato competitivo
-                          </FormLabel>
-                          <FormControl>
-                            <Select onValueChange={field.onChange} value={field.value || ''} disabled={!selectedType}>
-                              <SelectTrigger className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70">
-                                <SelectValue placeholder="Selecciona un formato" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {presetOptions.map((preset) => (
-                                  <SelectItem key={preset.presetId} value={preset.presetId}>
-                                    <div className="space-y-1">
-                                      <div className="font-medium">{preset.display.name}</div>
-                                      <div className="text-xs text-slate-500">{preset.display.description}</div>
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </FormControl>
-                          <FormDescription className="text-slate-500">
-                            Elige si el torneo va por zonas, zona unica, campeon directo o copas.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {selectedPreset?.advancementConfig.kind === 'SINGLE' ? (
-                      <FormField
-                        control={form.control}
-                        name="single_bracket_advance_count"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-slate-700 font-medium">
-                              Parejas que avanzan a la llave
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="2"
-                                className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70"
-                                value={field.value ?? ''}
-                                onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                              />
-                            </FormControl>
-                            <FormDescription className="text-slate-500">
-                              Puedes usarlo para dejar afuera parejas antes de la llave.
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    ) : selectedPreset?.advancementConfig.kind === 'GOLD_SILVER' ? (
-                      <div className="grid grid-cols-3 gap-3 md:col-span-1">
-                        <FormField
-                          control={form.control}
-                          name="gold_count"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-slate-700 font-medium">Oro</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70"
-                                  value={field.value ?? ''}
-                                  onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="silver_count"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-slate-700 font-medium">Plata</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70"
-                                  value={field.value ?? ''}
-                                  onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="eliminated_count"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-slate-700 font-medium">Afuera</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70"
-                                  value={field.value ?? ''}
-                                  onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    ) : (
-                      <div className="rounded-xl border border-slate-200/70 bg-slate-50/70 px-4 py-3 text-sm text-slate-600">
-                        {selectedPreset?.display.description || 'Selecciona un formato para ver su configuracion.'}
-                      </div>
-                    )}
-                  </div>
-
-                  {selectedPreset && (
-                    <div className="rounded-xl border border-slate-200/70 bg-slate-50/70 p-4">
-                      <p className="text-sm font-medium text-slate-900">{selectedPreset.display.name}</p>
-                      <p className="mt-1 text-sm text-slate-600">{selectedPreset.display.description}</p>
-                    </div>
-                  )}
-
-                  <Separator className="bg-slate-100/50" />
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <FormField
-                      control={form.control}
-                      name="type"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-slate-700 font-medium">
-                            Tipo de Torneo
-                          </FormLabel>
-                          <FormControl>
-                            <Select onValueChange={field.onChange} value={field.value || ''}>
-                              <SelectTrigger className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70">
-                                <SelectValue placeholder="Selecciona tipo" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="LONG">
-                                  <div className="space-y-1">
-                                    <div className="font-medium">Largo</div>
-                                    <div className="text-xs text-slate-500">Tradicional - Múltiples días</div>
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="AMERICAN">
-                                  <div className="space-y-1">
-                                    <div className="font-medium">Americano</div>
-                                    <div className="text-xs text-slate-500">Un solo día</div>
-                                  </div>
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="gender"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-slate-700 font-medium">
-                            Género
-                          </FormLabel>
-                          <FormControl>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <SelectTrigger className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70">
-                                <SelectValue placeholder="Selecciona género" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="MALE">Masculino</SelectItem>
-                                <SelectItem value="FEMALE">Femenino</SelectItem>
-                                <SelectItem value="MIXED">Mixto</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="max_participants"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-slate-700 font-medium">
-                            <Users className="h-4 w-4 inline mr-1" />
-                            Máximo de Parejas
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min="2"
-                              max="64"
-                              placeholder="Ej: 16"
-                              className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70"
-                              value={field.value || ''}
-                              onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                            />
-                          </FormControl>
-                          <FormDescription className="text-slate-500">
-                            Opcional - Limita las inscripciones
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <Separator className="bg-slate-100/50" />
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={form.control}
-                      name="price"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-slate-700 font-medium">
-                            <Tag className="h-4 w-4 inline mr-1" />
-                            Precio de Inscripción
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min="0"
-                              max="32767"
-                              step="1"
-                              placeholder="Ej: 500"
-                              className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70"
-                              value={field.value ?? ''}
-                              onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                            />
-                          </FormControl>
-                          <FormDescription className="text-slate-500">
-                            Opcional - Costo de participación en pesos (solo números)
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="award"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-slate-700 font-medium">
-                            <Award className="h-4 w-4 inline mr-1" />
-                            Premio
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              type="text"
-                              placeholder="Ej: $1000 o Trofeo"
-                              className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormDescription className="text-slate-500">
-                            Opcional - Premio para los ganadores
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {isAmericanTournament && (
-                    <div className="bg-blue-50/50 border border-blue-200/50 rounded-xl p-6 backdrop-blur-sm">
-                      <div className="flex items-start space-x-3">
-                        <Info className="h-5 w-5 text-blue-600 mt-0.5" />
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium text-blue-900">Torneo Americano</p>
-                          <p className="text-sm text-blue-700 leading-relaxed">
-                            Los torneos americanos se desarrollan en un solo día. No necesitas especificar fecha de finalización.
+              {currentStep === 2 && (
+                <Card className="border-slate-200/60 bg-white/75 shadow-sm backdrop-blur-sm">
+                  <CardHeader className="border-b border-slate-100 bg-slate-50/60">
+                    <CardTitle className="flex items-center gap-3 text-xl font-light text-slate-900">
+                      <CalendarDays className="h-5 w-5 text-slate-700" />
+                      Agenda del torneo
+                    </CardTitle>
+                    <CardDescription className="text-slate-500">
+                      {isAmericanTournament
+                        ? 'Como es un torneo americano, definimos claramente cuándo empieza.'
+                        : 'Como es un torneo long, definimos inicio y una fecha estimada de cierre.'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-8 p-8">
+                    <div className="rounded-2xl border border-blue-200/70 bg-blue-50/70 p-5">
+                      <div className="flex items-start gap-3">
+                        <Info className="h-5 w-5 text-blue-700 mt-0.5" />
+                        <div>
+                          <p className="font-medium text-blue-900">{TYPE_COPY[selectedType].title}</p>
+                          <p className="mt-1 text-sm text-blue-800">
+                            {isAmericanTournament
+                              ? 'Te vamos a pedir fecha y hora de inicio porque este formato se organiza como una sola jornada.'
+                              : 'Te vamos a pedir fecha de inicio y una fecha aproximada de finalización. La hora final ya no se solicita en esta pantalla.'}
                           </p>
                         </div>
                       </div>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
 
-              {/* Fechas y Horarios */}
-              <Card className="border-slate-200/50 shadow-sm bg-white/50 backdrop-blur-sm transition-all duration-300 hover:shadow-md hover:bg-white/70 animate-in slide-in-from-bottom-4 fade-in-0 duration-800">
-                <CardHeader className="border-b border-slate-100/50 bg-slate-50/30 transition-colors duration-300 hover:bg-slate-50/50">
-                  <CardTitle className="flex items-center text-xl font-light text-slate-900 transition-colors duration-200">
-                    <CalendarDays className="h-5 w-5 mr-3 text-slate-700 transition-transform duration-200 group-hover:scale-110" />
-                    Fechas y Horarios
-                  </CardTitle>
-                  <CardDescription className="text-slate-500 transition-colors duration-200 hover:text-slate-600">
-                    Programa cuándo se llevará a cabo tu torneo
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-8 p-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <FormField
-                      control={form.control}
-                      name="start_date"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-slate-700 font-medium">
-                            <Calendar className="h-4 w-4 inline mr-1" />
-                            Fecha de Inicio
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              type="date"
-                              min={new Date().toISOString().split('T')[0]}
-                              className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {isAmericanTournament && (
+                    <div className={cn('grid gap-6', isAmericanTournament ? 'md:grid-cols-2' : 'md:grid-cols-2')}>
                       <FormField
                         control={form.control}
-                        name="start_time"
+                        name="start_date"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-slate-700 font-medium">
-                              <Clock className="h-4 w-4 inline mr-1" />
-                              Hora de Inicio
+                              <Calendar className="h-4 w-4 inline mr-1" />
+                              Fecha de inicio
                             </FormLabel>
                             <FormControl>
                               <Input
-                                type="time"
-                                className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70"
+                                type="date"
+                                min={new Date().toISOString().split('T')[0]}
+                                className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
                                 {...field}
                               />
                             </FormControl>
-                            <FormDescription className="text-slate-500">
-                              Requerido para torneos americanos
-                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                    )}
-                  </div>
 
-                  {!isAmericanTournament && (
-                    <>
-                      <Separator className="bg-slate-100/50" />
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      {isAmericanTournament ? (
+                        <FormField
+                          control={form.control}
+                          name="start_time"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-slate-700 font-medium">
+                                <Clock className="h-4 w-4 inline mr-1" />
+                                Hora de inicio
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="time"
+                                  className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription className="text-slate-500">
+                                Obligatoria para torneos americanos.
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ) : (
                         <FormField
                           control={form.control}
                           name="end_date"
@@ -1069,16 +1116,66 @@ export default function TournamentCreateForm() {
                             <FormItem>
                               <FormLabel className="text-slate-700 font-medium">
                                 <Calendar className="h-4 w-4 inline mr-1" />
-                                Fecha de Finalización
+                                Fecha aproximada de finalización
                               </FormLabel>
                               <FormControl>
                                 <Input
                                   type="date"
                                   min={watchedValues.start_date || new Date().toISOString().split('T')[0]}
-                                  className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70"
+                                  className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
                                   {...field}
                                 />
                               </FormControl>
+                              <FormDescription className="text-slate-500">
+                                Obligatoria para torneos long.
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {currentStep === 3 && (
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+                  <Card className="border-slate-200/60 bg-white/75 shadow-sm backdrop-blur-sm">
+                    <CardHeader className="border-b border-slate-100 bg-slate-50/60">
+                      <CardTitle className="flex items-center gap-3 text-xl font-light text-slate-900">
+                        <Users className="h-5 w-5 text-slate-700" />
+                        Cupo, precio y premio
+                      </CardTitle>
+                      <CardDescription className="text-slate-500">
+                        Últimos detalles antes de crear el torneo.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-8 p-8">
+                      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="max_participants"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-slate-700 font-medium">
+                                <Users className="h-4 w-4 inline mr-1" />
+                                Máximo de parejas
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min="2"
+                                  max="64"
+                                  placeholder="Ej: 16"
+                                  className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                                  value={field.value ?? ''}
+                                  onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : undefined)}
+                                />
+                              </FormControl>
+                              <FormDescription className="text-slate-500">
+                                Opcional. Si lo dejás vacío, el torneo queda sin tope definido.
+                              </FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -1086,65 +1183,189 @@ export default function TournamentCreateForm() {
 
                         <FormField
                           control={form.control}
-                          name="end_time"
+                          name="price"
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel className="text-slate-700 font-medium">
-                                <Clock className="h-4 w-4 inline mr-1" />
-                                Hora de Finalización
+                                <Tag className="h-4 w-4 inline mr-1" />
+                                Precio de inscripción
                               </FormLabel>
                               <FormControl>
                                 <Input
-                                  type="time"
-                                  className="border-slate-200/50 focus:border-slate-900 focus:ring-slate-900 bg-white/70"
-                                  {...field}
+                                  type="number"
+                                  min="0"
+                                  max="32767"
+                                  step="1"
+                                  placeholder="Ej: 5000"
+                                  className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                                  value={field.value ?? ''}
+                                  onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : undefined)}
                                 />
                               </FormControl>
+                              <FormDescription className="text-slate-500">
+                                Opcional. Solo números enteros, igual que en el flujo actual.
+                              </FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
                       </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
 
-              {/* Botones de Acción */}
-              <div className="flex justify-between items-center pt-6 animate-in slide-in-from-bottom-2 fade-in-0 duration-900">
-                <Button asChild variant="outline" size="lg" className="px-8 transition-all duration-200 hover:scale-105 hover:shadow-sm">
+                      <FormField
+                        control={form.control}
+                        name="award"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-slate-700 font-medium">
+                              <Award className="h-4 w-4 inline mr-1" />
+                              Premio
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="text"
+                                placeholder="Ej: Trofeos + efectivo"
+                                className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormDescription className="text-slate-500">
+                              Opcional. Se guarda exactamente como texto, igual que ahora.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-slate-200/60 bg-white/85 shadow-sm backdrop-blur-sm">
+                    <CardHeader className="border-b border-slate-100 bg-slate-50/60">
+                      <CardTitle className="text-xl font-light text-slate-900">Resumen final</CardTitle>
+                      <CardDescription className="text-slate-500">
+                        Revisá todo antes de crear. El backend y las reglas siguen siendo las mismas.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-5 p-8">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Torneo</p>
+                        <p className="mt-2 text-lg font-medium text-slate-900">{watchedValues.name || 'Sin nombre todavía'}</p>
+                        <p className="mt-1 text-sm text-slate-600">{watchedValues.description?.trim() || 'Sin descripción'}</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl border border-slate-200 bg-white/80 p-4">
+                          <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Tipo</p>
+                          <p className="mt-2 font-medium text-slate-900">{TYPE_COPY[selectedType].title}</p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-white/80 p-4">
+                          <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Formato</p>
+                          <p className="mt-2 font-medium text-slate-900">{selectedPreset?.display.name || 'Sin definir'}</p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-white/80 p-4">
+                          <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Categoría y género</p>
+                          <p className="mt-2 font-medium text-slate-900">
+                            {watchedValues.category_name || 'Sin categoría'} · {watchedValues.gender === 'MALE' ? 'Masculino' : watchedValues.gender === 'FEMALE' ? 'Femenino' : 'Mixto'}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-white/80 p-4">
+                          <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Club principal</p>
+                          <p className="mt-2 font-medium text-slate-900">{selectedClub?.name || 'Sin definir'}</p>
+                        </div>
+                      </div>
+
+                      {selectedExtraClubs.length > 0 && (
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Clubes adicionales</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {selectedExtraClubs.map((club) => (
+                              <Badge key={club.id} variant="outline" className="border-slate-200 bg-white/80">
+                                {club.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <Separator className="bg-slate-100" />
+
+                      <div className="space-y-3 text-sm">
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-slate-500">Inicio</span>
+                          <span className="font-medium text-slate-900">
+                            {formatInputDate(watchedValues.start_date)}
+                            {isAmericanTournament && watchedValues.start_time ? ` · ${watchedValues.start_time}` : ''}
+                          </span>
+                        </div>
+
+                        {!isAmericanTournament && (
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-slate-500">Finalización estimada</span>
+                            <span className="font-medium text-slate-900">{formatInputDate(watchedValues.end_date || '')}</span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-slate-500">Máximo de parejas</span>
+                          <span className="font-medium text-slate-900">{watchedValues.max_participants || 'Sin tope'}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-slate-500">Inscripción</span>
+                          <span className="font-medium text-slate-900">{formatCurrency(watchedValues.price)}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-slate-500">Premio</span>
+                          <span className="text-right font-medium text-slate-900">{watchedValues.award?.trim() || 'Sin definir'}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-4 border-t border-slate-200/70 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                <Button asChild variant="outline" size="lg">
                   <Link href="/tournaments">
-                    <ArrowLeft className="h-4 w-4 mr-2 transition-transform duration-200 group-hover:-translate-x-1" />
+                    <ArrowLeft className="h-4 w-4 mr-2" />
                     Cancelar
                   </Link>
                 </Button>
-                
-                <div className="flex items-center gap-4">
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   {selectedClub && (
-                    <div className="text-right animate-in slide-in-from-right-2 fade-in-0 duration-600">
-                      <p className="text-sm text-slate-500">Creando en:</p>
-                      <p className="font-medium text-slate-700 transition-colors duration-200 hover:text-slate-900">{selectedClub.name}</p>
+                    <div className="text-sm text-slate-500 sm:mr-2">
+                      Se crea en <span className="font-medium text-slate-700">{selectedClub.name}</span>
                     </div>
                   )}
-                  
-                  <Button
-                    type="submit"
-                    size="lg"
-                    className="bg-slate-900 hover:bg-slate-800 text-white px-8 transition-all duration-300 hover:scale-105 hover:shadow-lg shadow-sm disabled:hover:scale-100"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Creando Torneo...
-                      </>
-                    ) : (
-                      <>
-                        <Trophy className="h-4 w-4 mr-2 transition-transform duration-200 group-hover:rotate-12" />
-                        Crear Torneo
-                      </>
-                    )}
-                  </Button>
+
+                  {currentStep > 1 && (
+                    <Button type="button" variant="outline" size="lg" onClick={handlePreviousStep}>
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Volver
+                    </Button>
+                  )}
+
+                  {currentStep < STEP_TITLES.length ? (
+                    <Button type="button" size="lg" className="bg-slate-900 hover:bg-slate-800" onClick={() => void handleNextStep()}>
+                      Siguiente
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  ) : (
+                    <Button type="button" size="lg" className="bg-slate-900 hover:bg-slate-800" disabled={isSubmitting} onClick={() => void handleCreateTournament()}>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Creando torneo...
+                        </>
+                      ) : (
+                        <>
+                          <Trophy className="h-4 w-4 mr-2" />
+                          Crear torneo
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
             </form>

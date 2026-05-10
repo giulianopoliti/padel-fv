@@ -1,10 +1,13 @@
 'use client'
 
 import React from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Trophy, UserPlus, AlertCircle } from 'lucide-react'
+
 import PublicRegistrationLauncher from '@/components/tournament/public-registration-launcher'
+import TournamentPublicInfoCard from '@/components/tournament/TournamentPublicInfoCard'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { TournamentPublicInfo } from '@/lib/tournaments/public-tournament-details'
 import { Gender } from '@/types'
 
 interface NotRegisteredViewProps {
@@ -19,6 +22,7 @@ interface NotRegisteredViewProps {
     enable_transfer_proof?: boolean
     transfer_alias?: string | null
     transfer_amount?: number | null
+    publicInfo?: TournamentPublicInfo
   }
 }
 
@@ -28,7 +32,6 @@ export default function NotRegisteredView({
 }: NotRegisteredViewProps) {
   return (
     <>
-      {/* Tournament Header */}
       <div className="space-y-2">
         <div className="flex items-center gap-3">
           <div className="bg-blue-100 p-2 rounded-lg">
@@ -43,7 +46,6 @@ export default function NotRegisteredView({
         </div>
       </div>
 
-      {/* Not Registered Alert */}
       <Alert className="border-orange-200 bg-orange-50">
         <AlertCircle className="h-4 w-4 text-orange-600" />
         <AlertDescription className="text-orange-800">
@@ -51,7 +53,6 @@ export default function NotRegisteredView({
         </AlertDescription>
       </Alert>
 
-      {/* Registration Card */}
       <Card className="border-blue-200 bg-blue-50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-blue-900">
@@ -87,47 +88,50 @@ export default function NotRegisteredView({
         </CardContent>
       </Card>
 
-      {/* Tournament Info Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="h-5 w-5" />
-            Información del Torneo
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Tipo:</span>
-              <span className="font-medium">Torneo Largo</span>
+      {tournament.publicInfo ? (
+        <TournamentPublicInfoCard publicInfo={tournament.publicInfo} showSchedule={false} />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5" />
+              Información del Torneo
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Tipo:</span>
+                <span className="font-medium">Torneo Largo</span>
+              </div>
+              {tournament.category && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Categoría:</span>
+                  <span className="font-medium">{tournament.category}</span>
+                </div>
+              )}
+              {tournament.status && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Estado:</span>
+                  <span className="font-medium">{getStatusText(tournament.status)}</span>
+                </div>
+              )}
             </div>
-            {tournament.category && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Categoría:</span>
-                <span className="font-medium">{tournament.category}</span>
-              </div>
-            )}
-            {tournament.status && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Estado:</span>
-                <span className="font-medium">{getStatusText(tournament.status)}</span>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </>
   )
 }
 
 function getStatusText(status: string): string {
   const statusMap: Record<string, string> = {
-    'NOT_STARTED': 'No iniciado',
-    'IN_PROGRESS': 'En progreso',
-    'ZONE_PHASE': 'Fase de zonas',
-    'BRACKET_PHASE': 'Fase de llaves',
-    'FINISHED': 'Finalizado',
-    'CANCELED': 'Cancelado'
+    NOT_STARTED: 'No iniciado',
+    IN_PROGRESS: 'En progreso',
+    ZONE_PHASE: 'Fase de zonas',
+    BRACKET_PHASE: 'Fase de llaves',
+    FINISHED: 'Finalizado',
+    CANCELED: 'Cancelado'
   }
 
   return statusMap[status] || status

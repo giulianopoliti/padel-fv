@@ -4,7 +4,7 @@ import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Clock, MapPin, Users, Calendar, Swords } from 'lucide-react'
-import { PlayerNextMatch } from '@/app/api/panel-cpa/actions'
+import { PlayerNextMatch } from '@/app/api/panel/actions'
 
 interface NextMatchCardEdgeProps {
   match: PlayerNextMatch

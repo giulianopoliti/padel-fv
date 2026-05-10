@@ -10,12 +10,11 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { LogOut, Loader2 } from "lucide-react";
 import { useUser } from "@/contexts/user-context";
 import { useToast } from "@/components/ui/use-toast";
-import type { User as AuthUser } from "@supabase/supabase-js";
 import { getIcon, IconName } from "@/components/icons";
 import { getStorageUrl } from "@/utils/storage-url";
 
@@ -26,23 +25,18 @@ interface NavLink {
 }
 interface NavbarUserProfileProps {
   profileLinks?: NavLink[];
-  params?: {
-    id?: string;
-  };
 }
-export default function NavbarUserProfile({ profileLinks = [], params }: NavbarUserProfileProps) {
-  const { user, logout, userDetails } = useUser();
+export default function NavbarUserProfile({ profileLinks = [] }: NavbarUserProfileProps) {
+  const { user, logout, userDetails, authState } = useUser();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
   const handleLogout = async () => {
     if (isLoggingOut) {
-      console.log("[NavbarUserProfile] Logout already in progress, ignoring...");
       return; // Prevent double logout
     }
-    
-    console.log("[NavbarUserProfile] Starting optimistic logout...");
+
     setIsLoggingOut(true);
     
     // Show immediate feedback
@@ -52,11 +46,8 @@ export default function NavbarUserProfile({ profileLinks = [], params }: NavbarU
     });
     
     try {
-      console.log("[NavbarUserProfile] Calling logout function...");
       await logout();
-      
-      console.log("[NavbarUserProfile] Logout successful, showing success message...");
-      
+
       // Show success message
       toast({
         title: "Sesión cerrada",
@@ -79,7 +70,6 @@ export default function NavbarUserProfile({ profileLinks = [], params }: NavbarU
       // Fallback to hard redirect only if needed
       setTimeout(() => {
         if (typeof window !== 'undefined') {
-          console.log("[NavbarUserProfile] Fallback redirect after error...");
           window.location.href = "/login";
         }
       }, 2000);
@@ -112,6 +102,22 @@ export default function NavbarUserProfile({ profileLinks = [], params }: NavbarU
     return null;
   }
 
+  if (authState !== "ready") {
+    return (
+      <Button
+        variant="ghost"
+        className="relative rounded-full p-0 h-10 w-10 text-white hover:bg-gray-800 focus-visible:ring-white focus-visible:ring-offset-0 focus-visible:ring-offset-gray-900"
+        disabled
+      >
+        <Avatar className="h-9 w-9">
+          <AvatarFallback className="bg-gray-600 text-white">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </AvatarFallback>
+        </Avatar>
+      </Button>
+    );
+  }
+
   const getInitials = () => {
     const UDetails = userDetails as any;
     if (UDetails && typeof UDetails.first_name === 'string' && UDetails.first_name && typeof UDetails.last_name === 'string' && UDetails.last_name) {
@@ -126,20 +132,9 @@ export default function NavbarUserProfile({ profileLinks = [], params }: NavbarU
 
   const getLogoUrl = () => {
     const UDetails = userDetails as any;
-    console.log('[NavbarUserProfile] getLogoUrl check:', {
-      hasDetails: !!UDetails,
-      role: UDetails?.role,
-      hasLogoUrl: !!UDetails?.logo_url,
-      logoUrl: UDetails?.logo_url,
-      fullDetails: UDetails
-    });
-    // For ORGANIZADOR role, return logo_url if exists
     if (UDetails && UDetails.role === 'ORGANIZADOR' && UDetails.logo_url) {
-      const proxiedUrl = getStorageUrl(UDetails.logo_url);
-      console.log('[NavbarUserProfile] Returning proxied logo URL:', proxiedUrl);
-      return proxiedUrl;
+      return getStorageUrl(UDetails.logo_url);
     }
-    console.log('[NavbarUserProfile] No logo URL found, using initials');
     return null;
   };
 
@@ -150,8 +145,6 @@ export default function NavbarUserProfile({ profileLinks = [], params }: NavbarU
     "Usuario";
 
   const userEmail = user.email || "No email available";
-  const userIdShort = user.id.substring(0, 8);
-
   const logoUrl = getLogoUrl();
 
   return (
@@ -165,12 +158,7 @@ export default function NavbarUserProfile({ profileLinks = [], params }: NavbarU
                 alt="Organization Logo"
                 className="h-full w-full object-cover"
                 onError={(e) => {
-                  console.log('[NavbarUserProfile] Image failed to load:', logoUrl);
-                  console.log('[NavbarUserProfile] Error details:', e.currentTarget.src);
                   e.currentTarget.style.display = 'none';
-                }}
-                onLoad={() => {
-                  console.log('[NavbarUserProfile] Image loaded successfully!', logoUrl);
                 }}
               />
             </div>
