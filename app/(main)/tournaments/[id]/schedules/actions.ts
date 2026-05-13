@@ -9,6 +9,7 @@ import {
   ActionResult, 
   CreateTimeSlotData, 
   UpdateAvailabilityData,
+  UpdateFreeDateAvailabilityData,
   TimeSlotWithAvailability,
   CoupleAvailability,
   TournamentBasic,
@@ -16,6 +17,8 @@ import {
 } from './types'
 import { validateTimeSlot, getErrorMessage } from './utils'
 import { checkUserTournamentInscription } from '@/utils/tournament-permissions'
+
+export type { CreateTimeSlotData } from './types'
 
 // Helper: Ensure date is correctly stored for Argentina timezone
 // The issue is that when we send "2025-10-02", Supabase client may interpret it as UTC midnight
@@ -149,6 +152,77 @@ const playerBelongsToCouple = async (
   }
 }
 
+const getCoupleDisplayData = (rawCouple: any) => ({
+  id: rawCouple?.id || '',
+  player1: {
+    id: rawCouple?.player1?.id || '',
+    first_name: rawCouple?.player1?.first_name || '',
+    last_name: rawCouple?.player1?.last_name || ''
+  },
+  player2: {
+    id: rawCouple?.player2?.id || '',
+    first_name: rawCouple?.player2?.first_name || '',
+    last_name: rawCouple?.player2?.last_name || ''
+  }
+})
+
+const ensureFreeDateSlot = async (
+  supabase: any,
+  fechaId: string
+) => {
+  const { data: existingSlot, error: existingError } = await supabase
+    .from('tournament_time_slots')
+    .select('*')
+    .eq('fecha_id', fechaId)
+    .eq('slot_type', 'FREE_DATE')
+    .maybeSingle()
+
+  if (existingError) {
+    throw existingError
+  }
+
+  if (existingSlot) {
+    return existingSlot
+  }
+
+  const { data: fecha, error: fechaError } = await supabase
+    .from('tournament_fechas')
+    .select('id, start_date, end_date, tournament_id, tournaments!inner(type)')
+    .eq('id', fechaId)
+    .single()
+
+  if (fechaError || !fecha) {
+    throw fechaError || new Error('Fecha no encontrada')
+  }
+
+  if ((fecha.tournaments as any)?.type !== 'LONG') {
+    throw new Error('FECHA LIBRE solo aplica a torneos LONG')
+  }
+
+  const { data: insertedSlot, error: insertError } = await supabase
+    .from('tournament_time_slots')
+    .insert({
+      fecha_id: fechaId,
+      date: fecha.start_date || fecha.end_date || new Date().toISOString().split('T')[0],
+      start_time: '00:00',
+      end_time: '23:59',
+      court_name: 'FECHA LIBRE',
+      max_matches: 0,
+      description: 'FECHA LIBRE',
+      is_available: true,
+      slot_type: 'FREE_DATE',
+      is_system: true
+    })
+    .select('*')
+    .single()
+
+  if (insertError) {
+    throw insertError
+  }
+
+  return insertedSlot
+}
+
 // 1. Check User Access
 export async function checkUserAccess(
   tournamentId: string
@@ -261,8 +335,8 @@ export async function getScheduleData(
           notes,
           couples (
             id,
-            player1:players!couples_player1_id_fkey (first_name, last_name),
-            player2:players!couples_player2_id_fkey (first_name, last_name)
+            player1:players!couples_player1_id_fkey (id, first_name, last_name),
+            player2:players!couples_player2_id_fkey (id, first_name, last_name)
           )
         )
       `)
@@ -278,27 +352,26 @@ export async function getScheduleData(
     // Transform data
     const formattedTimeSlots: TimeSlotWithAvailability[] = (timeSlots || []).map(slot => ({
       ...slot,
+      slot_type: slot.slot_type || 'TIME_RANGE',
+      is_system: Boolean(slot.is_system),
       availableCouples: slot.couple_time_availability
         ?.filter((cta: any) => cta.is_available)
         .map((cta: any) => ({
           couple_id: cta.couple_id,
-          couple: {
-            id: cta.couples.id,
-            player1: {
-              id: cta.couples.player1.id,
-              first_name: cta.couples.player1.first_name || '',
-              last_name: cta.couples.player1.last_name || ''
-            },
-            player2: {
-              id: cta.couples.player2.id,
-              first_name: cta.couples.player2.first_name || '',
-              last_name: cta.couples.player2.last_name || ''
-            }
-          },
+          couple: getCoupleDisplayData(cta.couples),
           is_available: cta.is_available,
           notes: cta.notes
         })) || [],
-      totalAvailable: slot.couple_time_availability?.filter((cta: any) => cta.is_available)?.length || 0
+      unavailableCouples: slot.couple_time_availability
+        ?.filter((cta: any) => !cta.is_available)
+        .map((cta: any) => ({
+          couple_id: cta.couple_id,
+          couple: getCoupleDisplayData(cta.couples),
+          is_available: cta.is_available,
+          notes: cta.notes
+        })) || [],
+      totalAvailable: slot.couple_time_availability?.filter((cta: any) => cta.is_available)?.length || 0,
+      totalUnavailable: slot.couple_time_availability?.filter((cta: any) => !cta.is_available)?.length || 0
     }))
 
     const tournamentBasic: TournamentBasic = {
@@ -397,7 +470,7 @@ export async function getPlayerScheduleData(
     // Also get slots where user hasn't marked availability yet
     const { data: allTimeSlots, error: allTimeSlotsError } = await supabase
       .from('tournament_time_slots')
-      .select('id, date, start_time, end_time, court_name, description')
+      .select('id, date, start_time, end_time, court_name, description, max_matches, slot_type, is_system, is_available')
       .eq('fecha_id', fechaId)
       .eq('is_available', true)
       .order('date', { ascending: true })
@@ -433,7 +506,9 @@ export async function getPlayerScheduleData(
     }
 
     // Transform data
-    const formattedTimeSlots = (allTimeSlots || []).map(slot => {
+    const formattedTimeSlots = (allTimeSlots || [])
+      .filter(slot => (slot.slot_type || 'TIME_RANGE') !== 'FREE_DATE')
+      .map(slot => {
       const availability = availabilityMap.get(slot.id)
       return {
         id: slot.id,
@@ -443,8 +518,10 @@ export async function getPlayerScheduleData(
         end_time: slot.end_time,
         court_name: slot.court_name,
         description: slot.description,
-        is_available: true,
-        max_matches: 1,
+        is_available: slot.is_available,
+        max_matches: slot.max_matches || 1,
+        slot_type: slot.slot_type || 'TIME_RANGE',
+        is_system: Boolean(slot.is_system),
         created_at: new Date().toISOString(),
         my_availability: availability ? {
           couple_id: accessResult.data?.coupleId!,
@@ -453,6 +530,28 @@ export async function getPlayerScheduleData(
         } : undefined
       }
     })
+
+    const freeDateRawSlot = (allTimeSlots || []).find(slot => (slot.slot_type || 'TIME_RANGE') === 'FREE_DATE')
+    const freeDateAvailability = freeDateRawSlot ? availabilityMap.get(freeDateRawSlot.id) : undefined
+    const freeDateSlot = freeDateRawSlot ? {
+      id: freeDateRawSlot.id,
+      fecha_id: fechaId,
+      date: freeDateRawSlot.date,
+      start_time: freeDateRawSlot.start_time,
+      end_time: freeDateRawSlot.end_time,
+      court_name: freeDateRawSlot.court_name,
+      description: freeDateRawSlot.description,
+      is_available: freeDateRawSlot.is_available,
+      max_matches: freeDateRawSlot.max_matches || 0,
+      slot_type: 'FREE_DATE' as const,
+      is_system: Boolean(freeDateRawSlot.is_system),
+      created_at: new Date().toISOString(),
+      my_availability: freeDateAvailability ? {
+        couple_id: accessResult.data?.coupleId!,
+        is_available: freeDateAvailability.is_available,
+        notes: freeDateAvailability.notes || null
+      } : undefined
+    } : undefined
 
     const tournamentBasic: TournamentBasic = {
       id: tournament.id,
@@ -469,6 +568,7 @@ export async function getPlayerScheduleData(
         tournament: tournamentBasic,
         fecha,
         timeSlots: formattedTimeSlots,
+        freeDateSlot,
         coupleInfo: {
           id: coupleData.id,
           player1_name: `${(coupleData.player1 as any)?.first_name || ''} ${(coupleData.player1 as any)?.last_name || ''}`.trim(),
@@ -550,7 +650,9 @@ export async function createTimeSlot(
         max_matches: data.max_matches || 1,
         description: data.description,
         court_name: data.court_name,
-        is_available: true
+        is_available: true,
+        slot_type: 'TIME_RANGE',
+        is_system: false
       })
 
     if (insertError) {
@@ -575,7 +677,7 @@ export async function createTimeSlot(
 // 5. Delete Time Slot (organizers only)
 export async function deleteTimeSlot(
   timeSlotId: string
-): Promise<ActionResult<void>> {
+): Promise<ActionResult> {
   try {
     const supabase = await createClient()
 
@@ -585,6 +687,8 @@ export async function deleteTimeSlot(
       .select(`
         id,
         fecha_id,
+        slot_type,
+        is_system,
         tournament_fechas!inner(tournament_id)
       `)
       .eq('id', timeSlotId)
@@ -607,6 +711,13 @@ export async function deleteTimeSlot(
       return {
         success: false,
         error: 'Solo los organizadores pueden eliminar horarios'
+      }
+    }
+
+    if (timeSlot.is_system || timeSlot.slot_type === 'FREE_DATE') {
+      return {
+        success: false,
+        error: 'El slot FECHA LIBRE es del sistema y no se puede eliminar'
       }
     }
 
@@ -661,7 +772,7 @@ export async function deleteTimeSlot(
 // 5b. Force Delete Time Slot (organizers only) - deletes availability data first
 export async function forceDeleteTimeSlot(
   timeSlotId: string
-): Promise<ActionResult<void>> {
+): Promise<ActionResult> {
   try {
     const supabase = await createClient()
 
@@ -671,6 +782,8 @@ export async function forceDeleteTimeSlot(
       .select(`
         id,
         fecha_id,
+        slot_type,
+        is_system,
         tournament_fechas!inner(tournament_id)
       `)
       .eq('id', timeSlotId)
@@ -693,6 +806,13 @@ export async function forceDeleteTimeSlot(
       return {
         success: false,
         error: 'Solo los organizadores pueden eliminar horarios'
+      }
+    }
+
+    if (timeSlot.is_system || timeSlot.slot_type === 'FREE_DATE') {
+      return {
+        success: false,
+        error: 'El slot FECHA LIBRE es del sistema y no se puede eliminar'
       }
     }
 
@@ -762,6 +882,8 @@ export async function updateTimeSlot(
         date,
         start_time,
         end_time,
+        slot_type,
+        is_system,
         tournament_fechas!inner(tournament_id)
       `)
       .eq('id', timeSlotId)
@@ -784,6 +906,13 @@ export async function updateTimeSlot(
       return {
         success: false,
         error: 'Solo los organizadores pueden modificar horarios'
+      }
+    }
+
+    if (timeSlot.is_system || timeSlot.slot_type === 'FREE_DATE') {
+      return {
+        success: false,
+        error: 'El slot FECHA LIBRE es del sistema y no se puede modificar'
       }
     }
 
@@ -867,6 +996,7 @@ export async function updateCoupleAvailability(
       .from('tournament_time_slots')
       .select(`
         fecha_id,
+        slot_type,
         tournament_fechas!inner(tournament_id)
       `)
       .eq('id', data.time_slot_id)
@@ -876,6 +1006,13 @@ export async function updateCoupleAvailability(
       return {
         success: false,
         error: 'Horario no encontrado'
+      }
+    }
+
+    if ((timeSlot as any).slot_type === 'FREE_DATE') {
+      return {
+        success: false,
+        error: 'Usa la opciÃ³n FECHA LIBRE para marcar disponibilidad de fecha completa'
       }
     }
 
@@ -931,13 +1068,158 @@ export async function updateCoupleAvailability(
       throw upsertError
     }
 
+    // If the couple marks any concrete time slot as available, remove the full-fecha block.
+    if (data.is_available) {
+      const { data: freeDateSlot } = await supabase
+        .from('tournament_time_slots')
+        .select('id')
+        .eq('fecha_id', (timeSlot as any).fecha_id)
+        .eq('slot_type', 'FREE_DATE')
+        .maybeSingle()
+
+      if (freeDateSlot) {
+        await supabase
+          .from('couple_time_availability')
+          .delete()
+          .eq('couple_id', data.couple_id)
+          .eq('time_slot_id', freeDateSlot.id)
+      }
+    }
+
     revalidatePath(`/tournaments/${(timeSlot.tournament_fechas as any).tournament_id}/schedules`)
+    revalidatePath(`/tournaments/${(timeSlot.tournament_fechas as any).tournament_id}/match-scheduling`)
     
     return {
       success: true,
       message: data.is_available ? 'Disponibilidad marcada' : 'Disponibilidad removida'
     }
 
+  } catch (error) {
+    return {
+      success: false,
+      error: getErrorMessage(error)
+    }
+  }
+}
+
+// 8. Update Free Date Availability (players only)
+export async function updateFreeDateAvailability(
+  data: UpdateFreeDateAvailabilityData
+): Promise<ActionResult<void>> {
+  try {
+    const supabase = await createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return {
+        success: false,
+        error: 'Usuario no autenticado'
+      }
+    }
+
+    const { data: fecha } = await supabase
+      .from('tournament_fechas')
+      .select('tournament_id')
+      .eq('id', data.fecha_id)
+      .single()
+
+    if (!fecha) {
+      return {
+        success: false,
+        error: 'Fecha no encontrada'
+      }
+    }
+
+    const accessResult = await checkUserAccess(fecha.tournament_id)
+    if (!accessResult.success || !accessResult.data) {
+      return accessResult as ActionResult<void>
+    }
+
+    if (!accessResult.data.isInscribed || !accessResult.data.playerId) {
+      return {
+        success: false,
+        error: 'Solo jugadores inscritos pueden marcar FECHA LIBRE'
+      }
+    }
+
+    const belongsToCouple = await playerBelongsToCouple(
+      supabase,
+      accessResult.data.playerId,
+      data.couple_id
+    )
+
+    if (!belongsToCouple) {
+      return {
+        success: false,
+        error: 'No perteneces a esta pareja'
+      }
+    }
+
+    if (data.notes && data.notes.length > 200) {
+      return {
+        success: false,
+        error: 'La nota no puede superar 200 caracteres'
+      }
+    }
+
+    const freeDateSlot = await ensureFreeDateSlot(supabase, data.fecha_id)
+
+    if (data.is_free_date) {
+      const { data: timeSlots } = await supabase
+        .from('tournament_time_slots')
+        .select('id')
+        .eq('fecha_id', data.fecha_id)
+        .eq('slot_type', 'TIME_RANGE')
+
+      const timeSlotIds = (timeSlots || []).map((slot: any) => slot.id)
+
+      if (timeSlotIds.length > 0) {
+        const { error: deleteTimeRangeAvailabilityError } = await supabase
+          .from('couple_time_availability')
+          .delete()
+          .eq('couple_id', data.couple_id)
+          .in('time_slot_id', timeSlotIds)
+          .eq('is_available', true)
+
+        if (deleteTimeRangeAvailabilityError) {
+          throw deleteTimeRangeAvailabilityError
+        }
+      }
+
+      const { error: upsertError } = await supabase
+        .from('couple_time_availability')
+        .upsert({
+          couple_id: data.couple_id,
+          time_slot_id: freeDateSlot.id,
+          is_available: false,
+          notes: data.notes || null,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'couple_id,time_slot_id'
+        })
+
+      if (upsertError) {
+        throw upsertError
+      }
+    } else {
+      const { error: deleteError } = await supabase
+        .from('couple_time_availability')
+        .delete()
+        .eq('couple_id', data.couple_id)
+        .eq('time_slot_id', freeDateSlot.id)
+
+      if (deleteError) {
+        throw deleteError
+      }
+    }
+
+    revalidatePath(`/tournaments/${fecha.tournament_id}/schedules`)
+    revalidatePath(`/tournaments/${fecha.tournament_id}/match-scheduling`)
+
+    return {
+      success: true,
+      message: data.is_free_date ? 'FECHA LIBRE marcada' : 'FECHA LIBRE removida'
+    }
   } catch (error) {
     return {
       success: false,

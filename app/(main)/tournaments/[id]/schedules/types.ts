@@ -57,13 +57,17 @@ export interface TimeSlot {
   court_name?: string
   max_matches: number
   is_available: boolean
+  slot_type: 'TIME_RANGE' | 'FREE_DATE'
+  is_system: boolean
   description?: string
   created_at: string
 }
 
 export interface TimeSlotWithAvailability extends TimeSlot {
   availableCouples: CoupleAvailability[]
+  unavailableCouples: CoupleAvailability[]
   totalAvailable: number
+  totalUnavailable: number
 }
 
 // Couple and availability types
@@ -106,6 +110,13 @@ export interface UpdateAvailabilityData {
   notes?: string
 }
 
+export interface UpdateFreeDateAvailabilityData {
+  couple_id: string
+  fecha_id: string
+  is_free_date: boolean
+  notes?: string | null
+}
+
 // API Response types
 export interface ScheduleData {
   tournament: TournamentBasic
@@ -127,6 +138,13 @@ export interface PlayerScheduleData {
       is_available: boolean
     }[]
   })[]
+  freeDateSlot?: TimeSlot & {
+    my_availability?: {
+      couple_id: string
+      is_available: boolean
+      notes?: string | null
+    }
+  }
   coupleInfo: {
     id: string
     player1_name: string

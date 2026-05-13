@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Clock, Users, AlertCircle } from 'lucide-react'
+import { Plus, Clock, Users, AlertCircle, CalendarX } from 'lucide-react'
 import { UserAccess, ScheduleData, TimeSlot } from '../types'
 import { getScheduleData } from '../actions'
 import { ScheduleMatrixSkeleton } from './LoadingStates'
@@ -73,10 +73,12 @@ export default function OrganizerView({
   }
 
   const { timeSlots } = scheduleData as any
+  const freeDateSlot = timeSlots?.find((slot: any) => slot.slot_type === 'FREE_DATE')
+  const playableTimeSlots = timeSlots?.filter((slot: any) => slot.slot_type !== 'FREE_DATE') || []
 
   // Extract unique couples from all time slots
   const allCouples = new Set<string>()
-  timeSlots?.forEach((slot: any) => {
+  playableTimeSlots?.forEach((slot: any) => {
     slot.availableCouples?.forEach((availability: any) => {
       if (availability.couple) {
         allCouples.add(availability.couple.id)
@@ -112,7 +114,7 @@ export default function OrganizerView({
               <Clock className="h-8 w-8 text-blue-600" />
               <div>
                 <p className="text-sm text-gray-600">Horarios Creados</p>
-                <p className="text-2xl font-bold">{timeSlots?.length || 0}</p>
+                <p className="text-2xl font-bold">{playableTimeSlots?.length || 0}</p>
               </div>
             </div>
           </CardContent>
@@ -137,7 +139,7 @@ export default function OrganizerView({
               <div>
                 <p className="text-sm text-gray-600">Disponibilidades</p>
                 <p className="text-2xl font-bold">
-                  {timeSlots.reduce((total: number, slot: any) => 
+                  {playableTimeSlots.reduce((total: number, slot: any) => 
                     total + (slot.availableCouples?.length || 0), 0
                   )}
                 </p>
@@ -148,7 +150,11 @@ export default function OrganizerView({
       </div>
 
       {/* Time Slots Matrix */}
-      {timeSlots.length === 0 ? (
+      {freeDateSlot && (
+        <FreeDateSummaryCard timeSlot={freeDateSlot} />
+      )}
+
+      {playableTimeSlots.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -164,7 +170,7 @@ export default function OrganizerView({
         </Card>
       ) : (
         <div className="space-y-4">
-          {timeSlots.map((timeSlot: any) => (
+          {playableTimeSlots.map((timeSlot: any) => (
             <TimeSlotCard 
               key={timeSlot.id} 
               timeSlot={timeSlot} 
@@ -182,6 +188,48 @@ export default function OrganizerView({
         onSuccess={handleCreateSuccess}
       />
     </div>
+  )
+}
+
+function FreeDateSummaryCard({ timeSlot }: { timeSlot: any }) {
+  const unavailableCouples = timeSlot.unavailableCouples || []
+
+  return (
+    <Card className="border-red-200 bg-red-50/50">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-red-900">
+          <CalendarX className="h-5 w-5" />
+          FECHA LIBRE
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-red-700 mb-4">
+          {unavailableCouples.length} pareja{unavailableCouples.length === 1 ? '' : 's'} no puede{unavailableCouples.length === 1 ? '' : 'n'} jugar esta fecha.
+        </p>
+
+        {unavailableCouples.length > 0 ? (
+          <div className="space-y-2">
+            {unavailableCouples.map((availability: any) => (
+              <div
+                key={availability.couple_id}
+                className="p-3 bg-white rounded-md border border-red-100"
+              >
+                <div className="text-sm font-medium text-slate-900">
+                  {`${availability.couple.player1?.first_name || ''} ${availability.couple.player1?.last_name || ''}`.trim()} / {`${availability.couple.player2?.first_name || ''} ${availability.couple.player2?.last_name || ''}`.trim()}
+                </div>
+                {availability.notes && (
+                  <div className="mt-2 p-2 bg-red-50 rounded text-xs text-slate-700 border-l-2 border-red-300">
+                    Nota: {availability.notes}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-slate-500">Ninguna pareja marco FECHA LIBRE.</div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 

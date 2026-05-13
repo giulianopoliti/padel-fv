@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -9,9 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { registerCoupleForTournament } from "@/app/api/tournaments/actions"
-import { checkPlayerIdentity, createPlayerForCouple, checkPlayersPhones, updatePlayerPhone } from "@/app/api/players/actions"
 import { useUser } from "@/contexts/user-context"
 import { Search, UserPlus, AlertCircle, Users, User, Phone, CreditCard, Loader2, Trophy, Upload, CheckCircle2 } from "lucide-react"
 import { Gender } from "@/types"
@@ -31,8 +29,6 @@ interface PlayerInfo {
   category_name?: string | null
 }
 
-type IdentityMatchType = "dni" | "name"
-
 // Interface para datos de verificacion de telefono
 interface PhoneCheckData {
   id: string
@@ -40,6 +36,27 @@ interface PhoneCheckData {
   lastName: string
   phone: string | null
   needsPhone: boolean
+}
+
+interface CreatePlayerForCoupleResponse {
+  success: boolean
+  playerId?: string
+  message?: string
+}
+
+interface CheckPhonesResponse {
+  success: boolean
+  player1: PhoneCheckData | null
+  player2: PhoneCheckData | null
+  bothHavePhone: boolean
+  atLeastOneHasPhone: boolean
+  noneHasPhone: boolean
+  error?: string
+}
+
+interface UpdatePhoneResponse {
+  success: boolean
+  error?: string
 }
 
 const parseJsonResponse = async <T,>(response: Response, fallbackMessage: string): Promise<T> => {
@@ -60,6 +77,72 @@ const parseJsonResponse = async <T,>(response: Response, fallbackMessage: string
     })
     throw new Error(fallbackMessage)
   }
+}
+
+const postJson = async <T,>(url: string, body: unknown, fallbackMessage: string) => {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  })
+
+  const payload = await parseJsonResponse<T>(response, fallbackMessage)
+  return { response, payload }
+}
+
+const requestCreatePlayerForCouple = async (body: {
+  tournamentId: string
+  playerData: {
+    first_name: string
+    last_name: string
+    gender: string
+    dni?: string | null
+    phone?: string | null
+    forceCreateNew?: boolean
+  }
+}): Promise<CreatePlayerForCoupleResponse> => {
+  const { response, payload } = await postJson<CreatePlayerForCoupleResponse>(
+    "/api/players/create-for-couple",
+    body,
+    "El servidor devolvió una respuesta inválida al crear el compañero.",
+  )
+
+  if (!response.ok && !payload.success) {
+    return {
+      success: false,
+      message: payload.message || "No se pudo crear el compañero.",
+    }
+  }
+
+  return payload
+}
+
+const requestCheckPlayersPhones = async (body: {
+  player1Id: string
+  player2Id: string
+}): Promise<CheckPhonesResponse> => {
+  const { payload } = await postJson<CheckPhonesResponse>(
+    "/api/players/check-phones",
+    body,
+    "El servidor devolvió una respuesta inválida al verificar los teléfonos.",
+  )
+
+  return payload
+}
+
+const requestUpdatePlayerPhone = async (body: {
+  playerId: string
+  phone: string
+}): Promise<UpdatePhoneResponse> => {
+  const { payload } = await postJson<UpdatePhoneResponse>(
+    "/api/players/update-phone",
+    body,
+    "El servidor devolvió una respuesta inválida al actualizar el teléfono.",
+  )
+
+  return payload
 }
 
 // Esquema de validación para jugador
@@ -122,10 +205,9 @@ export default function RegisterCoupleForm({
   const [player1Phone, setPlayer1Phone] = useState("")
   const [player2Phone, setPlayer2Phone] = useState("")
   const [isUpdatingPhones, setIsUpdatingPhones] = useState(false)
-  const [showIdentityModal, setShowIdentityModal] = useState(false)
-  const [existingIdentityPlayer, setExistingIdentityPlayer] = useState<PlayerInfo | null>(null)
-  const [identityMatchedBy, setIdentityMatchedBy] = useState<IdentityMatchType>("name")
-  const [pendingNewPlayerData, setPendingNewPlayerData] = useState<PlayerFormValues | null>(null)
+  const phoneFormRef = useRef<HTMLDivElement | null>(null)
+  const player1PhoneInputRef = useRef<HTMLInputElement | null>(null)
+  const player2PhoneInputRef = useRef<HTMLInputElement | null>(null)
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null)
   const [paymentProofError, setPaymentProofError] = useState<string | null>(null)
 
@@ -161,6 +243,25 @@ export default function RegisterCoupleForm({
       searchTerm: "",
     },
   })
+
+  useEffect(() => {
+    if (!showPhoneForm) {
+      return
+    }
+
+    const targetInput = phoneCheckResult?.player1?.needsPhone
+      ? player1PhoneInputRef.current
+      : player2PhoneInputRef.current
+
+    phoneFormRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    })
+
+    window.setTimeout(() => {
+      targetInput?.focus()
+    }, 150)
+  }, [phoneCheckResult, showPhoneForm])
 
   // Manejar búsqueda de jugadores
   const onSearch = async (data: SearchFormValues) => {
@@ -231,7 +332,10 @@ export default function RegisterCoupleForm({
 
     try {
       console.log("[RegisterCoupleForm] Verificando telefonos de jugadores...")
-      const result = await checkPlayersPhones(userDetails.player_id, companionId)
+      const result = await requestCheckPlayersPhones({
+        player1Id: userDetails.player_id,
+        player2Id: companionId,
+      })
 
       if (!result.success) {
         toast({
@@ -299,7 +403,10 @@ export default function RegisterCoupleForm({
       // Actualizar telefono del jugador 1 si se proporciono
       if (player1PhoneValid && phoneCheckResult.player1?.needsPhone && phoneCheckResult.player1.id) {
         console.log(`[RegisterCoupleForm] Actualizando telefono de player1: ${phoneCheckResult.player1.id}`)
-        const updateResult = await updatePlayerPhone(phoneCheckResult.player1.id, player1Phone)
+        const updateResult = await requestUpdatePlayerPhone({
+          playerId: phoneCheckResult.player1.id,
+          phone: player1Phone,
+        })
         if (!updateResult.success) {
           toast({
             title: "Error al actualizar telefono",
@@ -313,7 +420,10 @@ export default function RegisterCoupleForm({
       // Actualizar telefono del jugador 2 si se proporciono
       if (player2PhoneValid && phoneCheckResult.player2?.needsPhone && phoneCheckResult.player2.id) {
         console.log(`[RegisterCoupleForm] Actualizando telefono de player2: ${phoneCheckResult.player2.id}`)
-        const updateResult = await updatePlayerPhone(phoneCheckResult.player2.id, player2Phone)
+        const updateResult = await requestUpdatePlayerPhone({
+          playerId: phoneCheckResult.player2.id,
+          phone: player2Phone,
+        })
         if (!updateResult.success) {
           toast({
             title: "Error al actualizar telefono",
@@ -439,7 +549,7 @@ export default function RegisterCoupleForm({
     data: PlayerFormValues,
     forceCreateNew = false,
   ) => {
-    const newPlayerResult = await createPlayerForCouple({
+    const newPlayerResult = await requestCreatePlayerForCouple({
       tournamentId,
       playerData: {
         first_name: data.firstName,
@@ -462,55 +572,6 @@ export default function RegisterCoupleForm({
     }
 
     return handleCheckPhonesAndRegister(newPlayerResult.playerId)
-  }
-
-  const resetIdentityModalState = () => {
-    setShowIdentityModal(false)
-    setExistingIdentityPlayer(null)
-    setIdentityMatchedBy("name")
-    setPendingNewPlayerData(null)
-  }
-
-  const handleUseExistingIdentityPlayer = async () => {
-    if (!existingIdentityPlayer?.id) return
-
-    setShowIdentityModal(false)
-    setIsSubmitting(true)
-    try {
-      await handleCheckPhonesAndRegister(existingIdentityPlayer.id)
-    } catch (error) {
-      console.error("[RegisterCoupleForm] Error al registrar con jugador existente:", error)
-      toast({
-        title: "Error inesperado",
-        description: "Ocurrió un error al registrar la pareja",
-        variant: "destructive",
-      })
-      onComplete(false)
-    } finally {
-      setIsSubmitting(false)
-      resetIdentityModalState()
-    }
-  }
-
-  const handleCreateNewAfterIdentityPrompt = async () => {
-    if (!pendingNewPlayerData) return
-
-    setShowIdentityModal(false)
-    setIsSubmitting(true)
-    try {
-      await createAndRegisterCompanion(pendingNewPlayerData, true)
-    } catch (error) {
-      console.error("[RegisterCoupleForm] Error al crear jugador forzado:", error)
-      toast({
-        title: "Error inesperado",
-        description: "Ocurrió un error al crear y registrar el compañero",
-        variant: "destructive",
-      })
-      onComplete(false)
-    } finally {
-      setIsSubmitting(false)
-      resetIdentityModalState()
-    }
   }
 
   // Manejar registro de nuevo jugador como pareja
@@ -540,69 +601,8 @@ export default function RegisterCoupleForm({
     setIsSubmitting(true)
 
     try {
-      const normalizedDni = data.dni?.trim() || ""
-      const identityData = await checkPlayerIdentity({
-        firstName: data.firstName,
-        lastName: data.lastName,
-        dni: normalizedDni || null,
-        gender: data.gender,
-      })
-
-      if (!identityData.success) {
-        throw new Error(identityData.error || "No se pudo verificar la identidad del jugador")
-      }
-
-      if (identityData.exists && identityData.player) {
-        setExistingIdentityPlayer(identityData.player)
-        setIdentityMatchedBy(identityData.matchedBy || "name")
-        setPendingNewPlayerData(data)
-        setShowIdentityModal(true)
-        return
-      }
-
       await createAndRegisterCompanion(data, false)
       return
-
-      /*
-      // Crear el nuevo jugador usando createPlayerForCouple
-      const newPlayerResult = await createPlayerForCouple({
-        tournamentId,
-        playerData: {
-          first_name: data.firstName,
-          last_name: data.lastName,
-          gender: data.gender,
-          dni: data.dni || null
-        }
-      })
-
-      if (newPlayerResult.success && newPlayerResult.playerId) {
-        // Registrar la pareja con el nuevo jugador usando la función correcta
-        const result = await registerCoupleForTournament(tournamentId, userDetails.player_id, newPlayerResult.playerId)
-        
-        if (result.success) {
-          toast({
-            title: "¡Pareja registrada!",
-            description: "Se ha registrado la pareja con el nuevo jugador exitosamente",
-          })
-          onComplete(true)
-        } else {
-          console.error('[RegisterCoupleForm] New player registration error:', result.error)
-          toast({
-            title: "Error en el registro de pareja",
-            description: result.error || "El jugador se creó pero no se pudo registrar la pareja",
-            variant: "destructive",
-          })
-          onComplete(false)
-        }
-      } else {
-        toast({
-          title: "Error al crear jugador",
-          description: newPlayerResult.message || "No se pudo crear el nuevo jugador",
-          variant: "destructive",
-        })
-        onComplete(false)
-      }
-      */
     } catch (error) {
       console.error("Error al registrar pareja:", error)
       toast({
@@ -615,11 +615,6 @@ export default function RegisterCoupleForm({
       setIsSubmitting(false)
     }
   }
-
-  const identityModalDescription =
-    identityMatchedBy === "dni"
-      ? `Coincide por DNI (${existingIdentityPlayer?.dni || "informado"}). ¿El jugador es este?`
-      : "Coincide por nombre y apellido. ¿El jugador es este?"
 
   const submitCoupleRegistration = async (companionId: string) => {
     if (!userDetails?.player_id) {
@@ -1017,7 +1012,10 @@ export default function RegisterCoupleForm({
 
             {/* Formulario para telefonos faltantes */}
             {showPhoneForm && phoneCheckResult && (
-              <div className="mt-4 p-4 border border-amber-200 bg-amber-50 rounded-lg space-y-4">
+              <div
+                ref={phoneFormRef}
+                className="mt-4 p-4 border border-amber-200 bg-amber-50 rounded-lg space-y-4"
+              >
                 <Alert className="border-amber-300 bg-amber-100">
                   <Phone className="h-4 w-4 text-amber-600" />
                   <AlertTitle className="text-amber-800">Telefono requerido</AlertTitle>
@@ -1035,6 +1033,7 @@ export default function RegisterCoupleForm({
                         Tu teléfono ({phoneCheckResult.player1.firstName} {phoneCheckResult.player1.lastName})
                       </label>
                       <Input
+                        ref={player1PhoneInputRef}
                         type="tel"
                         placeholder="Ingresa tu numero de telefono"
                         value={player1Phone}
@@ -1054,6 +1053,7 @@ export default function RegisterCoupleForm({
                         Teléfono de tu compañero ({phoneCheckResult.player2.firstName} {phoneCheckResult.player2.lastName})
                       </label>
                       <Input
+                        ref={player2PhoneInputRef}
                         type="tel"
                         placeholder="Ingresa el numero de telefono del companero"
                         value={player2Phone}
@@ -1250,68 +1250,6 @@ export default function RegisterCoupleForm({
         </Tabs>
       </CardContent>
 
-      {showIdentityModal && existingIdentityPlayer && (
-        <Dialog open={showIdentityModal} onOpenChange={(open) => !open && resetIdentityModalState()}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-orange-600" />
-                El jugador es este?
-              </DialogTitle>
-              <DialogDescription>{identityModalDescription}</DialogDescription>
-            </DialogHeader>
-
-            <div className="py-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                <h4 className="font-semibold text-blue-900">Datos del jugador encontrado:</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-600">Nombre:</span>
-                    <span className="font-semibold text-slate-800">
-                      {existingIdentityPlayer.first_name} {existingIdentityPlayer.last_name}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-600">DNI:</span>
-                    <PlayerDniDisplay dni={existingIdentityPlayer.dni} className="font-semibold text-slate-800" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-600">Puntaje:</span>
-                    <div className="flex items-center gap-1">
-                      <Trophy className="h-4 w-4 text-yellow-500" />
-                      <span className="font-semibold text-slate-800">{existingIdentityPlayer.score ?? "No disponible"}</span>
-                    </div>
-                  </div>
-                  {existingIdentityPlayer.category_name && (
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-slate-600">Categoria:</span>
-                      <span className="font-semibold text-slate-800">{existingIdentityPlayer.category_name}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button
-                variant="outline"
-                onClick={handleCreateNewAfterIdentityPrompt}
-                className="w-full sm:w-auto"
-                disabled={isSubmitting}
-              >
-                No usar, crear nuevo
-              </Button>
-              <Button
-                onClick={handleUseExistingIdentityPlayer}
-                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700"
-                disabled={isSubmitting}
-              >
-                Usar este jugador
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </Card>
   )
 }

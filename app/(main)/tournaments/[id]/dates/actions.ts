@@ -303,6 +303,7 @@ export async function getTimeSlotsForRound(
         )
       `)
       .in('fecha_id', fechaIds)
+      .eq('slot_type', 'TIME_RANGE')
       .order('date', { ascending: true })
       .order('start_time', { ascending: true })
 
@@ -319,6 +320,8 @@ export async function getTimeSlotsForRound(
       end_time: slot.end_time,
       court_name: slot.court_name,
       max_matches: slot.max_matches,
+      slot_type: slot.slot_type || 'TIME_RANGE',
+      is_system: Boolean(slot.is_system),
       fecha: slot.fecha
     }))
 

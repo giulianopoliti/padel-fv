@@ -25,6 +25,8 @@ export interface CoupleWithData {
   matches_in_fecha: number
   has_played_in_this_date: boolean // true if has finished match in this fecha
   match_status: 'DRAFT' | 'PENDING' | 'FINISHED' | null // status of match in this fecha (null if no match)
+  free_date_blocked: boolean
+  free_date_notes: string | null
 }
 
 export interface TimeSlot {
@@ -34,6 +36,8 @@ export interface TimeSlot {
   court_name: string | null
   date: string
   max_matches: number
+  slot_type: 'TIME_RANGE' | 'FREE_DATE'
+  is_system: boolean
 }
 
 export interface AvailabilityItem {
@@ -108,6 +112,54 @@ const haveCouplesPlayedTogether = async (
     console.error('Exception checking existing matches:', error)
     return false // En caso de excepción, permitir la creación (fail-safe)
   }
+}
+
+const getFreeDateBlocksForCouples = async (
+  supabase: any,
+  fechaId: string,
+  coupleIds: string[]
+): Promise<Map<string, string | null>> => {
+  if (coupleIds.length === 0) {
+    return new Map()
+  }
+
+  const { data, error } = await supabase
+    .from('couple_time_availability')
+    .select(`
+      couple_id,
+      notes,
+      tournament_time_slots!inner (
+        fecha_id,
+        slot_type
+      )
+    `)
+    .in('couple_id', coupleIds)
+    .eq('is_available', false)
+    .eq('tournament_time_slots.fecha_id', fechaId)
+    .eq('tournament_time_slots.slot_type', 'FREE_DATE')
+
+  if (error) {
+    throw error
+  }
+
+  return new Map((data || []).map((item: any) => [item.couple_id, item.notes || null]))
+}
+
+const validateCouplesNotFreeDateBlocked = async (
+  supabase: any,
+  fechaId: string,
+  coupleIds: string[]
+): Promise<ActionResult | null> => {
+  const freeDateBlocks = await getFreeDateBlocksForCouples(supabase, fechaId, coupleIds)
+
+  if (freeDateBlocks.size > 0) {
+    return {
+      success: false,
+      error: 'Una o ambas parejas marcaron FECHA LIBRE y no pueden ser programadas en esta fecha'
+    }
+  }
+
+  return null
 }
 
 // Helper function to get match with tournament and zone information
@@ -188,9 +240,10 @@ export async function getMatchSchedulingData(
     // Get time slots for this fecha
     const { data: timeSlotsData, error: timeSlotsError } = await supabase
       .from('tournament_time_slots')
-      .select('id, start_time, end_time, court_name, date, max_matches')
+      .select('id, start_time, end_time, court_name, date, max_matches, slot_type, is_system')
       .eq('fecha_id', fechaId)
       .eq('is_available', true)
+      .eq('slot_type', 'TIME_RANGE')
       .order('date', { ascending: true })
       .order('start_time', { ascending: true })
 
@@ -206,7 +259,7 @@ export async function getMatchSchedulingData(
         time_slot_id,
         is_available,
         notes,
-        tournament_time_slots!inner (fecha_id)
+        tournament_time_slots!inner (fecha_id, slot_type)
       `)
       .eq('tournament_time_slots.fecha_id', fechaId)
 
@@ -277,6 +330,7 @@ export async function getMatchSchedulingData(
     const finishedMatchesCounts = new Map<string, number>()
     const couplesWithMatches = new Set<string>()
     const coupleMatchStatus = new Map<string, 'DRAFT' | 'PENDING' | 'FINISHED'>() // Track match status for visual indication
+    const freeDateBlocks = new Map<string, string | null>()
 
     // First, process ALL matches (including DRAFT) to track couples with matches
     if (allMatchesForCoupleFiltering) {
@@ -324,6 +378,15 @@ export async function getMatchSchedulingData(
       }
     }
 
+    for (const item of availabilityData || []) {
+      if (
+        item.is_available === false &&
+        (item.tournament_time_slots as any)?.slot_type === 'FREE_DATE'
+      ) {
+        freeDateBlocks.set(item.couple_id, item.notes || null)
+      }
+    }
+
     // Transform couples data
     const couples: CoupleWithData[] = (couplesData || []).map(couple => {
       const zonePosition = couple.zone_positions?.[0]
@@ -345,7 +408,9 @@ export async function getMatchSchedulingData(
         } : null,
         matches_in_fecha: finishedMatchesCounts.get(couple.id) || 0,
         has_played_in_this_date: couplesWithMatches.has(couple.id), // Now checks for ANY match, not just finished
-        match_status: coupleMatchStatus.get(couple.id) || null // DRAFT, PENDING, or null
+        match_status: coupleMatchStatus.get(couple.id) || null, // DRAFT, PENDING, or null
+        free_date_blocked: freeDateBlocks.has(couple.id),
+        free_date_notes: freeDateBlocks.get(couple.id) || null
       }
     })
 
@@ -356,16 +421,20 @@ export async function getMatchSchedulingData(
       end_time: slot.end_time,
       court_name: slot.court_name,
       date: slot.date,
-      max_matches: slot.max_matches
+      max_matches: slot.max_matches,
+      slot_type: slot.slot_type || 'TIME_RANGE',
+      is_system: Boolean(slot.is_system)
     }))
 
     // Transform availability
-    const availability: AvailabilityItem[] = (availabilityData || []).map(item => ({
-      couple_id: item.couple_id,
-      time_slot_id: item.time_slot_id,
-      is_available: item.is_available,
-      notes: item.notes
-    }))
+    const availability: AvailabilityItem[] = (availabilityData || [])
+      .filter(item => (item.tournament_time_slots as any)?.slot_type !== 'FREE_DATE')
+      .map(item => ({
+        couple_id: item.couple_id,
+        time_slot_id: item.time_slot_id,
+        is_available: item.is_available,
+        notes: item.notes
+      }))
 
     // Transform existing matches with scheduling information
     const existingMatches: ExistingMatch[] = (existingMatchesData || []).map(item => ({
@@ -508,6 +577,16 @@ export async function createMatch(
       }
     }
 
+    const freeDateValidation = await validateCouplesNotFreeDateBlocked(
+      supabase,
+      fechaId,
+      [couple1Id, couple2Id]
+    )
+
+    if (freeDateValidation) {
+      return freeDateValidation
+    }
+
     // Get time slot data for scheduling information (if timeSlotId provided)
     let timeSlot = null
     let warningMessage = ''
@@ -515,7 +594,7 @@ export async function createMatch(
     if (timeSlotId) {
       const { data: timeSlotData } = await supabase
         .from('tournament_time_slots')
-        .select('start_time, end_time, court_name, max_matches, date')
+        .select('start_time, end_time, court_name, max_matches, date, slot_type, is_system')
         .eq('id', timeSlotId)
         .single()
 
@@ -523,6 +602,13 @@ export async function createMatch(
         return {
           success: false,
           error: 'Horario no encontrado'
+        }
+      }
+
+      if (timeSlotData.slot_type === 'FREE_DATE' || timeSlotData.is_system) {
+        return {
+          success: false,
+          error: 'FECHA LIBRE no es un horario programable'
         }
       }
 
@@ -1148,6 +1234,8 @@ export async function modifyMatchSchedule(
       .select(`
         id,
         round,
+        couple1_id,
+        couple2_id,
         tournament_id,
         tournaments!inner (
           id,
@@ -1188,6 +1276,19 @@ export async function modifyMatchSchedule(
     // ⚠️ Validation: Warn if ZONE match has no fecha_id assigned
     if (matchData.round === 'ZONE' && !fechaId) {
       console.warn(`⚠️  Partido de ZONE ${matchId} no tiene fecha_id asignada. No aparecerá en Match Scheduling filtrado por fecha.`)
+    }
+
+    if (fechaId) {
+      const coupleIds = [matchData.couple1_id, matchData.couple2_id].filter(Boolean) as string[]
+      const freeDateValidation = await validateCouplesNotFreeDateBlocked(
+        supabase,
+        fechaId,
+        coupleIds
+      )
+
+      if (freeDateValidation) {
+        return freeDateValidation
+      }
     }
 
     // UPSERT fecha_matches with new schedule (creates if not exists, updates if exists)

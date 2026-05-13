@@ -41,6 +41,14 @@ export const useMatchScheduling = (
 
   // Handle couple selection (drag from matrix)
   const handleCoupleSelect = useCallback((couple: CoupleWithData) => {
+    if (couple.free_date_blocked) {
+      setState(prev => ({
+        ...prev,
+        error: 'Esta pareja marco FECHA LIBRE y no puede ser seleccionada'
+      }))
+      return
+    }
+
     setState(prev => {
       const isAlreadySelected = prev.selectedCouples.find(c => c.id === couple.id)
       
@@ -148,6 +156,14 @@ export const useMatchScheduling = (
     }
 
     const [couple1, couple2] = state.selectedCouples
+
+    if (couple1.free_date_blocked || couple2.free_date_blocked) {
+      setState(prev => ({
+        ...prev,
+        error: 'Una o ambas parejas marcaron FECHA LIBRE'
+      }))
+      return false
+    }
     
     // Validate for conflicts
     const validation = validateMatchCreation(couple1.id, couple2.id, formData.fecha)
@@ -204,6 +220,8 @@ export const useMatchScheduling = (
           scheduled_start_time: result.data.scheduledStartTime,
           scheduled_end_time: result.data.scheduledEndTime,
           court_assignment: result.data.courtAssignment,
+          club_id: formData.clubId || null,
+          club: null,
           // Add couple data for proper display
           couple1: {
             player1: { 

@@ -13,7 +13,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Plus,
-  Info
+  Info,
+  CalendarX
 } from 'lucide-react'
 import { TournamentFecha } from '../../schedules/types'
 import { UserPermissions } from '@/hooks/use-tournament-permissions'
@@ -83,7 +84,9 @@ export default function SelectedFechaContent({
     )
   }
 
-  const timeSlots = scheduleData?.timeSlots || []
+  const allTimeSlots = scheduleData?.timeSlots || []
+  const freeDateSlot = allTimeSlots.find((slot: any) => slot.slot_type === 'FREE_DATE')
+  const timeSlots = allTimeSlots.filter((slot: any) => slot.slot_type !== 'FREE_DATE')
   const totalCouples = scheduleData ? new Set(
     timeSlots.flatMap((slot: any) =>
       slot.availableCouples?.map((a: any) => a.couple_id) || []
@@ -232,6 +235,16 @@ export default function SelectedFechaContent({
                           <Badge variant="secondary">{totalCouples}</Badge>
                         </div>
                       )}
+
+                      <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <CalendarX className="h-4 w-4 text-red-600" />
+                          <span className="text-sm font-medium text-red-900">
+                            FECHA LIBRE marcada
+                          </span>
+                        </div>
+                        <Badge variant="secondary">{freeDateSlot?.totalUnavailable || 0}</Badge>
+                      </div>
                     </div>
                   )}
                 </CardContent>

@@ -32,6 +32,7 @@ export async function GET(
       `)
       .eq('fecha_id', fechaId)
       .eq('is_available', true)
+      .eq('slot_type', 'TIME_RANGE')
       .order('date', { ascending: true })
       .order('start_time', { ascending: true })
 
@@ -54,8 +55,8 @@ export async function GET(
     const formattedTimeSlots = timeSlots?.map(slot => ({
       ...slot,
       availableCouples: slot.couple_time_availability
-        ?.filter(cta => cta.is_available)
-        .map(cta => ({
+        ?.filter((cta: any) => cta.is_available)
+        .map((cta: any) => ({
           couple_id: cta.couple_id,
           player1_name: `${cta.couples?.player1?.first_name} ${cta.couples?.player1?.last_name}`,
           player2_name: `${cta.couples?.player2?.first_name} ${cta.couples?.player2?.last_name}`,
@@ -95,7 +96,7 @@ export async function POST(
     }
 
     // Verify user has permissions to create time slots
-    const permissionResult = await checkTournamentPermissions(user.id, tournamentId, supabase)
+    const permissionResult = await checkTournamentPermissions(user.id, tournamentId)
     if (!permissionResult.hasPermission) {
       return NextResponse.json(
         { error: permissionResult.reason || 'No tienes permisos para crear horarios en este torneo' },
@@ -115,7 +116,9 @@ export async function POST(
         end_time,
         court_name,
         max_matches: max_matches || 1,
-        is_available: true
+        is_available: true,
+        slot_type: 'TIME_RANGE',
+        is_system: false
       })
       .select()
       .single()
@@ -144,6 +147,19 @@ export async function PATCH(
   try {
     const body = await request.json()
     const { couple_id, time_slot_id, is_available } = body
+
+    const { data: timeSlot } = await supabase
+      .from('tournament_time_slots')
+      .select('slot_type')
+      .eq('id', time_slot_id)
+      .single()
+
+    if (timeSlot?.slot_type === 'FREE_DATE') {
+      return NextResponse.json(
+        { error: 'Usa la accion especifica para FECHA LIBRE' },
+        { status: 400 }
+      )
+    }
 
     // Upsert couple availability
     const { data, error } = await supabase

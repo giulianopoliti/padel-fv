@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { PlayerDTO, Gender } from '@/types';
 import { normalizePlayerDni, sanitizeDniInput } from '@/lib/utils/player-dni';
 import { ExistingPlayerMatch, findExistingPlayerByIdentity } from '@/lib/utils/player-identity';
+import { createPlayerForCoupleService } from '@/lib/services/players/create-player-for-couple';
 /**
  * Buscar jugadores existentes por nombre, apellido o DNI
  */
@@ -498,144 +499,10 @@ export async function createPlayerForCouple({
   };
 }) {
   const supabase = await createClient();
-  console.log(`[createPlayerForCouple] Creando jugador para pareja en torneo ${tournamentId}`, {
-    playerData
+  return createPlayerForCoupleService(supabase, {
+    tournamentId,
+    playerData,
   });
-
-  // Verificar autenticación y permisos
-  const { getUser, getUserRole } = await import('@/app/api/users');
-  const user = await getUser();
-  const role = await getUserRole();
-  
-  if (!user) {
-    throw new Error("Usuario no autenticado");
-  }
-  
-  // Verificar que el usuario tenga permisos para crear jugadores
-  const allowedRoles = ['CLUB', 'PLAYER', 'COACH', 'ADMIN', 'ORGANIZADOR'];
-  if (!role || !allowedRoles.includes(role)) {
-    throw new Error("No tienes permisos para crear jugadores para torneos");
-  }
-  
-  console.log(`[createPlayerForCouple] Usuario autenticado: ${user.email}, Rol: ${role}`);
-  
-  // Obtener información del torneo para validar género
-  const { data: genderData, error: genderError } = await supabase
-    .from('tournaments')
-    .select('gender')
-    .eq('id', tournamentId)
-    .single();
-
-  if (genderError) {
-    console.error("[createPlayerForCouple] Error fetching tournament:", genderError);
-    throw new Error("No se pudo obtener información del torneo");
-  }
-
-  const tournamentGenderUpper = (genderData?.gender ?? '').toUpperCase();
-  const playerGenderUpper = (playerData?.gender ?? '').toUpperCase();
-
-  if (tournamentGenderUpper === 'FEMALE' && playerGenderUpper !== 'FEMALE') {
-    return { 
-      success: false, 
-      message: 'Es un torneo femenino, pero el jugador es de género masculino' 
-    };
-  }
-  
-  const normalizedDni = normalizePlayerDni(playerData.dni);
-
-  if (!playerData.forceCreateNew) {
-    const existingPlayerResult = await findExistingPlayerByIdentity({
-      supabase,
-      firstName: playerData.first_name,
-      lastName: playerData.last_name,
-      dni: playerData.dni,
-      gender: playerData.gender,
-    });
-
-    if (existingPlayerResult.error) {
-      console.error("[createPlayerForCouple] Error al buscar jugador existente:", existingPlayerResult.error);
-      throw new Error("Error al verificar jugador existente");
-    }
-    
-    if (existingPlayerResult.player) {
-      console.log(
-        `[createPlayerForCouple] Reutilizando jugador existente por ${existingPlayerResult.matchedBy}:`,
-        existingPlayerResult.player,
-      );
-      return { success: true, playerId: existingPlayerResult.player.id, message: "Jugador existente encontrado" };
-    }
-  }
-  
-  // Obtener información del torneo para saber la categoría
-  const { data: tournamentData, error: tournamentError } = await supabase
-    .from('tournaments')
-    .select(`
-      *,
-      club:club_id (
-        id, 
-        name
-      )
-    `)
-    .eq('id', tournamentId)
-    .single();
-  
-  if (tournamentError) {
-    console.error("[createPlayerForCouple] Error fetching tournament:", tournamentError);
-    throw new Error("No se pudo obtener información del torneo");
-  }
-  
-  console.log("[createPlayerForCouple] Datos del torneo:", tournamentData);
-  
-  // Determinar el nombre de la categoría
-  const categoryName = tournamentData.category_name || '';
-  console.log("[createPlayerForCouple] Nombre de categoría determinado:", categoryName);
-  
-  // Obtener el score más bajo para la categoría
-  const { data: categoryData, error: categoryError } = await supabase
-    .from('categories')
-    .select('lower_range')
-    .eq('name', categoryName)
-    .single();
-    
-  if (categoryError) {
-    console.error("[createPlayerForCouple] Error fetching category:", categoryError);
-    throw new Error("No se pudo obtener información de la categoría");
-  }
-  
-  console.log("[createPlayerForCouple] Datos de la categoría:", categoryData);
-  
-        // Crear el nuevo jugador con el score mínimo de la categoría
-      const newPlayerData = {
-        first_name: playerData.first_name,
-        last_name: playerData.last_name,
-        gender: playerData.gender,
-        dni: normalizedDni.dni,
-        dni_is_temporary: normalizedDni.dniIsTemporary,
-        phone: playerData.phone?.trim() || null,
-        score: categoryData.lower_range ?? 0,
-        category_name: categoryName,
-        is_categorized: true, // Mark as categorized when creating new player
-        created_at: new Date().toISOString()
-      };
-  
-  // Los nuevos jugadores se crean sin club asignado
-  
-  console.log("[createPlayerForCouple] Datos para crear jugador:", newPlayerData);
-  
-  const { data: newPlayer, error: newPlayerError } = await supabase
-    .from('players')
-    .insert(newPlayerData)
-    .select('id')
-    .single();
-    
-  if (newPlayerError) {
-    console.error("[createPlayerForCouple] Error creating new player:", newPlayerError);
-    throw new Error("No se pudo crear el nuevo jugador");
-  }
-  
-  console.log("[createPlayerForCouple] Nuevo jugador creado con ID:", newPlayer.id);
-  
-  return { success: true, playerId: newPlayer.id, message: "Jugador creado exitosamente" };
 }
 
 export async function getPlayerGender(playerId: string) {

@@ -8,7 +8,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Clock, Info } from 'lucide-react'
+import { Clock, Info, CalendarX } from 'lucide-react'
 import { CoupleWithData, SchedulingData } from '../actions'
 import { getDayOfWeek, formatTimeRange, formatDateWithDay } from '../utils/dateUtils'
 
@@ -32,6 +32,11 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
   onDragEnd
 }) => {
   const handleDragStart = (couple: CoupleWithData, e: React.DragEvent) => {
+    if (couple.free_date_blocked) {
+      e.preventDefault()
+      return
+    }
+
     e.dataTransfer.setData('text/plain', couple.id)
     e.dataTransfer.effectAllowed = 'move'
     onDragStart(couple)
@@ -42,6 +47,10 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
   }
 
   const handleCoupleClick = (couple: CoupleWithData) => {
+    if (couple.free_date_blocked) {
+      return
+    }
+
     onCoupleSelect(couple)
   }
 
@@ -79,6 +88,9 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
 
   // Helper function to get row background color based on match status
   const getRowBackgroundColor = (couple: CoupleWithData): string => {
+    if (couple.free_date_blocked) {
+      return 'bg-red-50'
+    }
     if (!couple.match_status) {
       return 'bg-white' // No match - normal white background
     }
@@ -126,6 +138,10 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
             <div className="w-3 h-3 bg-red-400 rounded-full"></div>
             <span className="text-sm font-medium text-red-800">Partido programado / finalizado</span>
           </div>
+          <div className="inline-flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-300 rounded-lg">
+            <CalendarX className="w-3 h-3 text-red-600" />
+            <span className="text-sm font-medium text-red-800">FECHA LIBRE</span>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -166,11 +182,12 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                   <tr
                     key={couple.id}
                     className={`
-                      border-b border-gray-100 hover:bg-blue-50/50 cursor-grab active:cursor-grabbing
+                      border-b border-gray-100 hover:bg-blue-50/50
                       transition-colors duration-200
+                      ${couple.free_date_blocked ? 'cursor-not-allowed opacity-70' : 'cursor-grab active:cursor-grabbing'}
                       ${draggedCouple?.id === couple.id ? 'opacity-50 bg-blue-100' : rowBgColor}
                     `}
-                    draggable={true}
+                    draggable={!couple.free_date_blocked}
                     onDragStart={(e) => {
                       e.stopPropagation()
                       handleDragStart(couple, e)
@@ -206,6 +223,14 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                             <Info className="w-3 h-3" />
                             <span>
                               {couple.zone_position.zone_name} - Pos {couple.zone_position.position}
+                            </span>
+                          </div>
+                        )}
+                        {couple.free_date_blocked && (
+                          <div className="flex items-center gap-1 text-xs text-red-700">
+                            <CalendarX className="w-3 h-3" />
+                            <span>
+                              FECHA LIBRE{couple.free_date_notes ? ` - ${couple.free_date_notes}` : ''}
                             </span>
                           </div>
                         )}

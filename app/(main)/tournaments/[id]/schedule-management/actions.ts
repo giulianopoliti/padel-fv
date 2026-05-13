@@ -241,6 +241,7 @@ export async function cloneTimeSlots(sourceFechaId: string, targetFechaId: strin
       .from('tournament_time_slots')
       .select('date, start_time, end_time, max_matches, court_name, description')
       .eq('fecha_id', sourceFechaId)
+      .eq('slot_type', 'TIME_RANGE')
 
     if (sourceError || !sourceTimeSlots) {
       return {
@@ -259,7 +260,9 @@ export async function cloneTimeSlots(sourceFechaId: string, targetFechaId: strin
     // Create new time slots for target fecha
     const newTimeSlots = sourceTimeSlots.map(slot => ({
       ...slot,
-      fecha_id: targetFechaId
+      fecha_id: targetFechaId,
+      slot_type: 'TIME_RANGE',
+      is_system: false
     }))
 
     const { error: insertError } = await supabase

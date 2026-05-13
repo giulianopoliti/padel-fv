@@ -10,7 +10,6 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import TournamentLongSidebar from './TournamentLongSidebar'
 import TournamentAmericanSidebar from './TournamentAmericanSidebar'
 import TournamentMobileHeader from './TournamentMobileHeader'
-import { checkTournamentPermissions } from '@/utils/tournament-permissions'
 
 interface TournamentLongLayoutProps {
   children: React.ReactNode
@@ -51,8 +50,7 @@ const fetcher = async (tournamentId: string) => {
   return data
 }
 
-const playerInscriptionFetcher = async (key: string) => {
-  const [, tournamentId, playerId] = key.split('-')
+const playerInscriptionFetcher = async ([, tournamentId, playerId]: [string, string, string]) => {
   const supabase = createClient()
 
   const { data, error } = await supabase
@@ -91,12 +89,6 @@ const playerInscriptionFetcher = async (key: string) => {
   }
 }
 
-const permissionsFetcher = async (key: string) => {
-  const [, userId, tournamentId] = key.split('-')
-  const permissions = await checkTournamentPermissions(userId, tournamentId)
-  return permissions.hasPermission
-}
-
 function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
   const params = useParams()
   const pathname = usePathname()
@@ -133,19 +125,9 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
   // Obtener datos de inscripción si es un player
   const { data: playerInscription } = useSWR(
     shouldShowSidebar && tournamentId && userDetails?.role === 'PLAYER' && userDetails?.player_id
-      ? `player-inscription-${tournamentId}-${userDetails.player_id}`
+      ? ['player-inscription', tournamentId, userDetails.player_id]
       : null,
     playerInscriptionFetcher
-  )
-
-  // Obtener permisos de gestión del torneo
-  // NOTA: Este fetch ya no se usa en TournamentLongSidebar (usa userRole directamente como TournamentAmericanSidebar)
-  // Se mantiene por compatibilidad futura
-  const { data: hasManagePermission } = useSWR(
-    shouldShowSidebar && tournamentId && userDetails?.id
-      ? `permissions-${userDetails.id}-${tournamentId}`
-      : null,
-    permissionsFetcher
   )
 
   console.log('[TournamentLongLayout] tournament:', tournament)
@@ -175,6 +157,14 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
     ? TournamentLongSidebar
     : TournamentAmericanSidebar
 
+  const organization = Array.isArray(tournament.organizaciones)
+    ? tournament.organizaciones[0]
+    : tournament.organizaciones
+
+  const club = Array.isArray(tournament.clubes)
+    ? tournament.clubes[0]
+    : tournament.clubes
+
   const sidebarProps = {
     tournament: {
       id: tournament.id,
@@ -182,21 +172,21 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
       category: tournament.category_name,
       status: tournament.status,
       is_draft: tournament.is_draft ?? false,
-      organization: tournament.organizaciones ? {
-        name: tournament.organizaciones.name,
-        logo_url: tournament.organizaciones.logo_url,
-        slug: tournament.organizaciones.slug
+      organization: organization ? {
+        name: organization.name,
+        logo_url: organization.logo_url,
+        slug: organization.slug
       } : null,
-      club: tournament.clubes ? {
-        name: tournament.clubes.name,
-        logo_url: tournament.clubes.logo_url
+      club: club ? {
+        name: club.name,
+        logo_url: club.logo_url
       } : null
     },
     userRole: userDetails?.role,
     playerInscription: playerInscription,
     collapsed: sidebarCollapsed,
     onToggle: () => setSidebarCollapsed(!sidebarCollapsed),
-    hasManagePermission: hasManagePermission || false
+    hasManagePermission: false
   }
 
   if (isMobile) {

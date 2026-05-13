@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Plus, Clock, Edit, Trash2, Users, AlertTriangle } from 'lucide-react'
+import { Plus, Clock, Edit, Trash2, Users, AlertTriangle, CalendarX } from 'lucide-react'
 import { TournamentFecha } from '../../types'
 import { getScheduleData } from '../../../schedule-management/actions'
 import CreateTimeSlotDialog from './CreateTimeSlotDialog'
@@ -29,6 +29,17 @@ interface TimeSlot {
   description?: string
   max_matches: number
   totalAvailable: number
+  totalUnavailable?: number
+  slot_type?: 'TIME_RANGE' | 'FREE_DATE'
+  is_system?: boolean
+  unavailableCouples?: Array<{
+    couple_id: string
+    couple: {
+      player1: { first_name: string; last_name: string }
+      player2: { first_name: string; last_name: string }
+    }
+    notes?: string
+  }>
 }
 
 export default function TimeSlotManager({
@@ -104,6 +115,9 @@ export default function TimeSlotManager({
     }
   }
 
+  const freeDateSlot = timeSlots.find((slot) => slot.slot_type === 'FREE_DATE')
+  const playableTimeSlots = timeSlots.filter((slot) => slot.slot_type !== 'FREE_DATE')
+
   if (!selectedFecha) {
     return (
       <Card className="h-full">
@@ -165,15 +179,51 @@ export default function TimeSlotManager({
                     {error}
                   </AlertDescription>
                 </Alert>
-              ) : timeSlots.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>No hay horarios configurados</p>
-                  <p className="text-sm">Crea el primer horario para esta fecha</p>
-                </div>
               ) : (
                 <div className="space-y-3">
-                  {timeSlots.map((timeSlot) => (
+                  {freeDateSlot && (
+                    <Card className="border-red-200 bg-red-50/50">
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <CalendarX className="h-5 w-5 text-red-600 mt-0.5" />
+                          <div className="flex-1 space-y-3">
+                            <div>
+                              <h3 className="font-semibold text-red-900">FECHA LIBRE</h3>
+                              <p className="text-sm text-red-700">
+                                {freeDateSlot.totalUnavailable || 0} pareja{(freeDateSlot.totalUnavailable || 0) === 1 ? '' : 's'} no puede{(freeDateSlot.totalUnavailable || 0) === 1 ? '' : 'n'} jugar esta fecha
+                              </p>
+                            </div>
+                            {(freeDateSlot.unavailableCouples || []).length > 0 && (
+                              <div className="space-y-2">
+                                {(freeDateSlot.unavailableCouples || []).map((availability) => (
+                                  <div key={availability.couple_id} className="rounded-md border border-red-100 bg-white p-2 text-sm">
+                                    <div className="font-medium text-slate-900">
+                                      {`${availability.couple.player1.first_name} ${availability.couple.player1.last_name}`.trim()} / {`${availability.couple.player2.first_name} ${availability.couple.player2.last_name}`.trim()}
+                                    </div>
+                                    {availability.notes && (
+                                      <div className="mt-1 text-xs text-slate-600">
+                                        Nota: {availability.notes}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {playableTimeSlots.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>No hay horarios configurados</p>
+                      <p className="text-sm">Crea el primer horario para esta fecha</p>
+                    </div>
+                  )}
+
+                  {playableTimeSlots.map((timeSlot) => (
                     <Card
                       key={timeSlot.id}
                       className="hover:bg-slate-50 transition-colors"
