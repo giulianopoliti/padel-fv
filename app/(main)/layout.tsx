@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/toaster'
 import Navbar from '@/components/navbar'
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { getUserDetails } from '@/utils/db/getUserDetails'
+import { ensureSerializable } from '@/utils/serialization'
 
 export default async function MainLayout({
   children,
@@ -45,7 +46,8 @@ export default async function MainLayout({
   }
 
   // 🔧 OPTIMIZACIÓN FASE 2: Manejo de errores simplificado
-  const initialUser = (user && !authError) ? user : null
+  const initialUser = (user && !authError) ? ensureSerializable(user) : null
+  const serializedUserDetails = initialUserDetails ? ensureSerializable(initialUserDetails) : null
 
   // 📝 LOGGING MEJORADO: Más información de diagnóstico
   if (authError) {
@@ -67,7 +69,7 @@ export default async function MainLayout({
   return (
     <SupabaseProvider initialUser={initialUser}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-        <UserProvider initialUserDetails={initialUserDetails}> 
+        <UserProvider initialUserDetails={serializedUserDetails}> 
           <Navbar />
           {children}
           <Toaster />

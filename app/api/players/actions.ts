@@ -652,6 +652,10 @@ export async function getPlayerGender(playerId: string) {
   return data.gender;
 }
 
+const toPlainServerActionResult = <T,>(value: T): T => {
+  return JSON.parse(JSON.stringify(value)) as T;
+};
+
 /**
  * Verificar si los jugadores tienen telefono registrado
  * Retorna informacion sobre ambos jugadores y cuales necesitan agregar telefono
@@ -675,7 +679,7 @@ export async function checkPlayersPhones(player1Id: string, player2Id: string): 
   
   if (error) {
     console.error("[checkPlayersPhones] Error fetching players:", error);
-    return { 
+    return toPlainServerActionResult({ 
       success: false, 
       player1: null, 
       player2: null, 
@@ -683,11 +687,11 @@ export async function checkPlayersPhones(player1Id: string, player2Id: string): 
       atLeastOneHasPhone: false,
       noneHasPhone: true,
       error: "No se pudieron obtener los datos de los jugadores" 
-    };
+    });
   }
   
   if (!players || players.length !== 2) {
-    return { 
+    return toPlainServerActionResult({ 
       success: false, 
       player1: null, 
       player2: null, 
@@ -695,7 +699,7 @@ export async function checkPlayersPhones(player1Id: string, player2Id: string): 
       atLeastOneHasPhone: false,
       noneHasPhone: true,
       error: "No se encontraron ambos jugadores" 
-    };
+    });
   }
   
   const p1 = players.find(p => p.id === player1Id);
@@ -726,14 +730,14 @@ export async function checkPlayersPhones(player1Id: string, player2Id: string): 
   
   console.log(`[checkPlayersPhones] Resultado: player1 hasPhone=${player1HasPhone}, player2 hasPhone=${player2HasPhone}, atLeastOneHasPhone=${atLeastOneHasPhone}, noneHasPhone=${noneHasPhone}`);
   
-  return {
+  return toPlainServerActionResult({
     success: true,
     player1: player1Data,
     player2: player2Data,
     bothHavePhone,
     atLeastOneHasPhone,
     noneHasPhone
-  };
+  });
 }
 
 /**

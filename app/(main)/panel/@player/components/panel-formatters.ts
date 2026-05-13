@@ -1,5 +1,16 @@
 export const capitalizeWords = (value: string) => value.replace(/\b\w/g, (char) => char.toUpperCase())
 
+export const hasExplicitTime = (value: string | null | undefined) => Boolean(value && value.includes("T"))
+
+const parseDateValue = (value: string) => {
+  if (!hasExplicitTime(value)) {
+    const [year, month, day] = value.split("T")[0].split("-").map(Number)
+    return new Date(year, month - 1, day)
+  }
+
+  return new Date(value)
+}
+
 export const formatDateLabel = (value: string | null | undefined) => {
   if (!value) return "Fecha a confirmar"
 
@@ -9,19 +20,19 @@ export const formatDateLabel = (value: string | null | undefined) => {
       day: "2-digit",
       month: "2-digit",
       timeZone: "America/Argentina/Buenos_Aires",
-    }).format(new Date(value)),
+    }).format(parseDateValue(value)),
   )
 }
 
 export const formatTimeLabel = (value: string | null | undefined) => {
-  if (!value) return "Horario a confirmar"
+  if (!value || !hasExplicitTime(value)) return "Horario a confirmar"
 
   return `${new Intl.DateTimeFormat("es-AR", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
     timeZone: "America/Argentina/Buenos_Aires",
-  }).format(new Date(value))} hs`
+  }).format(parseDateValue(value))} hs`
 }
 
 export const formatPrice = (value: number | string | null | undefined) => {

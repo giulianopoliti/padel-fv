@@ -34,7 +34,7 @@ export interface TenantBranding {
     publicRanking: boolean
     showRankingInNav: boolean
     showTransferProofHighlights: boolean
-    playerPanelVariant: "default" | "padel-elite"
+    playerPanelVariant: "default" | "padel-fv" | "padel-elite"
   }
 }
 
@@ -75,7 +75,7 @@ const tenantBranding: Record<TenantBranding["key"], TenantBranding> = {
       publicRanking: false,
       showRankingInNav: false,
       showTransferProofHighlights: false,
-      playerPanelVariant: "default",
+      playerPanelVariant: "padel-fv",
     },
   },
   "padel-elite": {

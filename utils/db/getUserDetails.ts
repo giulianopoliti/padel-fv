@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import type { DetailedUserDetails } from "@/types";
+import { ensureSerializable } from "@/utils/serialization";
 
 export async function getUserDetails(): Promise<DetailedUserDetails | null> {
   try {
@@ -50,7 +51,7 @@ export async function getUserDetails(): Promise<DetailedUserDetails | null> {
 
     console.log('[getUserDetails] Full data object:', JSON.stringify(data, null, 2));
 
-    return data as DetailedUserDetails;
+    return ensureSerializable(data) as DetailedUserDetails;
   } catch (error) {
     console.error('[getUserDetails] Unexpected error:', error);
     return null;

@@ -76,6 +76,7 @@ export type InscribedTournamentsResult = {
 export type UpcomingTournament = {
   id: string
   name: string
+  type?: "LONG" | "AMERICAN" | string | null
   start_date: string
   end_date: string
   status: string
@@ -212,6 +213,7 @@ export async function getPlayerUpcomingTournaments(playerId: string): Promise<Up
       return {
         id: tournament.id,
         name: tournament.name,
+        type: tournament.type || "LONG",
         start_date: tournament.startDate || '',
         end_date: tournament.endDate || '',
         status: tournament.status,
