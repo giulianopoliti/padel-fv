@@ -63,6 +63,7 @@ export interface PlayerMatch {
 
 export interface PlayerTournamentData {
   isRegistered: boolean
+  isIndividualRegistration: boolean
   isEliminated: boolean
   eliminatedAt: string | null
   eliminatedInRound: string | null
@@ -88,11 +89,12 @@ export async function getPlayerTournamentMatches(
       .from('inscriptions')
       .select(`
         id,
+        player_id,
         couple_id,
         is_eliminated,
         eliminated_at,
         eliminated_in_round,
-        couples!inner (
+        couples (
           id,
           player1_id,
           player2_id
@@ -103,6 +105,7 @@ export async function getPlayerTournamentMatches(
     if (!inscriptions || inscriptions.length === 0) {
       return {
         isRegistered: false,
+        isIndividualRegistration: false,
         isEliminated: false,
         eliminatedAt: null,
         eliminatedInRound: null,
@@ -114,14 +117,23 @@ export async function getPlayerTournamentMatches(
     }
 
     // Encontrar la inscripción donde el player está en la pareja
-    const playerInscription = inscriptions.find(inscription => {
-      const couple = inscription.couples as any
+    const playerInscription = inscriptions.find((inscription: any) => {
+      if (inscription.player_id === playerId && !inscription.couple_id) {
+        return true
+      }
+
+      const couple = Array.isArray(inscription.couples) ? inscription.couples[0] : inscription.couples
+      if (!couple) {
+        return false
+      }
+
       return couple.player1_id === playerId || couple.player2_id === playerId
     })
 
     if (!playerInscription) {
       return {
         isRegistered: false,
+        isIndividualRegistration: false,
         isEliminated: false,
         eliminatedAt: null,
         eliminatedInRound: null,
@@ -133,8 +145,23 @@ export async function getPlayerTournamentMatches(
     }
 
     const playerCoupleId = playerInscription.couple_id
+    const isIndividualRegistration = !playerCoupleId
 
     // 2. Obtener todos los partidos donde participa la pareja del jugador
+    if (isIndividualRegistration) {
+      return {
+        isRegistered: true,
+        isIndividualRegistration: true,
+        isEliminated: playerInscription.is_eliminated || false,
+        eliminatedAt: playerInscription.eliminated_at,
+        eliminatedInRound: playerInscription.eliminated_in_round,
+        nextMatch: null,
+        zoneMatches: [],
+        eliminationMatches: [],
+        playerCoupleId: null
+      }
+    }
+
     // 🔒 EXCLUDE DRAFT matches - players should never see unpublished matches
     const { data: matches, error } = await supabase
       .from('matches')
@@ -216,6 +243,7 @@ export async function getPlayerTournamentMatches(
 
     return {
       isRegistered: true,
+      isIndividualRegistration: false,
       isEliminated: playerInscription.is_eliminated || false,
       eliminatedAt: playerInscription.eliminated_at,
       eliminatedInRound: playerInscription.eliminated_in_round,
@@ -229,6 +257,7 @@ export async function getPlayerTournamentMatches(
     console.error('Error in getPlayerTournamentMatches:', error)
     return {
       isRegistered: false,
+      isIndividualRegistration: false,
       isEliminated: false,
       eliminatedAt: null,
       eliminatedInRound: null,

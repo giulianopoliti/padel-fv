@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,6 +11,7 @@ import { toast } from "@/components/ui/use-toast"
 import { useTournamentOrganizer } from "@/hooks/use-tournament-organizer"
 import OrganizerConsentDialog from "./organizer-consent-dialog"
 import type { ConsentResult } from "@/types/organizer-consent"
+import { createClient } from "@/utils/supabase/client"
 
 interface Tournament {
   id: string
@@ -33,6 +34,45 @@ export default function RegisterPlayerForm({ tournamentId, tournament, onComplet
 
   const { user: contextUser, userDetails } = useUser()
   const { organizador, hasOrganizador } = useTournamentOrganizer(tournamentId)
+
+  useEffect(() => {
+    if (!userDetails?.player_id) {
+      return
+    }
+
+    let cancelled = false
+
+    const loadPlayerPhone = async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("players")
+        .select("phone")
+        .eq("id", userDetails.player_id)
+        .maybeSingle()
+
+      if (error) {
+        console.error("[RegisterPlayerForm] Error loading player phone:", error)
+        return
+      }
+
+      if (cancelled) {
+        return
+      }
+
+      const storedPhone = data?.phone?.trim() || ""
+      if (!storedPhone) {
+        return
+      }
+
+      setPhone((currentValue) => (currentValue.trim().length > 0 ? currentValue : storedPhone))
+    }
+
+    void loadPlayerPhone()
+
+    return () => {
+      cancelled = true
+    }
+  }, [userDetails?.player_id])
 
   const validatePhone = (value: string) => {
     const normalizedValue = value.trim()

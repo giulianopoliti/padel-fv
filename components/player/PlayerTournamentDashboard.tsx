@@ -7,6 +7,7 @@ import { getPlayerNextMatch, PlayerNextMatch } from '@/app/api/panel/actions'
 import NextMatchCardEdge from '@/components/player/NextMatchCardEdge'
 import CancelRegistrationButton from '@/components/tournament/player/cancel-registration-button'
 import NotRegisteredView from '@/components/tournament/NotRegisteredView'
+import PublicRegistrationLauncher from '@/components/tournament/public-registration-launcher'
 import TournamentPublicInfoCard from '@/components/tournament/TournamentPublicInfoCard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -105,6 +106,17 @@ export default function PlayerTournamentDashboard({
     return (
       <div className="p-6 space-y-6">
         <NotRegisteredView tournamentId={tournamentId} tournament={tournament} />
+      </div>
+    )
+  }
+
+  if (playerData.isIndividualRegistration) {
+    return (
+      <div className="p-6 space-y-6">
+        <AwaitingPartnerView
+          tournamentId={tournamentId}
+          tournament={tournament}
+        />
       </div>
     )
   }
@@ -231,6 +243,76 @@ export default function PlayerTournamentDashboard({
         </Card>
       </div>
     </div>
+  )
+}
+
+function AwaitingPartnerView({
+  tournamentId,
+  tournament,
+}: {
+  tournamentId: string
+  tournament: PlayerTournamentDashboardProps['tournament']
+}) {
+  return (
+    <>
+      <div className="space-y-2">
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-100 p-2 rounded-lg">
+            <Trophy className="h-6 w-6 text-blue-600" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">{tournament.name}</h1>
+            <p className="text-muted-foreground">
+              {tournament.category ? `Categoría ${tournament.category}` : 'Torneo Largo'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <Alert className="border-blue-200 bg-blue-50">
+        <Users className="h-4 w-4 text-blue-600" />
+        <AlertDescription className="text-blue-800">
+          <strong>Ya estás inscripto individualmente.</strong> Ahora falta completar tu pareja para entrar a la zona del torneo.
+        </AlertDescription>
+      </Alert>
+
+      <Card className="border-amber-200 bg-amber-50">
+        <CardHeader>
+          <CardTitle className="text-amber-900">¿Qué puede pasar ahora?</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm text-amber-900">
+          <p>
+            Puedes completar tu pareja ahora mismo si ya sabes con quién jugar.
+          </p>
+          <p>
+            Si no tienes compañero todavía, quédate tranquilo: el organizador también puede encontrarte pareja más adelante.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <PublicRegistrationLauncher
+              tournamentId={tournamentId}
+              tournamentName={tournament.name}
+              tournamentGender={tournament.gender || Gender.MALE}
+              tournamentPrice={tournament.price || null}
+              enableTransferProof={tournament.enable_transfer_proof || false}
+              transferAlias={tournament.transfer_alias || null}
+              transferAmount={tournament.transfer_amount || null}
+              buttonLabel="Completar pareja"
+              buttonClassName="w-full sm:w-auto"
+            />
+
+            <CancelRegistrationButton
+              tournamentId={tournamentId}
+              tournamentName={tournament.name}
+              className="w-full border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 sm:w-auto"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {tournament.publicInfo && (
+        <TournamentPublicInfoCard publicInfo={tournament.publicInfo} showSchedule={false} />
+      )}
+    </>
   )
 }
 
