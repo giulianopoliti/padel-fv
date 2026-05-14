@@ -819,6 +819,98 @@ export default function RegisterCoupleForm({
     </div>
   )
 
+  const renderPhoneRequirementForm = () => {
+    if (!showPhoneForm || !phoneCheckResult) {
+      return null
+    }
+
+    return (
+      <div
+        ref={phoneFormRef}
+        className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-4"
+      >
+        <Alert className="border-amber-300 bg-amber-100">
+          <Phone className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-800">Telefono requerido</AlertTitle>
+          <AlertDescription className="text-amber-700">
+            Para completar la inscripción necesitamos al menos un teléfono de contacto de la pareja. Con que uno de los dos lo cargue aquí, alcanza.
+          </AlertDescription>
+        </Alert>
+
+        <div className="space-y-4">
+          {phoneCheckResult.player1?.needsPhone && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                Tu teléfono ({phoneCheckResult.player1.firstName} {phoneCheckResult.player1.lastName})
+              </label>
+              <Input
+                ref={player1PhoneInputRef}
+                type="tel"
+                placeholder="Ingresa tu numero de telefono"
+                value={player1Phone}
+                onChange={(e) => setPlayer1Phone(e.target.value)}
+                className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                aria-label={`Telefono de ${phoneCheckResult.player1.firstName}`}
+              />
+              <p className="text-xs text-gray-500">Minimo 6 caracteres</p>
+            </div>
+          )}
+
+          {phoneCheckResult.player2?.needsPhone && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                Teléfono de tu compañero ({phoneCheckResult.player2.firstName} {phoneCheckResult.player2.lastName})
+              </label>
+              <Input
+                ref={player2PhoneInputRef}
+                type="tel"
+                placeholder="Ingresa el numero de telefono del companero"
+                value={player2Phone}
+                onChange={(e) => setPlayer2Phone(e.target.value)}
+                className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                aria-label={`Telefono de ${phoneCheckResult.player2.firstName}`}
+              />
+              <p className="text-xs text-gray-500">Minimo 6 caracteres</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setShowPhoneForm(false)
+              setPhoneCheckResult(null)
+              setPlayer1Phone("")
+              setPlayer2Phone("")
+            }}
+            disabled={isUpdatingPhones || isSubmitting}
+            className="border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleUpdatePhonesAndRegister}
+            disabled={isUpdatingPhones || isSubmitting}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {isUpdatingPhones || isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Procesando...
+              </>
+            ) : (
+              "Guardar y registrar pareja"
+            )}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   if (!userDetails?.player_id) {
     return (
       <Card className="w-full bg-white border border-gray-200 shadow-sm">
@@ -1010,94 +1102,7 @@ export default function RegisterCoupleForm({
               </div>
             )}
 
-            {/* Formulario para telefonos faltantes */}
-            {showPhoneForm && phoneCheckResult && (
-              <div
-                ref={phoneFormRef}
-                className="mt-4 p-4 border border-amber-200 bg-amber-50 rounded-lg space-y-4"
-              >
-                <Alert className="border-amber-300 bg-amber-100">
-                  <Phone className="h-4 w-4 text-amber-600" />
-                  <AlertTitle className="text-amber-800">Telefono requerido</AlertTitle>
-                  <AlertDescription className="text-amber-700">
-                    Para completar la inscripción necesitamos al menos un teléfono de contacto de la pareja. Con que uno de los dos lo cargue aquí, alcanza.
-                  </AlertDescription>
-                </Alert>
-
-                <div className="space-y-4">
-                  {/* Telefono del jugador 1 (usuario actual) */}
-                  {phoneCheckResult.player1?.needsPhone && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                        <Phone className="h-4 w-4" />
-                        Tu teléfono ({phoneCheckResult.player1.firstName} {phoneCheckResult.player1.lastName})
-                      </label>
-                      <Input
-                        ref={player1PhoneInputRef}
-                        type="tel"
-                        placeholder="Ingresa tu numero de telefono"
-                        value={player1Phone}
-                        onChange={(e) => setPlayer1Phone(e.target.value)}
-                        className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                        aria-label={`Telefono de ${phoneCheckResult.player1.firstName}`}
-                      />
-                      <p className="text-xs text-gray-500">Minimo 6 caracteres</p>
-                    </div>
-                  )}
-
-                  {/* Telefono del jugador 2 (companero) */}
-                  {phoneCheckResult.player2?.needsPhone && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                        <Phone className="h-4 w-4" />
-                        Teléfono de tu compañero ({phoneCheckResult.player2.firstName} {phoneCheckResult.player2.lastName})
-                      </label>
-                      <Input
-                        ref={player2PhoneInputRef}
-                        type="tel"
-                        placeholder="Ingresa el numero de telefono del companero"
-                        value={player2Phone}
-                        onChange={(e) => setPlayer2Phone(e.target.value)}
-                        className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                        aria-label={`Telefono de ${phoneCheckResult.player2.firstName}`}
-                      />
-                      <p className="text-xs text-gray-500">Minimo 6 caracteres</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setShowPhoneForm(false)
-                      setPhoneCheckResult(null)
-                      setPlayer1Phone("")
-                      setPlayer2Phone("")
-                    }}
-                    disabled={isUpdatingPhones || isSubmitting}
-                    className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    onClick={handleUpdatePhonesAndRegister}
-                    disabled={isUpdatingPhones || isSubmitting}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    {isUpdatingPhones || isSubmitting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Procesando...
-                      </>
-                    ) : (
-                      "Guardar y registrar pareja"
-                    )}
-                  </Button>
-                </div>
-              </div>
-            )}
+            {renderPhoneRequirementForm()}
           </TabsContent>
 
           <TabsContent value="new" className="py-4">
@@ -1246,6 +1251,8 @@ export default function RegisterCoupleForm({
                 </div>
               </form>
             </Form>
+
+            {renderPhoneRequirementForm()}
           </TabsContent>
         </Tabs>
       </CardContent>

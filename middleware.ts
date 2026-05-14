@@ -8,6 +8,7 @@ export async function middleware(request: NextRequest) {
   // Skip completely for these patterns
   if (
     path.startsWith('/_next/') ||
+    path.startsWith('/api/') ||
     path.startsWith('/api/auth/') ||
     path.includes('.') ||
     path === '/favicon.ico'
