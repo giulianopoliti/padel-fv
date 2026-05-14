@@ -87,7 +87,7 @@ const tenantBranding: Record<TenantBranding["key"], TenantBranding> = {
     siteName: "PadelElite",
     shortName: "TPE Padel",
     siteDomain: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
-    supportEmail: "info@padel-elite.com",
+    supportEmail: "tpepadel@gmail.com",
     tenantOrganizationSlug: process.env.NEXT_PUBLIC_TENANT_ORGANIZATION_SLUG || "padel-elite",
     logo: {
       navbar: "/tenants/padel-elite/tpe-logo-text.svg",
