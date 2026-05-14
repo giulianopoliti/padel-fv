@@ -8,10 +8,9 @@ import { Trophy } from "lucide-react"
 interface GameDataSectionProps {
   defaultValues: any
   allClubs: any[]
-  allOrganizations?: any[]
 }
 
-export function GameDataSection({ defaultValues, allClubs, allOrganizations = [] }: GameDataSectionProps) {
+export function GameDataSection({ defaultValues, allClubs }: GameDataSectionProps) {
   return (
     <Card className="bg-white border border-gray-200 shadow-sm">
       <CardHeader className="border-b border-gray-100 p-4 md:p-6">
@@ -42,27 +41,6 @@ export function GameDataSection({ defaultValues, allClubs, allOrganizations = []
               {allClubs.map((club) => (
                 <SelectItem key={club.id} value={club.id} className="text-gray-700 hover:bg-blue-50">
                   {club.name || "Club sin nombre"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="organizador_id" className="text-sm font-medium text-gray-700">
-            Organización
-          </Label>
-          <Select name="organizador_id" defaultValue={defaultValues.organizador_id}>
-            <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
-              <SelectValue placeholder="Selecciona una organización" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border-gray-200">
-              <SelectItem value="NO_ORG" className="text-gray-700 hover:bg-blue-50">
-                Sin organización
-              </SelectItem>
-              {allOrganizations.map((org) => (
-                <SelectItem key={org.id} value={org.id} className="text-gray-700 hover:bg-blue-50">
-                  {org.name || "Organización sin nombre"}
                 </SelectItem>
               ))}
             </SelectContent>

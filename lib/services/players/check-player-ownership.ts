@@ -1,7 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
 import { checkTournamentPermissions } from '@/utils/tournament-permissions'
-import { getUserClubId } from './get-user-club-id'
-import { getUserOrganizacionId } from './get-user-organizacion-id'
 
 interface OwnershipResult {
   canEdit: boolean
@@ -12,17 +10,11 @@ interface OwnershipResult {
 }
 
 /**
- * Verifica si un usuario puede VER y/o EDITAR un jugador específico
- * en el contexto de un torneo
+ * Verifica si un usuario puede ver y/o editar un jugador en el contexto de un torneo.
  *
- * REGLAS:
- * - Ver datos (DNI, teléfono): Solo si es OWNER del torneo
- * - Editar datos: Solo si es OWNER del torneo Y (club_id match O organizador_id match O ADMIN)
- *
- * @param playerId - ID del jugador a verificar
- * @param currentUserId - ID del usuario actual
- * @param tournamentId - ID del torneo en contexto
- * @returns OwnershipResult con canView, canEdit e isOwner
+ * En produccion cada tenant usa su propia base Supabase, asi que el permiso de
+ * edicion depende del permiso sobre el torneo, no de una organizacion guardada
+ * en players.
  */
 export async function checkPlayerOwnership(
   playerId: string,
@@ -32,7 +24,6 @@ export async function checkPlayerOwnership(
   try {
     const supabase = await createClient()
 
-    // 1. Verificar permisos del torneo
     const tournamentPermissions = await checkTournamentPermissions(currentUserId, tournamentId)
 
     if (!tournamentPermissions.hasPermission) {
@@ -44,88 +35,33 @@ export async function checkPlayerOwnership(
       }
     }
 
-    // 2. El usuario ES owner del torneo, puede VER todos los jugadores
     const userRole = tournamentPermissions.userRole
 
-    // 3. Si es ADMIN, puede EDITAR todos los jugadores
-    if (userRole === 'ADMIN') {
-      return {
-        canEdit: true,
-        canView: true,
-        isOwner: true,
-        userRole,
-        error: undefined
-      }
-    }
-
-    // 4. Obtener datos del jugador
     const { data: player, error: playerError } = await supabase
       .from('players')
-      .select('club_id, organizador_id')
+      .select('id')
       .eq('id', playerId)
       .single()
 
     if (playerError || !player) {
       return {
         canEdit: false,
-        canView: true, // Puede ver, pero no editar si no se encuentra el jugador
+        canView: true,
         isOwner: true,
         userRole,
         error: 'Jugador no encontrado'
       }
     }
 
-    // 5. Para CLUB: verificar si el jugador pertenece a su club
-    if (userRole === 'CLUB') {
-      const userClubId = await getUserClubId(currentUserId)
-
-      if (!userClubId) {
-        return {
-          canEdit: false,
-          canView: true,
-          isOwner: true,
-          userRole,
-          error: 'No se pudo obtener tu club'
-        }
-      }
-
-      const canEdit = player.club_id === userClubId
-
+    if (userRole === 'ADMIN' || userRole === 'CLUB' || userRole === 'ORGANIZADOR') {
       return {
-        canEdit,
+        canEdit: true,
         canView: true,
         isOwner: true,
-        userRole,
-        error: canEdit ? undefined : 'Este jugador no pertenece a tu club'
+        userRole
       }
     }
 
-    // 6. Para ORGANIZADOR: verificar si el jugador pertenece a su organización
-    if (userRole === 'ORGANIZADOR') {
-      const userOrganizacionId = await getUserOrganizacionId(currentUserId)
-
-      if (!userOrganizacionId) {
-        return {
-          canEdit: false,
-          canView: true,
-          isOwner: true,
-          userRole,
-          error: 'No se pudo obtener tu organización'
-        }
-      }
-
-      const canEdit = player.organizador_id === userOrganizacionId
-
-      return {
-        canEdit,
-        canView: true,
-        isOwner: true,
-        userRole,
-        error: canEdit ? undefined : 'Este jugador no pertenece a tu organización'
-      }
-    }
-
-    // 7. Otros roles: solo pueden ver (ya son owners del torneo)
     return {
       canEdit: false,
       canView: true,

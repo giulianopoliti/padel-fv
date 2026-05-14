@@ -10,7 +10,6 @@
  */
 
 import { BaseRegistrationStrategy } from './registration-strategy.interface'
-import { checkAndSetPlayerOrganizador } from '@/utils/player-organizador'
 import { normalizePlayerDni } from '@/lib/utils/player-dni'
 import { findExistingPlayerByIdentity } from '@/lib/utils/player-identity'
 import type {
@@ -111,9 +110,6 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
       }
 
       console.log(`✅ [AmericanStrategy] Pareja registrada exitosamente: ${coupleId}`)
-
-      // Asignar organizador_id si el usuario es ORGANIZADOR o PLAYER
-      await this.handleOrganizadorAssignment([player1Id, player2Id], context)
 
       return {
         success: true,
@@ -226,9 +222,6 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
 
       console.log(`✅ [AmericanStrategy] Jugador individual registrado: ${playerId}`)
 
-      // Asignar organizador_id si el usuario es ORGANIZADOR o PLAYER
-      await this.handleOrganizadorAssignment([playerId], context)
-
       return {
         success: true,
         inscriptionId: inscription.id,
@@ -288,9 +281,6 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
       }
 
       console.log(`✅ [AmericanStrategy] Jugador autenticado registrado: ${playerData.id}`)
-
-      // Asignar organizador_id si el usuario es ORGANIZADOR o PLAYER
-      await this.handleOrganizadorAssignment([playerData.id], context)
 
       return {
         success: true,
@@ -687,49 +677,5 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
     }
   }
 
-  /**
-   * 🎯 FUNCIÓN AUXILIAR: Asignar organizador_id si el usuario es ORGANIZADOR
-   * 
-   * Esta función se ejecuta después de inscripciones exitosas cuando
-   * el usuario autenticado es un ORGANIZADOR.
-   * 
-   * @param playerIds - IDs de jugadores a actualizar
-   * @param context - Contexto de registro con información del usuario
-   * @returns void - No afecta el resultado de la inscripción
-   */
-  private async handleOrganizadorAssignment(
-    playerIds: string[],
-    context: RegistrationContext
-  ): Promise<void> {
-    const { user, tournament } = context
 
-    // Solo ejecutar si el usuario es ORGANIZADOR o PLAYER (para asignar organizador del torneo)
-    if (user.role !== 'ORGANIZADOR' && user.role !== 'PLAYER') {
-      console.log(`[AmericanStrategy] Usuario ${user.role} - no asigna organizador automáticamente`)
-      return
-    }
-
-    console.log(`[AmericanStrategy] Usuario ${user.role} detectado - asignando organizador_id a jugadores`)
-
-    try {
-      // Procesar cada jugador
-      for (const playerId of playerIds) {
-        const result = await checkAndSetPlayerOrganizador(playerId, tournament.id, {
-          currentUserId: user.id,
-          currentUserRole: user.role,
-          handleClubId: false // Solo organizador, no club
-        })
-
-        if (result.success) {
-          console.log(`✅ [AmericanStrategy] Organizador asignado a jugador ${playerId}: ${result.organizador_id}`)
-        } else {
-          console.warn(`⚠️ [AmericanStrategy] No se pudo asignar organizador a jugador ${playerId}: ${result.error}`)
-        }
-      }
-
-    } catch (error) {
-      console.error('[AmericanStrategy] Error en asignación de organizador:', error)
-      // No lanzamos error para no afectar el flujo principal de inscripción
-    }
-  }
 }

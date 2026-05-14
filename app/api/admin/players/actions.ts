@@ -4,6 +4,13 @@ import { supabaseAdmin, verifyAdmin } from "@/lib/supabase-admin"
 import { revalidatePath } from "next/cache"
 import { normalizePlayerDni } from "@/lib/utils/player-dni"
 
+const normalizePlayerJoinData = (players: any[] | null | undefined) =>
+  (players || []).map((player) => ({
+    ...player,
+    users: Array.isArray(player.users) ? player.users[0] : player.users,
+    clubes: Array.isArray(player.clubes) ? player.clubes[0] : player.clubes,
+  }))
+
 /**
  * Actualizar datos completos de un jugador
  */
@@ -13,21 +20,20 @@ export async function updatePlayer(
     first_name?: string
     last_name?: string
     dni?: string | null
-    phone?: string
-    date_of_birth?: string
-    address?: string
+    phone?: string | null
+    date_of_birth?: string | null
+    address?: string | null
     gender?: string
-    instagram_handle?: string
+    instagram_handle?: string | null
     score?: number
-    category_name?: string
-    preferred_hand?: string
-    preferred_side?: string
-    racket?: string
+    category_name?: string | null
+    preferred_hand?: string | null
+    preferred_side?: string | null
+    racket?: string | null
     user_id?: string | null
     club_id?: string | null
-    organizador_id?: string | null
     status?: string
-    description?: string
+    description?: string | null
   }
 ) {
   try {
@@ -285,7 +291,7 @@ export async function searchPlayers(
 
     // Aplicar filtro de búsqueda por texto
     if (filters.searchTerm && filters.searchTerm.trim()) {
-      const searchPattern = `%${searchTerm.trim()}%`
+      const searchPattern = `%${filters.searchTerm.trim()}%`
 
       // Query para obtener jugadores con búsqueda
       const { data: players, error: playersError } = await supabaseAdmin.rpc(
@@ -318,7 +324,7 @@ export async function searchPlayers(
             users!players_user_id_fkey(email)
           `)
           .or(
-            `first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,dni.ilike.%${searchTerm}%`
+            `first_name.ilike.%${filters.searchTerm}%,last_name.ilike.%${filters.searchTerm}%,dni.ilike.%${filters.searchTerm}%`
           )
           .order("created_at", { ascending: false })
           .range(offset, offset + pageSize - 1)
@@ -330,13 +336,13 @@ export async function searchPlayers(
           .from("players")
           .select("*", { count: "exact", head: true })
           .or(
-            `first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,dni.ilike.%${searchTerm}%`
+            `first_name.ilike.%${filters.searchTerm}%,last_name.ilike.%${filters.searchTerm}%,dni.ilike.%${filters.searchTerm}%`
           )
 
         if (countError) throw countError
 
         return {
-          data: playersData || [],
+          data: normalizePlayerJoinData(playersData),
           totalCount: count || 0,
           totalPages: Math.ceil((count || 0) / pageSize),
           currentPage: page,
@@ -358,11 +364,11 @@ export async function searchPlayers(
           .from("players")
           .select("*", { count: "exact", head: true })
           .or(
-            `first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,dni.ilike.%${searchTerm}%`
+            `first_name.ilike.%${filters.searchTerm}%,last_name.ilike.%${filters.searchTerm}%,dni.ilike.%${filters.searchTerm}%`
           )
 
         return {
-          data: players || [],
+          data: normalizePlayerJoinData(players),
           totalCount: count || 0,
           totalPages: Math.ceil((count || 0) / pageSize),
           currentPage: page,
@@ -373,7 +379,7 @@ export async function searchPlayers(
       const totalCount = countData || 0
 
       return {
-        data: players || [],
+        data: normalizePlayerJoinData(players),
         totalCount,
         totalPages: Math.ceil(totalCount / pageSize),
         currentPage: page,
@@ -411,7 +417,7 @@ export async function searchPlayers(
     if (countError) throw countError
 
     return {
-      data: players || [],
+      data: normalizePlayerJoinData(players),
       totalCount: count || 0,
       totalPages: Math.ceil((count || 0) / pageSize),
       currentPage: page,
@@ -480,10 +486,8 @@ export async function exportPlayersAction(filters: ExportPlayersFilters = {}) {
       es_prueba,
       user_id,
       club_id,
-      organizador_id,
       users!players_user_id_fkey(email),
-      clubes(name),
-      organizaciones(name)
+      clubes(name)
     `)
 
     // Aplicar filtro de búsqueda por texto
@@ -567,29 +571,33 @@ export async function exportPlayersAction(filters: ExportPlayersFilters = {}) {
     console.log("[Admin Export] Found", players?.length || 0, "players to export")
 
     // Mapear datos al formato de exportación
-    const exportData = (players || []).map((player) => ({
-      id: player.id,
-      first_name: player.first_name,
-      last_name: player.last_name,
-      dni: player.dni,
-      email: player.users?.email || null,
-      phone: player.phone,
-      score: player.score,
-      category_name: player.category_name,
-      gender: player.gender,
-      status: player.status,
-      date_of_birth: player.date_of_birth,
-      address: player.address,
-      instagram_handle: player.instagram_handle,
-      preferred_hand: player.preferred_hand,
-      preferred_side: player.preferred_side,
-      racket: player.racket,
-      club_name: player.clubes?.name || null,
-      organizador_name: player.organizaciones?.name || null,
-      es_prueba: player.es_prueba || false,
-      created_at: player.created_at,
-      profile_image_url: player.profile_image_url
-    }))
+    const exportData = (players || []).map((player) => {
+      const user = Array.isArray(player.users) ? player.users[0] : player.users
+      const club = Array.isArray(player.clubes) ? player.clubes[0] : player.clubes
+
+      return {
+        id: player.id,
+        first_name: player.first_name,
+        last_name: player.last_name,
+        dni: player.dni,
+        email: user?.email || null,
+        phone: player.phone,
+        score: player.score,
+        category_name: player.category_name,
+        gender: player.gender,
+        status: player.status,
+        date_of_birth: player.date_of_birth,
+        address: player.address,
+        instagram_handle: player.instagram_handle,
+        preferred_hand: player.preferred_hand,
+        preferred_side: player.preferred_side,
+        racket: player.racket,
+        club_name: club?.name || null,
+        es_prueba: player.es_prueba || false,
+        created_at: player.created_at,
+        profile_image_url: player.profile_image_url
+      }
+    })
 
     return {
       success: true,
@@ -719,7 +727,7 @@ export async function searchPlayersAdvanced(
     }
 
     return {
-      data: players || [],
+      data: normalizePlayerJoinData(players),
       totalCount: count || 0,
       totalPages: Math.ceil((count || 0) / pageSize),
       currentPage: page,

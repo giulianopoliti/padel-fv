@@ -16,7 +16,6 @@ export interface SearchFilters {
   gender?: 'MALE' | 'FEMALE'
   category?: string | null
   clubId?: string | null
-  organizadorId?: string | null
   includeTest?: boolean
   requireScore?: boolean
   searchDni?: boolean  // Activar búsqueda por DNI
@@ -78,7 +77,6 @@ export async function buildPlayerSearchQuery(
     gender,
     category,
     clubId,
-    organizadorId,
     includeTest = false,
     requireScore = false,
     searchDni = true
@@ -92,7 +90,6 @@ export async function buildPlayerSearchQuery(
     gender,
     category,
     clubId,
-    organizadorId,
     includeTest,
     requireScore,
     searchDni,
@@ -117,9 +114,6 @@ export async function buildPlayerSearchQuery(
         gender,
         clubes:club_id (
           name
-        ),
-        organizaciones:organizador_id (
-          name
         )
       `, { count: 'exact' })
 
@@ -131,9 +125,6 @@ export async function buildPlayerSearchQuery(
     }
     if (clubId) {
       baseQuery = baseQuery.eq('club_id', clubId)
-    }
-    if (organizadorId) {
-      baseQuery = baseQuery.eq('organizador_id', organizadorId)
     }
     if (!includeTest) {
       baseQuery = baseQuery.eq('es_prueba', false)

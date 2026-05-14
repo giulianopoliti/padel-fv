@@ -141,15 +141,39 @@ export async function HomeContent() {
       </section>
 
       <footer className="bg-[#101a31] py-10 text-slate-300">
-        <div className="container mx-auto flex flex-col gap-4 px-4 text-sm sm:px-6 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-3">
-            <BrandLogo variant="navbar" surface="dark" className="h-10 w-auto" priority={false} />
-            <p className="font-semibold text-white">{organization?.name || branding.siteName}</p>
-            <p>{branding.seo.description}</p>
+        <div className="container mx-auto flex flex-col gap-6 px-4 text-sm sm:px-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-3">
+              <BrandLogo variant="navbar" surface="dark" className="h-10 w-auto" priority={false} />
+              <p className="font-semibold text-white">{organization?.name || branding.siteName}</p>
+              <p>{branding.seo.description}</p>
+            </div>
+            <div className="text-slate-400">
+              <p>{branding.supportEmail}</p>
+            </div>
           </div>
-          <div className="text-slate-400">
-            <p>{branding.supportEmail}</p>
-            <p>{branding.siteDomain}</p>
+
+          <div className="flex flex-col items-start gap-3 border-t border-white/10 pt-5 text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+            <Link
+              href="https://circuitopadelamateur.com"
+              className="transition hover:text-white"
+            >
+              Desarrollado por Circuito Padel Amateur
+            </Link>
+            <Link
+              href="https://circuitopadelamateur.com"
+              aria-label="Ir a Circuito Padel Amateur"
+              className="transition hover:opacity-100"
+            >
+              <Image
+                src="/logo navbar.svg"
+                alt="Circuito Padel Amateur logo"
+                width={150}
+                height={64}
+                className="h-10 w-auto opacity-90"
+                priority={false}
+              />
+            </Link>
           </div>
         </div>
       </footer>

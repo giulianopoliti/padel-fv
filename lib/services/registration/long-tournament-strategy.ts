@@ -11,7 +11,6 @@
 
 import { BaseRegistrationStrategy } from './registration-strategy.interface'
 import { ensureLongTournamentGeneralZone } from '@/lib/services/tournaments/long-general-zone'
-import { checkAndSetPlayerOrganizador } from '@/utils/player-organizador'
 import { normalizePlayerDni } from '@/lib/utils/player-dni'
 import { findExistingPlayerByIdentity } from '@/lib/utils/player-identity'
 import type {
@@ -132,9 +131,6 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
 
       console.log(`✅ [LongStrategy] Pareja registrada: ${coupleId}, Zona asignada: ${zoneAssignmentResult.success}`)
 
-      // Asignar organizador_id si el usuario es ORGANIZADOR o PLAYER
-      await this.handleOrganizadorAssignment([player1Id, player2Id], context)
-
       return {
         success: true,
         inscriptionId: inscription.id,
@@ -247,9 +243,6 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
 
       console.log(`✅ [LongStrategy] Jugador individual registrado: ${playerId} (sin zona hasta formar pareja)`)
 
-      // Asignar organizador_id si el usuario es ORGANIZADOR o PLAYER
-      await this.handleOrganizadorAssignment([playerId], context)
-
       return {
         success: true,
         inscriptionId: inscription.id,
@@ -309,9 +302,6 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
       }
 
       console.log(`✅ [LongStrategy] Jugador autenticado registrado: ${playerData.id} (sin zona hasta formar pareja)`)
-
-      // Asignar organizador_id si el usuario es ORGANIZADOR o PLAYER
-      await this.handleOrganizadorAssignment([playerData.id], context)
 
       return {
         success: true,
@@ -664,52 +654,6 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
     } catch (error) {
       console.error('[LongStrategy] Error inesperado removiendo de zonas:', error)
       return { success: false, error: 'Error interno removiendo de zonas' }
-    }
-  }
-
-  /**
-   * 🎯 FUNCIÓN AUXILIAR: Asignar organizador_id si el usuario es ORGANIZADOR
-   *
-   * Esta función se ejecuta después de inscripciones exitosas cuando
-   * el usuario autenticado es un ORGANIZADOR.
-   *
-   * @param playerIds - IDs de jugadores a actualizar
-   * @param context - Contexto de registro con información del usuario
-   * @returns void - No afecta el resultado de la inscripción
-   */
-  private async handleOrganizadorAssignment(
-    playerIds: string[],
-    context: RegistrationContext
-  ): Promise<void> {
-    const { user, tournament } = context
-
-    // Solo ejecutar si el usuario es ORGANIZADOR o PLAYER (para asignar organizador del torneo)
-    if (user.role !== 'ORGANIZADOR' && user.role !== 'PLAYER') {
-      console.log(`[LongStrategy] Usuario ${user.role} - no asigna organizador automáticamente`)
-      return
-    }
-
-    console.log(`[LongStrategy] Usuario ${user.role} detectado - asignando organizador_id a jugadores`)
-
-    try {
-      // Procesar cada jugador
-      for (const playerId of playerIds) {
-        const result = await checkAndSetPlayerOrganizador(playerId, tournament.id, {
-          currentUserId: user.id,
-          currentUserRole: user.role,
-          handleClubId: false // Solo organizador, no club
-        })
-
-        if (result.success) {
-          console.log(`✅ [LongStrategy] Organizador asignado a jugador ${playerId}: ${result.organizador_id}`)
-        } else {
-          console.warn(`⚠️ [LongStrategy] No se pudo asignar organizador a jugador ${playerId}: ${result.error}`)
-        }
-      }
-
-    } catch (error) {
-      console.error('[LongStrategy] Error en asignación de organizador:', error)
-      // No lanzamos error para no afectar el flujo principal de inscripción
     }
   }
 

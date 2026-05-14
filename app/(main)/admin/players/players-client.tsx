@@ -40,7 +40,6 @@ interface Player {
   racket?: string | null
   user_id: string | null
   club_id?: string | null
-  organizador_id?: string | null
   status: string
   description?: string | null
   created_at: string
@@ -48,9 +47,6 @@ interface Player {
     email: string
   } | null
   clubes?: {
-    name: string
-  } | null
-  organizaciones?: {
     name: string
   } | null
 }

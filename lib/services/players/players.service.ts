@@ -26,8 +26,7 @@ export interface PlayerUpdateData {
 /**
  * Obtiene todos los jugadores de una organización (para initial load)
  */
-export async function getOrganizationPlayers(
-  organizationId: string,
+export async function getTenantPlayers(
   page: number = 1,
   pageSize: number = 20
 ) {
@@ -39,9 +38,10 @@ export async function getOrganizationPlayers(
   const { data, error, count } = await supabase
     .from('players')
     .select('id, first_name, last_name, dni, dni_is_temporary, phone, score, profile_image_url, category_name, users!players_user_id_fkey(email)', { count: 'exact' })
-    .eq('organizador_id', organizationId)
     .eq('es_prueba', false)
-    .order('score', { ascending: false })
+    .order('score', { ascending: false, nullsFirst: false })
+    .order('last_name', { ascending: true })
+    .order('first_name', { ascending: true })
     .range(from, to)
 
   if (error) {
@@ -49,12 +49,25 @@ export async function getOrganizationPlayers(
     return { players: [], total: 0, error: error.message }
   }
 
+  const players = (data || []).map((player) => ({
+    ...player,
+    users: Array.isArray(player.users) ? player.users[0] : player.users
+  }))
+
   return {
-    players: data || [],
+    players,
     total: count || 0,
     totalPages: Math.ceil((count || 0) / pageSize),
     currentPage: page
   }
+}
+
+export async function getOrganizationPlayers(
+  _organizationId: string,
+  page: number = 1,
+  pageSize: number = 20
+) {
+  return getTenantPlayers(page, pageSize)
 }
 
 /**
@@ -63,7 +76,6 @@ export async function getOrganizationPlayers(
  */
 export async function updatePlayer(
   playerId: string,
-  organizationId: string,
   updates: PlayerUpdateData
 ) {
   const supabase = await createClient()
@@ -71,17 +83,13 @@ export async function updatePlayer(
   // 1. Verificar que el jugador pertenece a la organización
   const { data: player, error: fetchError } = await supabase
     .from('players')
-    .select('organizador_id, category_name, score')
+    .select('category_name, score')
     .eq('id', playerId)
     .eq('es_prueba', false)
     .single()
 
   if (fetchError || !player) {
     return { success: false, error: 'Jugador no encontrado' }
-  }
-
-  if (player.organizador_id !== organizationId) {
-    return { success: false, error: 'Sin permisos para modificar este jugador' }
   }
 
   // 2. Si cambia la categoría, obtener el nuevo score
@@ -147,26 +155,19 @@ export async function updatePlayer(
 /**
  * Soft-delete de un jugador (marca es_prueba = true)
  */
-export async function softDeletePlayer(
-  playerId: string,
-  organizationId: string
-) {
+export async function softDeletePlayer(playerId: string) {
   const supabase = await createClient()
 
   // 1. Verificar permisos
   const { data: player, error: fetchError } = await supabase
     .from('players')
-    .select('organizador_id')
+    .select('id')
     .eq('id', playerId)
     .eq('es_prueba', false)
     .single()
 
   if (fetchError || !player) {
     return { success: false, error: 'Jugador no encontrado' }
-  }
-
-  if (player.organizador_id !== organizationId) {
-    return { success: false, error: 'Sin permisos para eliminar este jugador' }
   }
 
   // 2. Soft delete

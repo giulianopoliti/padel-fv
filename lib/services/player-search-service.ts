@@ -14,7 +14,6 @@ export interface PlayerSearchRecord {
   profile_image_url?: string | null
   users?: { email?: string | null } | null
   clubes?: { name?: string | null } | null
-  organizaciones?: { name?: string | null } | null
 }
 
 interface SearchScoredPlayer {
@@ -202,7 +201,6 @@ export async function searchPlayersByOrganization({
       user_id,
       users!players_user_id_fkey(email)
     `)
-    .eq("organizador_id", organizationId)
     .eq("es_prueba", false)
     .limit(5000)
 
@@ -246,12 +244,12 @@ export async function searchPlayersForTournament({
       first_name,
       last_name,
       dni,
+      phone,
       score,
       category_name,
       profile_image_url,
       gender,
-      clubes:club_id(name),
-      organizaciones:organizador_id(name)
+      clubes:club_id(name)
     `)
     .eq("es_prueba", false)
     .limit(8000)
@@ -263,8 +261,13 @@ export async function searchPlayersForTournament({
   const { data, error } = await query
   if (error) throw error
 
+  const players = (data || []).map((player) => ({
+    ...player,
+    clubes: Array.isArray(player.clubes) ? player.clubes[0] : player.clubes,
+  }))
+
   return applyRobustPlayerSearch({
-    players: (data || []) as PlayerSearchRecord[],
+    players: players as PlayerSearchRecord[],
     searchTerm,
     page,
     pageSize,

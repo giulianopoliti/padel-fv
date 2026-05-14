@@ -10,7 +10,6 @@ export interface PlayerDetails {
   score: number | null
   profile_image_url: string | null
   category_name: string | null
-  organizador_id: string | null
   user_email: string | null
 }
 
@@ -47,7 +46,6 @@ export async function getPlayerDetails(
         score,
         profile_image_url,
         category_name,
-        organizador_id,
         users (
           email
         )
@@ -84,7 +82,6 @@ export async function getPlayerDetails(
       score: data.score,
       profile_image_url: data.profile_image_url,
       category_name: data.category_name,
-      organizador_id: data.organizador_id,
       user_email: users ? (Array.isArray(users) ? users[0]?.email : users?.email) : null
     }
 

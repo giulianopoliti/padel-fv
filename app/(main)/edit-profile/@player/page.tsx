@@ -20,11 +20,6 @@ interface Club {
   name: string | null
 }
 
-interface Organization {
-  id: string
-  name: string | null
-}
-
 // Define a type for the user profile data we expect
 interface UserProfile {
   id?: string
@@ -45,7 +40,6 @@ interface UserProfile {
   preferred_side?: string | null
   club_id?: string | null
   profile_image_url?: string | null
-  organization_id?: string | null
 }
 
 const initialFormState: FormState = {
@@ -59,7 +53,6 @@ export default function EditProfilePage() {
   const [activeSection, setActiveSection] = useState<string>("personal")
   const [userProfileData, setUserProfileData] = useState<UserProfile | null>(null)
   const [allClubsData, setAllClubsData] = useState<Club[]>([])
-  const [allOrganizationsData, setAllOrganizationsData] = useState<Organization[]>([])
   const [isFetchingData, setIsFetchingData] = useState(true)
   const { toast } = useToast()
 
@@ -74,7 +67,6 @@ export default function EditProfilePage() {
         if (result.success && result.userProfile) {
           setUserProfileData(result.userProfile as UserProfile)
           setAllClubsData(result.allClubs || [])
-          setAllOrganizationsData(result.allOrganizations || [])
           if (result.message !== "Datos obtenidos con éxito.") {
             toast({ title: "Información", description: result.message })
           }
@@ -140,7 +132,7 @@ export default function EditProfilePage() {
           <PersonalDataSection defaultValues={defaultsForSections} />
         </div>
         <div style={{ display: activeSection === "game" ? "block" : "none" }}>
-          <GameDataSection defaultValues={defaultsForSections} allClubs={allClubsData} allOrganizations={allOrganizationsData} />
+          <GameDataSection defaultValues={defaultsForSections} allClubs={allClubsData} />
         </div>
         <div style={{ display: activeSection === "security" ? "block" : "none" }}>
           <SecuritySection userEmail={userProfileData.email} />
@@ -262,7 +254,6 @@ export default function EditProfilePage() {
                   {!isFetchingData && userProfileData && activeSection !== "game" && (
                     <>
                       <input type="hidden" name="club_id" value={userProfileData.club_id || ""} />
-                      <input type="hidden" name="organizador_id" value={userProfileData.organization_id || ""} />
                       <input type="hidden" name="preferred_side" value={userProfileData.preferred_side || ""} />
                       <input type="hidden" name="preferred_hand" value={userProfileData.preferred_hand || ""} />
                       <input type="hidden" name="racket" value={userProfileData.racket || ""} />
@@ -308,7 +299,7 @@ export default function EditProfilePage() {
                       <GameDataSection defaultValues={{
                         ...userProfileData,
                         score: userProfileData.score?.toString() ?? "",
-                      }} allClubs={allClubsData} allOrganizations={allOrganizationsData} />
+                      }} allClubs={allClubsData} />
                     )}
                   </TabsContent>
 

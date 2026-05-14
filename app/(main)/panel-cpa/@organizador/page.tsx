@@ -95,7 +95,7 @@ export default async function OrganizadorDashboardPage() {
   const { data: players, error: playersError } = await supabase
     .from("players")
     .select("id, first_name, last_name, dni, phone, score, profile_image_url, category_name, users!players_user_id_fkey(email)")
-    .eq("organizador_id", organizationId)
+    .eq("es_prueba", false)
     .order("score", { ascending: false })
     .limit(10)
 
@@ -103,15 +103,20 @@ export default async function OrganizadorDashboardPage() {
   const { count: totalPlayers } = await supabase
     .from("players")
     .select("*", { count: "exact", head: true })
-    .eq("organizador_id", organizationId)
+    .eq("es_prueba", false)
 
   // 7. Fetch categorías para la edición de jugadores
   const categories = await getCategories()
 
+  const normalizedPlayers: PlayerData[] = (players || []).map((player) => ({
+    ...player,
+    users: Array.isArray(player.users) ? player.users[0] : player.users
+  }))
+
   return (
     <OrganizadorDashboard
       tournaments={tournamentsWithMetrics}
-      players={players || []}
+      players={normalizedPlayers}
       categories={categories}
       totalPlayers={totalPlayers || 0}
       organizationId={organizationId}

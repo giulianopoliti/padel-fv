@@ -14,6 +14,8 @@ export interface TenantBranding {
   }
   assets: {
     favicon: string
+    favicon16: string
+    favicon32: string
     appleTouchIcon: string
     manifest: string
     placeholderLogo: string
@@ -44,7 +46,7 @@ const tenantBranding: Record<TenantBranding["key"], TenantBranding> = {
     siteName: "Padel FV",
     shortName: "Padel FV",
     siteDomain: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
-    supportEmail: "hola@padelfv.com",
+    supportEmail: "eventosdeportivosfv@gmail.com",
     tenantOrganizationSlug: process.env.NEXT_PUBLIC_TENANT_ORGANIZATION_SLUG || "padel-fv",
     logo: {
       // These SVGs wrap embedded raster artwork, so we use them as fixed brand assets.
@@ -54,9 +56,11 @@ const tenantBranding: Record<TenantBranding["key"], TenantBranding> = {
       onDark: "/tenants/padel-fv/FV%20-%20LOGO%20SIN%20FONDO%20-%20LETRA%20BLANCA.svg",
     },
     assets: {
-      favicon: "/favicon.ico",
-      appleTouchIcon: "/apple-touch-icon.png",
-      manifest: "/site.webmanifest",
+      favicon: "/tenants/padel-fv/favicon.ico",
+      favicon16: "/tenants/padel-fv/favicon-16x16.png",
+      favicon32: "/tenants/padel-fv/favicon-32x32.png",
+      appleTouchIcon: "/tenants/padel-fv/apple-touch-icon.png",
+      manifest: "/tenants/padel-fv/site.webmanifest",
       placeholderLogo: "/placeholder-logo.svg",
       placeholderUser: "/placeholder-user.jpg",
     },
@@ -93,9 +97,11 @@ const tenantBranding: Record<TenantBranding["key"], TenantBranding> = {
       onDark: "/tenants/padel-elite/tpe-logo-text.svg",
     },
     assets: {
-      favicon: "/favicon.ico",
-      appleTouchIcon: "/apple-touch-icon.png",
-      manifest: "/site.webmanifest",
+      favicon: "/tenants/padel-elite/favicon.ico",
+      favicon16: "/tenants/padel-elite/favicon-16x16.png",
+      favicon32: "/tenants/padel-elite/favicon-32x32.png",
+      appleTouchIcon: "/tenants/padel-elite/apple-touch-icon.png",
+      manifest: "/tenants/padel-elite/site.webmanifest",
       placeholderLogo: "/placeholder-logo.svg",
       placeholderUser: "/placeholder-user.jpg",
     },

@@ -125,9 +125,6 @@ export async function getRankedPlayers({
                 *,
                 clubes (
                     name
-                ),
-                organizaciones:organizador_id (
-                    name
                 )
             `)
             .eq("gender", gender)
@@ -221,7 +218,7 @@ export async function getRankedPlayers({
                     preferredSide: rawPlayer.preferred_side,
                     createdAt: rawPlayer.created_at,
                     club_name: rawPlayer.clubes?.name,
-                    organizador_name: rawPlayer.organizaciones?.name,
+                    organizador_name: null,
                     gender: rawPlayer.gender || "MALE",
                     profileImage: profileImageUrl,
                     weeklyPoints: weeklyPoints

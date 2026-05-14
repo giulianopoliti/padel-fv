@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { getTournamentOrganizadorInfo } from '@/utils/player-organizador'
+import { getTournamentOrganizadorInfo } from '@/utils/tournament-organizer'
 
 export interface TournamentOrganizer {
   id: string
@@ -61,10 +61,14 @@ export function useTournamentOrganizer(tournamentId: string): UseTournamentOrgan
       }
 
       // Extraer información del organizador
-      const organizador = tournamentInfo.organizaciones ? {
-        id: tournamentInfo.organizaciones.id,
-        name: tournamentInfo.organizaciones.name,
-        description: tournamentInfo.organizaciones.description
+      const organization = Array.isArray(tournamentInfo.organizaciones)
+        ? tournamentInfo.organizaciones[0]
+        : tournamentInfo.organizaciones
+
+      const organizador = organization ? {
+        id: organization.id,
+        name: organization.name,
+        description: organization.description
       } : null
 
       const data: TournamentOrganizerData = {

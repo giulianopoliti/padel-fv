@@ -145,7 +145,7 @@ serve(async (req) => {
       category_name: p.category_name,
       profile_image_url: p.profile_image_url,
       club_name: p.clubes?.name || null,
-      organizador_name: p.organizaciones?.name || null,
+      organizador_name: null,
       gender: p.gender
     }))
 

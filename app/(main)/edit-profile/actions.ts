@@ -21,7 +21,6 @@ const playerProfileSchema = z.object({
   gender: z.enum(["MALE", "FEMALE", "MIXED"] as const).nullable().optional(), // Using actual database enum values
   preferred_side: z.enum(["DRIVE", "REVES"] as const).nullable().optional(),
   club_id: z.string().uuid("ID de club inválido").nullable().optional(), // NO_CLUB for placeholder
-  organizador_id: z.string().uuid("ID de organización inválido").nullable().optional(),
 });
 
 export type FormState = {
@@ -38,7 +37,6 @@ export type FormState = {
     gender?: string[];
     preferred_side?: string[];
     club_id?: string[];
-    organizador_id?: string[];
     general?: string[];
   } | null;
   success: boolean;
@@ -69,7 +67,6 @@ export async function completeUserProfile(prevState: FormState, formData: FormDa
     gender: rawFormEntries.gender === '' ? null : rawFormEntries.gender,
     preferred_side: rawFormEntries.preferred_side === '' ? null : rawFormEntries.preferred_side,
     club_id: (rawFormEntries.club_id === '' || rawFormEntries.club_id === 'NO_CLUB') ? null : rawFormEntries.club_id,
-    organizador_id: (rawFormEntries.organizador_id === '' || rawFormEntries.organizador_id === 'NO_ORG') ? null : rawFormEntries.organizador_id,
   };
 
   const validation = playerProfileSchema.safeParse(dataToValidate);
@@ -205,7 +202,6 @@ export async function completeUserProfile(prevState: FormState, formData: FormDa
       gender: validatedData.gender as Database["public"]["Enums"]["GENDER"],
       preferred_side: validatedData.preferred_side as Database["public"]["Enums"]["PREFERRED_SIDE"],
       club_id: validatedData.club_id,
-      organizador_id: validatedData.organizador_id,
     };
 
     // Add profile image URL to player data if it should be updated
@@ -284,8 +280,7 @@ export async function getPlayerProfile() {
         .select(`
           *,
           categories (name),
-          clubes (id, name),
-          organizaciones(id, name)
+          clubes (id, name)
         `)
         .eq("user_id", user.id)
         .maybeSingle();
@@ -309,19 +304,6 @@ export async function getPlayerProfile() {
       console.error("Error fetching clubs:", clubsError);
     }
 
-    // Get all active organizations for the dropdown
-    const { data: allOrganizations, error: organizationsError } = await supabase
-      .from("organizaciones")
-      .select("id, name")
-      .eq("is_active", true)
-      .order("name");
-
-    if (organizationsError) {
-      console.error("Error fetching organizations:", organizationsError);
-    }
-
-
-
     // Create user profile with player data if available
     let userProfile;
     if (!playerData && userData.role === 'PLAYER') {
@@ -343,7 +325,6 @@ export async function getPlayerProfile() {
         preferred_side: null,
         club_id: null,
         profile_image_url: null,
-        organization_id: null,
       };
     } else if (playerData) {
       userProfile = {
@@ -364,7 +345,6 @@ export async function getPlayerProfile() {
         preferred_side: playerData.preferred_side,
         club_id: playerData.club_id,
         profile_image_url: playerData.profile_image_url,
-        organization_id: playerData.organization_id,
       };
     } else {
       // For non-player users
@@ -380,7 +360,6 @@ export async function getPlayerProfile() {
         "Datos obtenidos con éxito.",
       userProfile,
       allClubs: allClubs || [],
-      allOrganizations: allOrganizations || []
     };
   } catch (error) {
     console.error("Unexpected error in getPlayerProfile:", error);

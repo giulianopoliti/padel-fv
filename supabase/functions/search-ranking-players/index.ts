@@ -61,9 +61,6 @@ serve(async (req) => {
         profile_image_url,
         clubes (
           name
-        ),
-        organizaciones:organizador_id (
-          name
         )
       `, { count: 'exact' })
       .eq('gender', gender)
@@ -99,7 +96,7 @@ serve(async (req) => {
         score: rawPlayer.score,
         category: rawPlayer.category_name || 'Sin categoría',
         club_name: rawPlayer.clubes?.name || rawPlayer.club_name,
-        organizador_name: rawPlayer.organizaciones?.name || rawPlayer.organizador_name,
+        organizador_name: rawPlayer.organizador_name,
         profileImage: rawPlayer.profile_image_url,
         weeklyPoints: 0
       })) || []
@@ -152,7 +149,7 @@ serve(async (req) => {
       score: rawPlayer.score,
       category: rawPlayer.category_name || 'Sin categoría',
       club_name: rawPlayer.clubes?.name,
-      organizador_name: rawPlayer.organizaciones?.name,
+      organizador_name: rawPlayer.organizador_name,
       profileImage: rawPlayer.profile_image_url,
       weeklyPoints: 0 // TODO: Implementar cálculo de puntos semanales si es necesario
     })) || []

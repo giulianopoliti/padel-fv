@@ -1180,38 +1180,6 @@ export async function registerPlayerForTournament(tournamentId: string, playerId
     return { success: false, message: `No se pudo registrar: ${error.message}`}
   }
 
-  // 🎯 ASIGNAR ORGANIZADOR_ID si el usuario es ORGANIZADOR
-  try {
-    const { data: userData } = await supabase.auth.getUser()
-    if (userData?.user) {
-      const { data: userProfile } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userData.user.id)
-        .single()
-
-      if (userProfile?.role === 'ORGANIZADOR') {
-        console.log(`[registerPlayerForTournament] Usuario ORGANIZADOR detectado - asignando organizador_id a jugador ${playerId}`)
-
-        const { checkAndSetPlayerOrganizador } = await import('@/utils/player-organizador')
-        const result = await checkAndSetPlayerOrganizador(playerId, tournamentId, {
-          currentUserId: userData.user.id,
-          currentUserRole: userProfile.role,
-          handleClubId: false
-        })
-
-        if (result.success) {
-          console.log(`✅ [registerPlayerForTournament] Organizador asignado: ${result.organizador_id}`)
-        } else {
-          console.warn(`⚠️ [registerPlayerForTournament] No se pudo asignar organizador: ${result.error}`)
-        }
-      }
-    }
-  } catch (organizadorError) {
-    console.error('[registerPlayerForTournament] Error asignando organizador (no afecta inscripción):', organizadorError)
-    // No afectamos el resultado de la inscripción
-  }
-
   revalidatePath(`/tournaments/${tournamentId}`);
   revalidatePath(`/my-tournaments/${tournamentId}`);
   return { success: true, inscription: data };

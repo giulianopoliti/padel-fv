@@ -24,7 +24,7 @@ interface PlayerData {
   profile_image_url: string | null
   category_name: string | null
   email?: string | null
-  users?: { email: string | null }
+  users?: { email: string | null } | Array<{ email: string | null }>
 }
 
 interface PlayersTableProps {
@@ -51,7 +51,8 @@ const formatPhone = (phone: string | null) => {
 }
 
 const getEmail = (player: PlayerData) => {
-  return player.users?.email || player.email || "-"
+  const userEmail = Array.isArray(player.users) ? player.users[0]?.email : player.users?.email
+  return userEmail || player.email || "-"
 }
 
 export default function PlayersTable({ players }: PlayersTableProps) {

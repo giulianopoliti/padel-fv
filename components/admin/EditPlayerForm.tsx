@@ -29,7 +29,6 @@ interface Player {
   racket: string | null
   user_id: string | null
   club_id: string | null
-  organizador_id: string | null
   status: string
   description: string | null
 }

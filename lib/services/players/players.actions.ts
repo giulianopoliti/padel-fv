@@ -39,13 +39,15 @@ export async function updatePlayerAction(
       return { success: false, error: 'Sin organización asignada' }
     }
 
-    // Actualizar jugador
-    const result = await updatePlayer(playerId, orgMember.organizacion_id, updates)
+    // Actualizar jugador dentro del tenant actual. La membresia activa ya valida
+    // que el usuario puede gestionar jugadores de esta base Supabase.
+    const result = await updatePlayer(playerId, updates)
 
     if (result.success) {
       // Revalidar páginas que muestran jugadores
       revalidatePath('/my-players')
-    revalidatePath('/panel')
+      revalidatePath('/panel')
+      revalidatePath('/panel-cpa')
     }
 
     return result
@@ -82,13 +84,15 @@ export async function deletePlayerAction(playerId: string) {
       return { success: false, error: 'Sin organización asignada' }
     }
 
-    // Soft-delete jugador
-    const result = await softDeletePlayer(playerId, orgMember.organizacion_id)
+    // Soft-delete jugador dentro del tenant actual. La membresia activa ya valida
+    // que el usuario puede gestionar jugadores de esta base Supabase.
+    const result = await softDeletePlayer(playerId)
 
     if (result.success) {
       // Revalidar páginas
       revalidatePath('/my-players')
-    revalidatePath('/panel')
+      revalidatePath('/panel')
+      revalidatePath('/panel-cpa')
     }
 
     return result

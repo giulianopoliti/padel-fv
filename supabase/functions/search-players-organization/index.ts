@@ -99,7 +99,6 @@ serve(async (req) => {
       supabaseClient,
       {
         searchTerm: searchTerm || undefined,
-        organizadorId: organizationId,
         category: categoryFilter !== 'all' ? categoryFilter : null,
         includeTest: false,    // Panel CPA NO incluye jugadores de prueba
         requireScore: false,   // Panel CPA incluye jugadores SIN score
