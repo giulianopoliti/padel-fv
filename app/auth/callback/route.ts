@@ -1,5 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
+
+const GOOGLE_OAUTH_NEXT_COOKIE = "google_oauth_next"
 
 function sanitizeNext(next: string | null): string | null {
   if (!next || !next.startsWith("/") || next.startsWith("//")) {
@@ -9,11 +11,31 @@ function sanitizeNext(next: string | null): string | null {
   return next
 }
 
-export async function GET(request: Request) {
+function getStoredNext(request: NextRequest): string | null {
+  const storedNext = request.cookies.get(GOOGLE_OAUTH_NEXT_COOKIE)?.value
+
+  if (!storedNext) {
+    return null
+  }
+
+  try {
+    return sanitizeNext(decodeURIComponent(storedNext))
+  } catch {
+    return sanitizeNext(storedNext)
+  }
+}
+
+function redirectAndClearOAuthNext(url: string) {
+  const response = NextResponse.redirect(url)
+  response.cookies.delete(GOOGLE_OAUTH_NEXT_COOKIE)
+  return response
+}
+
+export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get("code")
   const type = requestUrl.searchParams.get("type")
-  const next = sanitizeNext(requestUrl.searchParams.get("next"))
+  const next = sanitizeNext(requestUrl.searchParams.get("next")) || getStoredNext(request)
   const origin = requestUrl.origin
 
   if (code) {
@@ -22,11 +44,11 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error("[auth/callback] Error exchanging OAuth code:", error.message)
-      return NextResponse.redirect(`${origin}/login`)
+      return redirectAndClearOAuthNext(`${origin}/login`)
     }
 
     if (type === "recovery") {
-      return NextResponse.redirect(`${origin}/reset-password`)
+      return redirectAndClearOAuthNext(`${origin}/reset-password`)
     }
 
     const user = data.user || data.session?.user
@@ -35,24 +57,26 @@ export async function GET(request: Request) {
       const { data: existingUser } = await supabase.from("users").select("id").eq("id", user.id).maybeSingle()
 
       if (!existingUser) {
-        return NextResponse.redirect(`${origin}/complete-google-profile${next ? `?next=${encodeURIComponent(next)}` : ""}`)
+        return redirectAndClearOAuthNext(
+          `${origin}/complete-google-profile${next ? `?next=${encodeURIComponent(next)}` : ""}`,
+        )
       }
 
       if (next) {
-        return NextResponse.redirect(`${origin}${next}`)
+        return redirectAndClearOAuthNext(`${origin}${next}`)
       }
 
-      return NextResponse.redirect(`${origin}/panel`)
+      return redirectAndClearOAuthNext(`${origin}/panel`)
     }
   }
 
   if (type === "recovery") {
-    return NextResponse.redirect(`${origin}/reset-password`)
+    return redirectAndClearOAuthNext(`${origin}/reset-password`)
   }
 
   if (next) {
-    return NextResponse.redirect(`${origin}${next}`)
+    return redirectAndClearOAuthNext(`${origin}${next}`)
   }
 
-  return NextResponse.redirect(`${origin}/panel`)
+  return redirectAndClearOAuthNext(`${origin}/panel`)
 }

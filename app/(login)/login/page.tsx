@@ -37,6 +37,11 @@ export default function LoginPage() {
     ? `/register?redirectTo=${encodeURIComponent(redirectTo)}${intent === "individual" || intent === "couple" ? `&intent=${intent}` : ""}`
     : "/register"
 
+  const storeGoogleOAuthNext = (nextPath: string) => {
+    const secureCookie = window.location.protocol === "https:" ? "; secure" : ""
+    document.cookie = `google_oauth_next=${encodeURIComponent(nextPath)}; path=/; max-age=300; samesite=lax${secureCookie}`
+  }
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
@@ -120,7 +125,7 @@ export default function LoginPage() {
       }
 
       const callbackUrl = new URL("/auth/callback", window.location.origin)
-      callbackUrl.searchParams.set("next", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
+      storeGoogleOAuthNext(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
 
       await supabase.auth.signInWithOAuth({
         provider: "google",
