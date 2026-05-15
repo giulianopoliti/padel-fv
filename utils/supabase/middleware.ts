@@ -42,6 +42,8 @@ setInterval(cleanupExpiredCache, 10 * 60 * 1000)
 const DASHBOARD_PATH = "/panel"
 const ADMIN_DASHBOARD_PATH = "/admin"
 const ADMIN_LOGIN_PATH = "/admin-login"
+const ONBOARDING_PATH = "/complete-google-profile"
+const AUTH_CALLBACK_PATH = "/auth/callback"
 const PROTECTED_ROUTES = [DASHBOARD_PATH, "/panel-cpa", "/edit-profile", "/profile"]
 const ADMIN_ROUTES = [ADMIN_DASHBOARD_PATH] // Routes that require ADMIN role
 
@@ -122,27 +124,6 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url, { headers })
     }
 
-    // Redirect authenticated users away from auth pages
-    if (
-      user &&
-      (currentPath === "/login" ||
-        currentPath === "/register" ||
-        currentPath === "/forgot-password")
-    ) {
-      const url = request.nextUrl.clone()
-      url.pathname = DASHBOARD_PATH
-      //console.log(`[Middleware] Redirecting authenticated user from auth page to dashboard`)
-      return NextResponse.redirect(url, { headers })
-    }
-
-    // Redirect authenticated users landing on root to dashboard
-    if (user && currentPath === "/") {
-      const url = request.nextUrl.clone()
-      url.pathname = DASHBOARD_PATH
-      //console.log(`[Middleware] Redirecting authenticated user from root to ${DASHBOARD_PATH}`)
-      return NextResponse.redirect(url, { headers })
-    }
-
     // Early return for public routes when no user
     if (!user && !PROTECTED_ROUTES.some(route => currentPath.startsWith(route))) {
       return response
@@ -158,6 +139,7 @@ export async function updateSession(request: NextRequest) {
     // If user exists, check cache first for role and active status
     let userRole: Role | null = null
     let isActiveClub: boolean = true // Default to true for non-club users
+    let userRecordMissing = false
     const cacheKey = userId || ""
     const now = Date.now()
     
@@ -213,10 +195,43 @@ export async function updateSession(request: NextRequest) {
           // console.log(`[Middleware] Cached role for user ${userId}: ${userRole}, isActive: ${isActiveClub}`)
         } else if (userError) {
           console.error("[Middleware] Error fetching user role:", userError.message)
+        } else {
+          userRecordMissing = true
         }
       } catch (dbError) {
           console.error("[Middleware] Database error fetching role:", dbError)
       }
+    }
+
+    const isOnboardingPath = currentPath === ONBOARDING_PATH || currentPath.startsWith(`${ONBOARDING_PATH}/`)
+    const isAuthCallbackPath = currentPath === AUTH_CALLBACK_PATH || currentPath.startsWith(`${AUTH_CALLBACK_PATH}/`)
+    const isAuthPage = currentPath === "/login" || currentPath === "/register" || currentPath === "/forgot-password"
+
+    if (user && userRecordMissing && !isOnboardingPath && !isAuthCallbackPath) {
+      const url = request.nextUrl.clone()
+      url.pathname = ONBOARDING_PATH
+
+      if (!isAuthPage && currentPath !== "/") {
+        url.searchParams.set("next", `${currentPath}${request.nextUrl.search}`)
+      } else {
+        url.searchParams.delete("next")
+      }
+
+      return NextResponse.redirect(url, { headers })
+    }
+
+    // Redirect authenticated users with a completed profile away from auth pages
+    if (user && userRole && isAuthPage) {
+      const url = request.nextUrl.clone()
+      url.pathname = DASHBOARD_PATH
+      return NextResponse.redirect(url, { headers })
+    }
+
+    // Redirect authenticated users with a completed profile landing on root to dashboard
+    if (user && userRole && currentPath === "/") {
+      const url = request.nextUrl.clone()
+      url.pathname = DASHBOARD_PATH
+      return NextResponse.redirect(url, { headers })
     }
 
     // ========================================

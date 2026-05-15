@@ -1,57 +1,105 @@
-# padel-base
+# padel-fv
 
-Base single-tenant para clonar y convertir en forks de organizaciones de padel.
+Sistema de gestion de torneos de padel con dos tenants productivos desde un unico repositorio GitHub.
 
-## Objetivo
+## Modelo actual
 
-Este repo no representa una red publica de organizadores. Cada instalacion se configura para una sola organizacion activa y se personaliza con branding, dominio y datos propios.
+Este repo es la unica fuente de codigo para:
 
-## Flujo recomendado para un nuevo fork
+- `padel-fv`
+- `padel-elite`
 
-1. Duplicar este repo.
-2. Crear un proyecto Supabase nuevo para el cliente.
-3. Correr migraciones y preparar buckets de storage.
-4. Configurar branding y tenant en `config/tenant.ts`.
-5. Actualizar variables de entorno y dominio.
-6. Migrar los datos de la organizacion del cliente.
-7. Deployar en Vercel.
+No se usan forks separados por tenant y, por ahora, no se usa Vercel Platforms. El modelo operativo es:
+
+```txt
+GitHub repo giulianopoliti/padel-fv
+  -> Vercel project padel-fv    -> Supabase FV    -> dominio FV
+  -> Vercel project padel-elite -> Supabase Elite -> dominio Elite
+```
+
+Cada proyecto de Vercel apunta al mismo repo y se diferencia por sus variables de entorno. Cada tenant tiene su propio proyecto Supabase productivo.
+
+## Deploys en Vercel
+
+Un `git push` no elige tenant por si mismo. El deploy lo decide la configuracion de cada proyecto en Vercel:
+
+- Si los dos proyectos de Vercel estan conectados al mismo repo y a la misma rama productiva, el mismo push puede disparar deploys en ambos proyectos.
+- Si solo uno esta conectado a esa rama, deploya solo ese proyecto.
+- Las variables de entorno de cada proyecto de Vercel determinan que tenant se compila y contra que Supabase corre.
+
+Variables minimas por proyecto Vercel:
+
+```env
+NEXT_PUBLIC_TENANT_KEY=padel-fv # o padel-elite
+NEXT_PUBLIC_SITE_URL=
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+TENANT_ORGANIZATION_ID=
+NEXT_PUBLIC_TENANT_ORGANIZATION_SLUG=
+```
+
+El archivo `.vercel/project.json` es estado local del CLI y esta ignorado por Git. No debe usarse como fuente de verdad para saber que proyecto deploya en produccion.
 
 ## Variables importantes
 
-Copiar `.env.example` a `.env.local` y completar:
+Para desarrollo local con un tenant especifico, ver [TENANTS.md](./TENANTS.md).
 
-- `NEXT_PUBLIC_SITE_URL`
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `NEXT_PUBLIC_TENANT_ORGANIZATION_SLUG`
+Los archivos locales esperados son:
 
-## Setup de Supabase para un fork nuevo
+```txt
+.env.padel-fv.local
+.env.padel-elite.local
+```
 
-### 1. Crear el proyecto
+Tambien puede existir `.env.local` para apuntar al Supabase local.
 
-Crear un proyecto Supabase nuevo para el cliente desde el dashboard.
+## Migraciones de Supabase
 
-### 2. Completar variables
+Las migraciones en `supabase/migrations/` son compartidas por los dos tenants porque el esquema debe mantenerse igual en ambos Supabase.
 
-Usar las credenciales del proyecto nuevo en `.env.local`.
+Crear un archivo SQL en `supabase/migrations/` no lo aplica automaticamente a ningun proyecto. El destino real depende del comando que ejecutes:
 
-### 3. Vincular el repo al proyecto nuevo
+- `supabase db reset` aplica migraciones al Supabase local.
+- `supabase db push` aplica migraciones al proyecto remoto actualmente linkeado por el CLI.
+- El link remoto vive en `supabase/.temp/project-ref`, es local, esta ignorado por Git y puede cambiar de una maquina a otra.
 
-Comandos sugeridos:
+Antes de empujar migraciones, verificar el proyecto linkeado:
+
+```bash
+cat supabase/.temp/project-ref
+supabase projects list
+supabase migration list --linked
+```
+
+Flujo recomendado para una migracion de esquema:
+
+1. Crear la migracion en `supabase/migrations/`.
+2. Probar localmente con `supabase db reset`.
+3. Linkear FV y aplicar:
 
 ```bash
 supabase login
-supabase link --project-ref TU_PROJECT_REF
-```
-
-### 4. Ejecutar migraciones
-
-```bash
+supabase link --project-ref PROJECT_REF_FV
+supabase migration list --linked
 supabase db push
 ```
 
-### 5. Deployar funciones edge
+4. Linkear Elite y aplicar la misma migracion:
+
+```bash
+supabase link --project-ref PROJECT_REF_ELITE
+supabase migration list --linked
+supabase db push
+```
+
+5. Committear el archivo de migracion para que el historial quede versionado en el unico repo.
+
+Regla practica: `git push` deploya codigo en Vercel; `supabase db push` migra base de datos. Son pasos separados.
+
+## Funciones Edge
+
+Si una migracion o cambio requiere funciones Edge, desplegarlas en cada Supabase remoto:
 
 ```bash
 supabase functions deploy get-club-tournaments
@@ -64,18 +112,20 @@ supabase functions deploy search-ranking-players
 supabase functions deploy search-tournament-players
 ```
 
-### 6. Configurar auth
+Igual que con `db push`, el destino de `functions deploy` es el proyecto Supabase actualmente linkeado.
 
-En Supabase Auth configurar:
+## Configuracion de Auth
+
+En cada proyecto Supabase configurar:
 
 - `Site URL`
 - `Redirect URLs`
-- proveedor Google si el fork lo usa
+- proveedor Google si el tenant lo usa
 - recovery/reset password para el dominio del cliente
 
-### 7. Migrar datos del cliente
+## Datos por tenant
 
-Migrar solo la organizacion objetivo y sus relaciones:
+Cada Supabase tiene sus propios datos. Si se necesita migrar informacion entre tenants, hacerlo de forma explicita y cuidando:
 
 - organizacion
 - members
@@ -85,7 +135,7 @@ Migrar solo la organizacion objetivo y sus relaciones:
 - inscripciones, matches y tablas relacionadas
 - assets de storage
 
-## Convenciones del base
+## Convenciones del producto
 
 - Registro publico: solo `PLAYER`
 - Organizadores: alta manual
@@ -96,5 +146,5 @@ Migrar solo la organizacion objetivo y sus relaciones:
 ## Notas
 
 - La base de datos mantiene el esquema multi-organizacion para no romper permisos ni paneles existentes.
-- La experiencia del producto se comporta como single-tenant.
-- `supabase/.temp` y `supabase/.branches` son estado local del CLI y no deben reutilizarse entre forks.
+- Cada deploy productivo se comporta como single-tenant por sus variables de entorno.
+- `supabase/.temp`, `supabase/.branches`, `.env*` y `.vercel` son estado local y no deben versionarse.
