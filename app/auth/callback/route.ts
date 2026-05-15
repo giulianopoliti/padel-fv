@@ -18,15 +18,18 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient()
-    await supabase.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (error) {
+      console.error("[auth/callback] Error exchanging OAuth code:", error.message)
+      return NextResponse.redirect(`${origin}/login`)
+    }
 
     if (type === "recovery") {
       return NextResponse.redirect(`${origin}/reset-password`)
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const user = data.user || data.session?.user
 
     if (user) {
       const { data: existingUser } = await supabase.from("users").select("id").eq("id", user.id).maybeSingle()
