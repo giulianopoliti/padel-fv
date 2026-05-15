@@ -31,6 +31,10 @@ export interface BracketDragItem {
   sourceRound: string
   /** Posición del bracket origen */
   sourceBracketPosition: number
+  /** Zona de origen de la pareja, si se conoce */
+  sourceZoneId?: string | null
+  /** Nombre de zona de origen, si se conoce */
+  sourceZoneName?: string | null
 }
 
 /**
@@ -88,6 +92,9 @@ export interface BracketSwapOperation {
   targetPlaceholder?: {
     originalLabel: string
     sourceMatchId?: string
+    zoneId?: string | null
+    zoneName?: string | null
+    position?: number | null
   } | null
   /** Timestamp de creación */
   createdAt: string

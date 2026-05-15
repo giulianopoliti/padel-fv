@@ -282,7 +282,9 @@ export function useBracketDragOperations({
       sourceMatchId: match.id,
       sourceSlot: slot,
       sourceRound: match.round,
-      sourceBracketPosition: match.order_in_round
+      sourceBracketPosition: match.order_in_round,
+      sourceZoneId: couple.seed?.zone_id || null,
+      sourceZoneName: couple.seed?.zone_name || null
     }
     
     actions.startDrag(dragItem)
@@ -344,7 +346,10 @@ export function useBracketDragOperations({
     const targetPlaceholder = (operationType === 'move-to-placeholder' && targetParticipant?.type === 'placeholder')
       ? {
           originalLabel: targetParticipant.placeholder?.display || '',
-          sourceMatchId: targetParticipant.placeholder?.sourceMatchId
+          sourceMatchId: targetParticipant.placeholder?.sourceMatchId || undefined,
+          zoneId: targetParticipant.placeholder?.zoneId || targetParticipant.placeholder?.rule.zoneId || null,
+          zoneName: targetParticipant.placeholder?.zoneName || null,
+          position: targetParticipant.placeholder?.position || targetParticipant.placeholder?.rule.position || null
         } : null
     
     // ✅ MEJORADO: Crear operación con tipo específico
@@ -388,6 +393,19 @@ export function useBracketDragOperations({
     }
     
     toast.success(message, { duration: 3000 })
+
+    if (
+      operationType === 'move-to-placeholder' &&
+      targetPlaceholder?.zoneId &&
+      state.draggedItem.sourceZoneId &&
+      targetPlaceholder.zoneId === state.draggedItem.sourceZoneId
+    ) {
+      const zoneName = state.draggedItem.sourceZoneName || targetPlaceholder.zoneName || 'la misma zona'
+      toast.warning(
+        `${state.draggedItem.coupleName} viene de ${zoneName} y el placeholder ${targetPlaceholder.originalLabel} tambien sale de esa zona.`,
+        { duration: 5000 }
+      )
+    }
     
     // ✅ NUEVO: Log detallado para debug
     console.log(`✅ [handleDrop] Operación creada:`, {

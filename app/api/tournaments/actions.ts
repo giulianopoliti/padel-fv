@@ -842,12 +842,34 @@ export async function getMatchesByTournamentId(tournamentId: string) {
         )
       ),
       seed1:tournament_couple_seed1_id (
+        id,
+        couple_id,
+        seed,
+        bracket_position,
         placeholder_label,
-        is_placeholder
+        placeholder_zone_id,
+        placeholder_position,
+        is_placeholder,
+        created_as_placeholder,
+        placeholder_zone:placeholder_zone_id (
+          id,
+          name
+        )
       ),
       seed2:tournament_couple_seed2_id (
+        id,
+        couple_id,
+        seed,
+        bracket_position,
         placeholder_label,
-        is_placeholder
+        placeholder_zone_id,
+        placeholder_position,
+        is_placeholder,
+        created_as_placeholder,
+        placeholder_zone:placeholder_zone_id (
+          id,
+          name
+        )
       ),
       fecha_matches!left (
         scheduled_date,
@@ -924,8 +946,18 @@ export async function getMatchesByTournamentId(tournamentId: string) {
         // Campos de placeholder
         couple1_placeholder_label: match.seed1?.placeholder_label || null,
         couple1_is_placeholder: match.seed1?.is_placeholder || false,
+        couple1_placeholder_zone_id: match.seed1?.placeholder_zone_id || null,
+        couple1_placeholder_position: match.seed1?.placeholder_position || null,
+        couple1_placeholder_zone_name: Array.isArray(match.seed1?.placeholder_zone)
+          ? match.seed1?.placeholder_zone[0]?.name || null
+          : match.seed1?.placeholder_zone?.name || null,
         couple2_placeholder_label: match.seed2?.placeholder_label || null,
         couple2_is_placeholder: match.seed2?.is_placeholder || false,
+        couple2_placeholder_zone_id: match.seed2?.placeholder_zone_id || null,
+        couple2_placeholder_position: match.seed2?.placeholder_position || null,
+        couple2_placeholder_zone_name: Array.isArray(match.seed2?.placeholder_zone)
+          ? match.seed2?.placeholder_zone[0]?.name || null
+          : match.seed2?.placeholder_zone?.name || null,
         // Agregar datos de scheduling
         scheduling: schedulingData
       };

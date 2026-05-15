@@ -148,3 +148,72 @@ export function ZoneConflictIconBadge(props: Omit<ZoneConflictBadgeProps, 'iconO
 export function ZoneConflictInfoBadge(props: Omit<ZoneConflictBadgeProps, 'variant'>) {
   return <ZoneConflictBadge {...props} variant="info" />
 }
+
+export interface SameZonePlaceholderConflictBadgeProps {
+  coupleName?: string
+  placeholderLabel: string
+  zoneName?: string | null
+  size?: 'sm' | 'md' | 'lg'
+  iconOnly?: boolean
+  className?: string
+}
+
+export function SameZonePlaceholderConflictBadge({
+  coupleName,
+  placeholderLabel,
+  zoneName,
+  size = 'md',
+  iconOnly = false,
+  className
+}: SameZonePlaceholderConflictBadgeProps) {
+  const displayZoneName = zoneName || 'la misma zona'
+  const tooltipMessage = coupleName
+    ? `${coupleName} viene de ${displayZoneName} y el rival pendiente (${placeholderLabel}) tambien saldra de esa zona. Revisa la llave antes de programar este partido.`
+    : `El rival pendiente (${placeholderLabel}) sale de la misma zona que la pareja ya definida. Revisa la llave antes de programar este partido.`
+
+  const sizeStyles = {
+    sm: 'text-xs px-1.5 py-0.5',
+    md: 'text-sm px-2 py-1',
+    lg: 'text-base px-3 py-1.5'
+  }
+
+  const iconSize = {
+    sm: 'h-3 w-3',
+    md: 'h-4 w-4',
+    lg: 'h-5 w-5'
+  }
+
+  return (
+    <TooltipProvider>
+      <Tooltip delayDuration={200}>
+        <TooltipTrigger asChild>
+          <Badge
+            variant="outline"
+            className={cn(
+              'flex items-center gap-1.5 border cursor-help transition-colors',
+              'bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200',
+              sizeStyles[size],
+              className
+            )}
+          >
+            <AlertTriangle className={cn('shrink-0', iconSize[size])} />
+            {!iconOnly && (
+              <span className="font-medium whitespace-nowrap">
+                Posible cruce de misma zona
+              </span>
+            )}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          align="center"
+          className="max-w-xs text-center whitespace-pre-line bg-orange-50 text-orange-900 border-orange-200"
+        >
+          <div className="space-y-2">
+            <p className="font-medium">{tooltipMessage}</p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}

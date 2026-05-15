@@ -35,9 +35,10 @@ import { useMatchManagement } from '../hooks/useMatchManagement'
 import ThreeSetResultDisplay from '../../universal/ThreeSetResultDisplay'
 import LoadMatchResultDialog from '../../../../app/(main)/tournaments/[id]/match-scheduling/components/LoadMatchResultDialog'
 import { ByeActionsDropdown } from './ByeActionsDropdown'
-import { ZoneConflictBadge } from './ZoneConflictBadge'
+import { SameZonePlaceholderConflictBadge, ZoneConflictBadge } from './ZoneConflictBadge'
 import { useZoneMatchHistory, havePlayedInZone } from '../hooks/useZoneMatchHistory'
 import { resolveCoupleIds } from '../utils/couple-resolver'
+import { detectSameZonePlaceholderConflict } from '../utils/same-zone-placeholder-conflict'
 import type {
   BracketMatchV2,
   CoupleData,
@@ -135,6 +136,9 @@ export function GranularMatchCard({
 
   // Verificar si ya jugaron en zonas
   const hasZoneConflict = bothDefined && havePlayedInZone(zoneHistory, couple1Id, couple2Id)
+  const sameZonePlaceholderConflict = !bothDefined
+    ? detectSameZonePlaceholderConflict(match, seeds)
+    : null
 
   // Obtener nombres de parejas para el badge
   const couple1Name = couple1?.name ||
@@ -606,6 +610,14 @@ export function GranularMatchCard({
                 couple1Name={couple1Name || undefined}
                 couple2Name={couple2Name || undefined}
                 variant="warning"
+                size="sm"
+              />
+            )}
+            {!hasZoneConflict && sameZonePlaceholderConflict && (
+              <SameZonePlaceholderConflictBadge
+                coupleName={sameZonePlaceholderConflict.coupleName}
+                placeholderLabel={sameZonePlaceholderConflict.placeholderLabel}
+                zoneName={sameZonePlaceholderConflict.zoneName}
                 size="sm"
               />
             )}

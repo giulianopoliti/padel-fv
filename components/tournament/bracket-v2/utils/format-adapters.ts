@@ -32,6 +32,25 @@ import { BracketState } from '../types/bracket-types'
 // TIPOS DE ENTRADA (APIs LEGACY)
 // ============================================================================
 
+interface CurrentApiSeedReference {
+  id?: string
+  couple_id?: string | null
+  seed?: number
+  bracket_position?: number | null
+  placeholder_label?: string | null
+  placeholder_zone_id?: string | null
+  placeholder_position?: number | null
+  is_placeholder?: boolean
+  created_as_placeholder?: boolean
+  placeholder_zone?: {
+    id: string
+    name: string
+  } | Array<{
+    id: string
+    name: string
+  }> | null
+}
+
 /**
  * Match del formato legacy (hook useTournamentMatches)
  */
@@ -94,11 +113,21 @@ export interface CurrentApiMatch {
   winner_id?: string | null
   couple1_id?: string | null
   couple2_id?: string | null
+  tournament_couple_seed1_id?: string | null
+  tournament_couple_seed2_id?: string | null
+  seed1?: CurrentApiSeedReference | null
+  seed2?: CurrentApiSeedReference | null
   // NUEVO: Campos para placeholders del backend bracket-hierarchy
   couple1_placeholder_label?: string | null
   couple1_is_placeholder?: boolean
+  couple1_placeholder_zone_id?: string | null
+  couple1_placeholder_position?: number | null
+  couple1_placeholder_zone_name?: string | null
   couple2_placeholder_label?: string | null
   couple2_is_placeholder?: boolean
+  couple2_placeholder_zone_id?: string | null
+  couple2_placeholder_position?: number | null
+  couple2_placeholder_zone_name?: string | null
   // LEGACY: Campos para placeholders (mantener compatibilidad)
   placeholder_couple1_label?: string | null
   placeholder_couple2_label?: string | null
@@ -120,10 +149,17 @@ export interface CurrentApiMatch {
 export interface LegacySeed {
   id: string
   tournament_id: string
-  couple_id: string
+  couple_id: string | null
   seed: number
   bracket_position: number
-  zone_id: string
+  zone_id?: string | null
+  zone_name?: string | null
+  zone_position?: number | null
+  is_placeholder?: boolean
+  placeholder_zone_id?: string | null
+  placeholder_position?: number | null
+  placeholder_label?: string | null
+  created_as_placeholder?: boolean
   couples: {
     id: string
     player1: { first_name: string, last_name: string }
@@ -189,12 +225,47 @@ export function parsePlayerFromFullName(fullName: string): PlayerData {
  */
 export function transformLegacySeedToSeedInfo(legacySeed: LegacySeed): SeedInfo {
   return {
+    id: legacySeed.id,
     seed: legacySeed.seed,
     bracket_position: legacySeed.bracket_position,
-    zone_id: legacySeed.zone_id,
-    zone_name: `Zona ${legacySeed.zone_id}`,
-    zone_position: 1, // Asumir ganador de zona por defecto
-    couple_id: legacySeed.couple_id
+    zone_id: legacySeed.zone_id || legacySeed.placeholder_zone_id || null,
+    zone_name: legacySeed.zone_name || (legacySeed.zone_id ? `Zona ${legacySeed.zone_id}` : null),
+    zone_position: legacySeed.zone_position || legacySeed.placeholder_position || null,
+    couple_id: legacySeed.couple_id || '',
+    is_placeholder: legacySeed.is_placeholder,
+    placeholder_zone_id: legacySeed.placeholder_zone_id,
+    placeholder_position: legacySeed.placeholder_position,
+    placeholder_label: legacySeed.placeholder_label,
+    created_as_placeholder: legacySeed.created_as_placeholder
+  }
+}
+
+function getCurrentApiSeedZoneName(seed?: CurrentApiSeedReference | null): string | null {
+  const zone = Array.isArray(seed?.placeholder_zone)
+    ? seed?.placeholder_zone[0]
+    : seed?.placeholder_zone
+
+  return zone?.name || null
+}
+
+function transformCurrentApiSeedReferenceToSeedInfo(
+  seed: CurrentApiSeedReference | null | undefined
+): SeedInfo | undefined {
+  if (!seed?.id) return undefined
+
+  return {
+    id: seed.id,
+    seed: seed.seed || 0,
+    bracket_position: seed.bracket_position || 0,
+    zone_id: seed.placeholder_zone_id || null,
+    zone_name: getCurrentApiSeedZoneName(seed),
+    zone_position: seed.placeholder_position || null,
+    couple_id: seed.couple_id || '',
+    is_placeholder: seed.is_placeholder,
+    placeholder_zone_id: seed.placeholder_zone_id,
+    placeholder_position: seed.placeholder_position,
+    placeholder_label: seed.placeholder_label,
+    created_as_placeholder: seed.created_as_placeholder
   }
 }
 
@@ -391,19 +462,25 @@ export function createParticipantSlot(
 export function createPlaceholderSlot(
   displayText: string,
   zoneId?: string,
-  position?: number
+  position?: number,
+  zoneName?: string | null,
+  seed?: SeedInfo
 ): ParticipantSlot {
   return {
     type: 'placeholder',
     placeholder: {
       display: displayText,
+      zoneId: zoneId || null,
+      zoneName: zoneName || null,
+      position: position || null,
       rule: {
         type: zoneId ? 'zone-position' : 'match-winner',
         zoneId: zoneId,
         position: position || 1
       },
       isDefinitive: false
-    }
+    },
+    seed
   }
 }
 
@@ -459,6 +536,8 @@ export function transformCurrentApiMatchToBracketV2(
   const couple2Seed = hasCouple2 && currentMatch.couple2?.id
     ? seeds.find(s => s.couple_id === currentMatch.couple2?.id) 
     : undefined
+  const slot1SeedReference = transformCurrentApiSeedReferenceToSeedInfo(currentMatch.seed1)
+  const slot2SeedReference = transformCurrentApiSeedReferenceToSeedInfo(currentMatch.seed2)
   
   // Transformar parejas (manejar casos null/undefined)
   const couple1Data = hasCouple1 
@@ -476,17 +555,35 @@ export function transformCurrentApiMatchToBracketV2(
   // Buscar placeholders en ambos formatos (legacy y nuevo)
   const slot1PlaceholderLabel = currentMatch.placeholder_couple1_label || currentMatch.couple1_placeholder_label
   const slot2PlaceholderLabel = currentMatch.placeholder_couple2_label || currentMatch.couple2_placeholder_label
+  const slot1PlaceholderZoneId = currentMatch.seed1?.placeholder_zone_id || currentMatch.couple1_placeholder_zone_id || undefined
+  const slot2PlaceholderZoneId = currentMatch.seed2?.placeholder_zone_id || currentMatch.couple2_placeholder_zone_id || undefined
+  const slot1PlaceholderPosition = currentMatch.seed1?.placeholder_position || currentMatch.couple1_placeholder_position || undefined
+  const slot2PlaceholderPosition = currentMatch.seed2?.placeholder_position || currentMatch.couple2_placeholder_position || undefined
+  const slot1PlaceholderZoneName = getCurrentApiSeedZoneName(currentMatch.seed1) || currentMatch.couple1_placeholder_zone_name || null
+  const slot2PlaceholderZoneName = getCurrentApiSeedZoneName(currentMatch.seed2) || currentMatch.couple2_placeholder_zone_name || null
   
   const slot1 = couple1Data 
     ? createParticipantSlot(couple1Data, couple1Seed)
     : slot1PlaceholderLabel 
-      ? createPlaceholderSlot(slot1PlaceholderLabel)
+      ? createPlaceholderSlot(
+          slot1PlaceholderLabel,
+          slot1PlaceholderZoneId || undefined,
+          slot1PlaceholderPosition || undefined,
+          slot1PlaceholderZoneName,
+          slot1SeedReference
+        )
       : createEmptySlot()
       
   const slot2 = couple2Data
     ? createParticipantSlot(couple2Data, couple2Seed)  
     : slot2PlaceholderLabel
-      ? createPlaceholderSlot(slot2PlaceholderLabel)
+      ? createPlaceholderSlot(
+          slot2PlaceholderLabel,
+          slot2PlaceholderZoneId || undefined,
+          slot2PlaceholderPosition || undefined,
+          slot2PlaceholderZoneName,
+          slot2SeedReference
+        )
       : createEmptySlot()
   
   // NUEVO: Determinar status considerando placeholders
@@ -500,6 +597,12 @@ export function transformCurrentApiMatchToBracketV2(
   const schedulingData = currentMatch.scheduling || {
     court: currentMatch.court
   }
+  const normalizedSchedulingData = schedulingData
+    ? {
+        court: schedulingData.court || undefined,
+        scheduled_time: schedulingData.scheduled_time || undefined
+      }
+    : undefined
 
   // DEBUG: Log scheduling data processing
   if (currentMatch.scheduling || currentMatch.court) {
@@ -509,7 +612,7 @@ export function transformCurrentApiMatchToBracketV2(
       hasScheduling: !!currentMatch.scheduling,
       scheduling: currentMatch.scheduling,
       legacyCourt: currentMatch.court,
-      finalSchedulingData: schedulingData
+      finalSchedulingData: normalizedSchedulingData
     })
   }
 
@@ -528,7 +631,9 @@ export function transformCurrentApiMatchToBracketV2(
     winner_id: currentMatch.winner_id,
     couple1_id: currentMatch.couple1_id,
     couple2_id: currentMatch.couple2_id,
-    scheduling: schedulingData,
+    tournament_couple_seed1_id: currentMatch.tournament_couple_seed1_id,
+    tournament_couple_seed2_id: currentMatch.tournament_couple_seed2_id,
+    scheduling: normalizedSchedulingData,
     metadata: {
       is_auto_generated: true,
       created_at: currentMatch.created_at,
@@ -694,6 +799,8 @@ export function createZoneDataFromSeeds(seeds: SeedInfo[]): ZoneData[] {
   const zoneMap = new Map<string, ZoneData>()
   
   seeds.forEach(seed => {
+    if (!seed.zone_id) return
+
     if (!zoneMap.has(seed.zone_id)) {
       zoneMap.set(seed.zone_id, {
         id: seed.zone_id,

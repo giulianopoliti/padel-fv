@@ -101,18 +101,30 @@ export interface CoupleData {
  * Conecta con la tabla tournament_couple_seeds
  */
 export interface SeedInfo {
+  /** ID de tournament_couple_seeds */
+  id?: string
   /** Seed global en el torneo (1 = mejor seed) */
   seed: number
   /** Posicion especifica en el bracket (1-16 tipicamente) */
   bracket_position: number
   /** ID de la zona de origen */
-  zone_id: string
+  zone_id?: string | null
   /** ID de la pareja asociada */
   couple_id: string
   /** Nombre de la zona para display */
-  zone_name?: string
+  zone_name?: string | null
   /** Posicion que obtuvo en su zona (1 = ganador zona) */
-  zone_position?: number
+  zone_position?: number | null
+  /** Si el seed sigue siendo un placeholder pendiente */
+  is_placeholder?: boolean
+  /** Zona que debe resolver este placeholder */
+  placeholder_zone_id?: string | null
+  /** Posicion de zona que debe resolver este placeholder */
+  placeholder_position?: number | null
+  /** Texto original del placeholder */
+  placeholder_label?: string | null
+  /** Si fue creado como placeholder aunque luego haya sido resuelto */
+  created_as_placeholder?: boolean
 }
 
 /**
@@ -147,6 +159,14 @@ export type ParticipantType =
 export interface PlaceholderData {
   /** Texto a mostrar (ej: "1� Zona A") */
   display: string
+  /** ID de zona que alimenta el placeholder */
+  zoneId?: string | null
+  /** Nombre de zona para display */
+  zoneName?: string | null
+  /** Posicion esperada dentro de la zona */
+  position?: number | null
+  /** Match origen cuando el placeholder depende de un resultado anterior */
+  sourceMatchId?: string | null
   /** Regla que define este placeholder */
   rule: PlaceholderRule
   /** Si ya se puede resolver a una pareja espec�fica */
