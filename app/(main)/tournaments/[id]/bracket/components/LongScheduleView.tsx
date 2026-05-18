@@ -782,7 +782,7 @@ export default function LongScheduleView({ tournamentId }: LongScheduleViewProps
   })
 
   return (
-    <BracketDragDropProvider>
+    <BracketDragDropProvider key={activeBracketKey}>
       <LongScheduleViewContent
         tournamentId={tournamentId}
         selectedRound={selectedRound}

@@ -140,6 +140,61 @@ export default function LongBracketView({ tournamentId, onMatchUpdate }: LongBra
     onMatchUpdate?.()
   }
 
+  const bracketHeader = tournament ? (
+    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg bg-green-100 p-2">
+            <Trophy className="h-4 w-4 text-green-600" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold text-slate-900">Llave del torneo</h2>
+            <p className="text-sm text-slate-600">
+              Formato arbol por rounds con la misma gestion operativa de resultados, drag & drop y avance.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {isGoldSilverFormat && (
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 p-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={activeBracketKey === 'GOLD' ? 'default' : 'ghost'}
+                onClick={() => setActiveBracketKey('GOLD')}
+              >
+                Oro
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={activeBracketKey === 'SILVER' ? 'default' : 'ghost'}
+                onClick={() => setActiveBracketKey('SILVER')}
+              >
+                Plata
+              </Button>
+            </div>
+          )}
+          <Badge variant="default">
+            {tournament.type === 'LONG' ? 'Torneo Largo' : 'Torneo Americano'}
+          </Badge>
+          <Badge variant="outline" className="max-w-full truncate">
+            {tournament.name}
+          </Badge>
+          {hasManagementPermissions && (
+            <Badge variant="outline">
+              <Trophy className="mr-1 h-3 w-3" />
+              {permissions?.source === 'admin' ? 'Admin' :
+               permissions?.source === 'organization_member' ? 'Organizador' :
+               'Owner'}
+            </Badge>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null
+
   if (tournamentLoading) {
     return <LongBracketSkeleton />
   }
@@ -167,89 +222,50 @@ export default function LongBracketView({ tournamentId, onMatchUpdate }: LongBra
   }
 
   if (bracketLoading) {
-    return <LongBracketContentSkeleton />
+    return (
+      <div className="space-y-3">
+        {bracketHeader}
+        <LongBracketContentSkeleton />
+      </div>
+    )
   }
 
   if (error) {
     return (
-      <Alert className="border-red-200 bg-red-50">
-        <AlertCircle className="h-4 w-4 text-red-600" />
-        <AlertDescription className="text-red-800">
-          <strong>Error al cargar llave:</strong> {error.message}. Por favor, intenta recargar la pagina.
-        </AlertDescription>
-      </Alert>
+      <div className="space-y-3">
+        {bracketHeader}
+        <Alert className="border-red-200 bg-red-50">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">
+            <strong>Error al cargar llave:</strong> {error.message}. Podés cambiar de copa o recargar la pagina.
+          </AlertDescription>
+        </Alert>
+      </div>
     )
   }
 
   if (!bracketData) {
     return (
-      <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          No hay datos de la llave disponibles. La llave puede no haber sido generada aun.
-        </AlertDescription>
-      </Alert>
+      <div className="space-y-3">
+        {bracketHeader}
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            No hay datos de la llave disponibles para esta copa. Podés cambiar entre Oro y Plata sin recargar.
+          </AlertDescription>
+        </Alert>
+      </div>
     )
   }
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="rounded-lg bg-green-100 p-2">
-              <Trophy className="h-4 w-4 text-green-600" />
-            </div>
-            <div className="space-y-1">
-              <h2 className="text-base font-semibold text-slate-900">Llave del torneo</h2>
-              <p className="text-sm text-slate-600">
-                Formato arbol por rounds con la misma gestion operativa de resultados, drag & drop y avance.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {isGoldSilverFormat && (
-              <div className="flex items-center gap-2 rounded-lg border border-slate-200 p-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={activeBracketKey === 'GOLD' ? 'default' : 'ghost'}
-                  onClick={() => setActiveBracketKey('GOLD')}
-                >
-                  Oro
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={activeBracketKey === 'SILVER' ? 'default' : 'ghost'}
-                  onClick={() => setActiveBracketKey('SILVER')}
-                >
-                  Plata
-                </Button>
-              </div>
-            )}
-            <Badge variant="default">
-              {tournament.type === 'LONG' ? 'Torneo Largo' : 'Torneo Americano'}
-            </Badge>
-            <Badge variant="outline" className="max-w-full truncate">
-              {tournament.name}
-            </Badge>
-            {hasManagementPermissions && (
-              <Badge variant="outline">
-                <Trophy className="mr-1 h-3 w-3" />
-                {permissions?.source === 'admin' ? 'Admin' :
-                 permissions?.source === 'organization_member' ? 'Organizador' :
-                 'Owner'}
-              </Badge>
-            )}
-          </div>
-        </div>
-      </div>
+      {bracketHeader}
 
       <div className="overflow-visible rounded-lg border border-slate-200 bg-white">
-        <BracketDragDropProvider>
+        <BracketDragDropProvider key={activeBracketKey}>
           <ImprovedBracketRenderer
+            key={activeBracketKey}
             bracketData={bracketData}
             tournamentId={tournamentId}
             tournamentType="LONG"

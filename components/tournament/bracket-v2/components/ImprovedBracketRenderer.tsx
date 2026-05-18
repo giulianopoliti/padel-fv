@@ -150,6 +150,7 @@ export function ImprovedBracketRenderer({
     }
     return applyPendingOperationsToData(bracketData, dragState.pendingOperations);
   }, [
+    bracketData,
     bracketData.matches.length, // ✅ Use length instead of full array
     bracketData.seeds.length,   // ✅ Use length instead of full array  
     dragState.pendingOperations.length, // ✅ Use length for comparison
