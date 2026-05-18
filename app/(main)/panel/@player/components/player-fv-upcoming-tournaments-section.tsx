@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import Link from "next/link"
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3, MapPin, Ticket, Trophy, Users } from "lucide-react"
+import { CalendarDays, ChevronLeft, ChevronRight, MapPin, Ticket, Trophy, Users } from "lucide-react"
 import type { UpcomingTournament } from "@/app/api/panel/actions"
 import PublicRegistrationLauncher from "@/components/tournament/public-registration-launcher"
 import { Badge } from "@/components/ui/badge"
@@ -85,6 +85,12 @@ export default function PlayerFvUpcomingTournamentsSection({
           const statusLabel = statusLabels[tournament.status] || tournament.status
           const tournamentType = tournament.type || "LONG"
           const canRegister = !tournament.is_inscribed && !tournament.is_full && tournament.status === "NOT_STARTED"
+          const venueLabel = [tournament.club?.name, tournament.club?.address].filter(Boolean).join(" - ") || "A confirmar"
+          const timeLabel = formatTimeLabel(tournament.start_date)
+          const dateTimeLabel =
+            timeLabel === "Horario a confirmar"
+              ? formatDateLabel(tournament.start_date)
+              : `${formatDateLabel(tournament.start_date)} - ${timeLabel}`
 
           return (
             <article
@@ -93,56 +99,31 @@ export default function PlayerFvUpcomingTournamentsSection({
             >
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0 flex-1 space-y-4">
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-2">
                     <Badge className="bg-court-500 text-brand-900 hover:bg-court-500">
                       {typeLabels[tournamentType] || tournamentType}
-                    </Badge>
-                    <Badge variant="outline" className="border-white/15 text-slate-200">
-                      {tournament.category_name || "Categoria abierta"}
-                    </Badge>
-                    {tournament.is_inscribed ? (
-                      <Badge variant="outline" className="border-court-400/30 bg-court-500/15 text-court-200">
-                        Ya inscripto
-                      </Badge>
-                    ) : null}
-                    {tournament.is_full && !tournament.is_inscribed ? (
-                      <Badge variant="outline" className="border-white/15 text-slate-200">
-                        Completo
-                      </Badge>
-                    ) : null}
-                    <Badge variant="outline" className="border-white/15 text-slate-200">
-                      {statusLabel}
                     </Badge>
                   </div>
 
                   <div className="space-y-1">
                     <h3 className="text-lg font-black tracking-tight text-white sm:text-xl">{tournament.name}</h3>
                     <p className="text-sm font-medium text-court-200">
-                      {tournament.club?.name || "Club a confirmar"}
+                      {tournament.category_name || "Categoria abierta"}
                     </p>
                   </div>
 
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                     <InfoBlock
                       icon={<CalendarDays className="h-4 w-4 text-court-300" />}
-                      label={tournamentType === "AMERICAN" ? "Fecha" : "Inicio"}
-                      value={formatDateLabel(tournament.start_date)}
-                    />
-                    <InfoBlock
-                      icon={<Clock3 className="h-4 w-4 text-court-300" />}
-                      label="Hora"
-                      value={formatTimeLabel(tournament.start_date)}
+                      label={tournamentType === "AMERICAN" ? "Fecha y hora" : "Inicio"}
+                      value={dateTimeLabel}
                     />
                     <InfoBlock
                       icon={<MapPin className="h-4 w-4 text-court-300" />}
                       label="Sede"
-                      value={tournament.club?.address || tournament.club?.name || "A confirmar"}
+                      value={venueLabel}
                     />
-                    <InfoBlock
-                      icon={<Trophy className="h-4 w-4 text-court-300" />}
-                      label="Categoria"
-                      value={tournament.category_name || "Categoria abierta"}
-                    />
+                    <InfoBlock icon={<Trophy className="h-4 w-4 text-court-300" />} label="Estado" value={statusLabel} />
                   </div>
 
                   <div className="flex flex-wrap gap-2">

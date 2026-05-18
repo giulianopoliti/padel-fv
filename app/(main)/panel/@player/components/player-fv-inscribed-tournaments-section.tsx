@@ -68,6 +68,8 @@ export default function PlayerFvInscribedTournamentsSection({
         {paginatedTournaments.map((inscription) => {
           const tournament = inscription.tournament
           const partnerName = `${inscription.partner.first_name} ${inscription.partner.last_name}`.trim()
+          const tournamentType = tournament.type || null
+          const venueLabel = [tournament.club?.name, tournament.club?.address].filter(Boolean).join(" - ") || "A confirmar"
 
           return (
             <article
@@ -76,22 +78,18 @@ export default function PlayerFvInscribedTournamentsSection({
             >
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0 flex-1 space-y-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="bg-court-500 text-brand-900 hover:bg-court-500">
-                      {tournament.category_name || "Categoria abierta"}
-                    </Badge>
-                    <Badge variant="outline" className="border-white/15 text-slate-200">
-                      {tournament.gender || "Abierto"}
-                    </Badge>
-                    <Badge variant="outline" className="border-white/15 text-slate-200">
-                      {statusLabels[tournament.status] || tournament.status}
-                    </Badge>
-                  </div>
+                  {tournamentType ? (
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-court-500 text-brand-900 hover:bg-court-500">
+                        {tournamentType === "AMERICAN" ? "Americano" : tournamentType === "LONG" ? "Torneo largo" : tournamentType}
+                      </Badge>
+                    </div>
+                  ) : null}
 
                   <div className="space-y-1">
                     <h3 className="text-lg font-black tracking-tight text-white sm:text-xl">{tournament.name}</h3>
                     <p className="text-sm font-medium text-court-200">
-                      {tournament.club?.name || "Club a confirmar"}
+                      {tournament.category_name || "Categoria abierta"}
                     </p>
                   </div>
 
@@ -109,7 +107,7 @@ export default function PlayerFvInscribedTournamentsSection({
                     <InfoBlock
                       icon={<MapPin className="h-4 w-4 text-court-300" />}
                       label="Sede"
-                      value={tournament.club?.address || tournament.club?.name || "A confirmar"}
+                      value={venueLabel}
                     />
                     <InfoBlock
                       icon={<Trophy className="h-4 w-4 text-court-300" />}

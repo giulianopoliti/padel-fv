@@ -44,6 +44,7 @@ export type InscribedTournament = {
   tournament: {
     id: string
     name: string
+    type?: "LONG" | "AMERICAN" | string | null
     start_date: string
     end_date: string
     status: string
