@@ -46,6 +46,10 @@ const env = {
   ...process.env,
   ...parsed,
   NEXT_PUBLIC_TENANT_KEY: tenantKey,
+  TENANT_ORGANIZATION_SLUG:
+    parsed.TENANT_ORGANIZATION_SLUG ||
+    parsed.NEXT_PUBLIC_TENANT_ORGANIZATION_SLUG ||
+    tenantDefaults.organizationSlug,
   NEXT_PUBLIC_TENANT_ORGANIZATION_SLUG:
     parsed.NEXT_PUBLIC_TENANT_ORGANIZATION_SLUG || tenantDefaults.organizationSlug,
   NEXT_PUBLIC_SITE_URL: parsed.NEXT_PUBLIC_SITE_URL || tenantDefaults.siteUrl,

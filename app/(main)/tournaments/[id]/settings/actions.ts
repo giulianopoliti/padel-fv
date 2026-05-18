@@ -201,7 +201,7 @@ export async function updateTournamentFormatConfig(
 
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
-      return { success: false, error: 'No autorizado. Debes iniciar sesiÃ³n.' }
+      return { success: false, error: 'No autorizado. Debes iniciar sesión.' }
     }
 
     const permissionCheck = await checkTournamentPermissions(user.id, tournamentId)

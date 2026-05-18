@@ -239,8 +239,12 @@ export async function getUpcomingTournamentsForHome(limit: number = 3) {
         const supabase = await createClient();
         const tenantOrganization = await getTenantOrganization();
 
+        if (!tenantOrganization) {
+            return [];
+        }
+
         // Single query to get upcoming tournaments with club info, filtered and limited
-        let query = supabase
+        const query = supabase
             .from("tournaments")
             .select(`
                 id,
@@ -266,12 +270,9 @@ export async function getUpcomingTournamentsForHome(limit: number = 3) {
                 )
             `)
             .eq("status", "NOT_STARTED")
+            .eq("organization_id", tenantOrganization.id)
             .order("start_date", { ascending: true })
             .limit(limit);
-
-        if (tenantOrganization) {
-            query = query.eq("organization_id", tenantOrganization.id);
-        }
 
         const { data: tournaments, error } = await query;
 
@@ -365,6 +366,10 @@ export async function getTournamentsOptimized({
         const supabase = await createClient();
         const tenantOrganization = await getTenantOrganization();
 
+        if (!tenantOrganization) {
+            return { tournaments: [], totalCount: 0, totalPages: 0 };
+        }
+
         // Map status to database status values
         const statusMap = {
             'upcoming': ['NOT_STARTED'],
@@ -407,11 +412,8 @@ export async function getTournamentsOptimized({
                 )
             `, { count: 'exact' })
             .in("status", dbStatuses)
-            .neq("is_draft", true);
-
-        if (tenantOrganization) {
-            query = query.eq("organization_id", tenantOrganization.id);
-        }
+            .neq("is_draft", true)
+            .eq("organization_id", tenantOrganization.id);
 
         // Apply filters
         if (filters.categoryName) {

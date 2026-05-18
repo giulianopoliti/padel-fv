@@ -27,6 +27,7 @@ interface TournamentAmericanSidebarProps {
     name: string
     category?: string
     status?: string
+    enable_public_inscriptions?: boolean | null
     is_draft?: boolean
     organization?: {
       name: string
@@ -39,10 +40,16 @@ interface TournamentAmericanSidebarProps {
     } | null
   }
   userRole?: string
+  playerInscription?: {
+    is_eliminated: boolean
+    eliminated_at: string | null
+    eliminated_in_round: string | null
+  } | null
   collapsed?: boolean
   onToggle?: () => void
   mobile?: boolean
   onNavigate?: () => void
+  hasManagePermission?: boolean
 }
 
 interface NavItem {
@@ -52,14 +59,15 @@ interface NavItem {
   description: string
   requiresActive?: boolean
   ownerOnly?: boolean
+  requiresParticipantVisibility?: boolean
 }
 
 const getNavigationItems = (
   userRole?: string,
-  tournamentStatus?: string
+  tournamentStatus?: string,
+  canViewParticipantPages: boolean = true
 ): NavItem[] => {
   const isPlayer = userRole === 'PLAYER'
-  // Tratar CANCELED igual que NOT_STARTED: solo mostrar items básicos
   const isTournamentActive = tournamentStatus !== 'NOT_STARTED' && tournamentStatus !== 'CANCELED'
 
   const baseItems: NavItem[] = [
@@ -68,7 +76,8 @@ const getNavigationItems = (
       href: '/inscriptions',
       icon: Users,
       description: 'Gestión de parejas y jugadores',
-      requiresActive: false
+      requiresActive: false,
+      requiresParticipantVisibility: true
     },
     {
       title: 'Zonas',
@@ -93,13 +102,11 @@ const getNavigationItems = (
     }
   ]
 
-  // Filtrar items que requieren torneo activo
   const filteredItems = baseItems.filter(item =>
-    !item.requiresActive || isTournamentActive
+    (!item.requiresActive || isTournamentActive) &&
+    (canViewParticipantPages || !item.requiresParticipantVisibility)
   )
 
-  // Solo agregar Configuración para organizadores (no players y solo si hay userRole)
-  // Si userRole es undefined, significa que es vista pública (no autenticado)
   if (userRole && !isPlayer) {
     filteredItems.push({
       title: 'Configuración',
@@ -117,14 +124,26 @@ const getNavigationItems = (
 export default function TournamentAmericanSidebar({
   tournament,
   userRole,
+  playerInscription,
   collapsed = false,
   onToggle,
   mobile = false,
-  onNavigate
+  onNavigate,
+  hasManagePermission = false
 }: TournamentAmericanSidebarProps) {
   const pathname = usePathname()
 
-  const navigationItems = getNavigationItems(userRole, tournament.status)
+  const hasActivePlayerInscription = Boolean(playerInscription && !playerInscription.is_eliminated)
+  const canViewParticipantPages =
+    Boolean(tournament.enable_public_inscriptions) ||
+    hasManagePermission ||
+    hasActivePlayerInscription
+
+  const navigationItems = getNavigationItems(
+    userRole,
+    tournament.status,
+    canViewParticipantPages
+  )
 
   const getIsActive = (href: string) => {
     return pathname.includes(href)
@@ -142,21 +161,16 @@ export default function TournamentAmericanSidebar({
       mobile ? "w-full" : collapsed ? "w-16" : "w-64",
       !mobile && "flex-shrink-0 h-full"
     )}>
-      {/* Subtle ambient glow effect at top */}
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent" />
 
-      {/* Header Section - Tournament Info */}
       <div className={cn(
         "transition-all duration-300 relative",
         collapsed && !mobile ? "p-3" : "p-6 space-y-4"
       )}>
-        {/* Ambient background glow */}
         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 rounded-lg blur-xl" />
 
-        {/* Tournament Info with premium icon container */}
         <div className="flex items-start gap-3 relative">
           <div className="flex-shrink-0 p-2.5 rounded-xl transition-all duration-300 relative group bg-gradient-to-br from-blue-500/10 via-blue-400/5 to-purple-500/10 border border-blue-500/20 shadow-lg shadow-blue-500/10">
-            {/* Animated glow on hover */}
             <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-400/20 to-purple-400/20 opacity-0 group-hover:opacity-100 transition-all duration-500" />
 
             <TrophyIcon className={cn(
@@ -194,7 +208,6 @@ export default function TournamentAmericanSidebar({
         <Separator className="bg-gradient-to-r from-transparent via-border to-transparent" />
       </div>
 
-      {/* Navigation Section */}
       <nav className={cn(
         "flex-1 transition-all duration-300",
         collapsed && !mobile ? "px-2 py-4" : "px-3 py-4"
@@ -227,10 +240,8 @@ export default function TournamentAmericanSidebar({
                         )}
                         aria-current={isActive ? "page" : undefined}
                       >
-                        {/* Hover gradient overlay */}
                         <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-purple-500/0 to-blue-500/0 opacity-0 group-hover:opacity-10 transition-opacity duration-500" />
 
-                        {/* Icon with animation */}
                         <Icon className={cn(
                           "h-4 w-4 flex-shrink-0 transition-all duration-300 relative z-10",
                           "group-hover:scale-110 group-hover:rotate-3",
@@ -243,7 +254,6 @@ export default function TournamentAmericanSidebar({
                           </span>
                         )}
 
-                        {/* Active indicator bar */}
                         {isActive && (
                           <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-primary-foreground/0 via-primary-foreground to-primary-foreground/0 rounded-r-full" />
                         )}
@@ -262,7 +272,6 @@ export default function TournamentAmericanSidebar({
         </ul>
       </nav>
 
-      {/* Collapse Button */}
       {!mobile && onToggle && (
         <div className="relative px-3 pb-4">
           <TooltipProvider>
@@ -294,7 +303,6 @@ export default function TournamentAmericanSidebar({
         </div>
       )}
 
-      {/* Footer Section - Club/Organizers Info */}
       {(!collapsed || mobile) && (
         <div className="p-6 border-t border-border">
           <OrganizerLogo

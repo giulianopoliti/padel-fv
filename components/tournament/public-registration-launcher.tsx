@@ -139,11 +139,11 @@ export default function PublicRegistrationLauncher({
       <Dialog open={registerDialogOpen} onOpenChange={setRegisterDialogOpen}>
         <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>InscripciÃ³n al torneo</DialogTitle>
+            <DialogTitle>Inscripción al torneo</DialogTitle>
             <DialogDescription>
               {coupleOnlyMode
-                ? `Este torneo requiere inscripciÃ³n en pareja con transferencia y comprobante para ${tournamentName}.`
-                : `Completa tu inscripciÃ³n individual o en pareja para ${tournamentName}.`}
+                ? `Este torneo requiere inscripción en pareja con transferencia y comprobante para ${tournamentName}.`
+                : `Completa tu inscripción individual o en pareja para ${tournamentName}.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -195,7 +195,7 @@ export default function PublicRegistrationLauncher({
       <AuthRequiredDialog
         open={authDialogOpen}
         onOpenChange={setAuthDialogOpen}
-        title="Necesitas iniciar sesiÃ³n"
+        title="Necesitas iniciar sesión"
         description="Para inscribirte en el torneo necesitas una cuenta de jugador."
         actionText="inscribirte"
         registerHref={registerHref}

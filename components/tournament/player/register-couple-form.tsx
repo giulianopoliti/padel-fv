@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { registerCoupleForTournament } from "@/app/api/tournaments/actions"
 import { useUser } from "@/contexts/user-context"
-import { Search, UserPlus, AlertCircle, Users, User, Phone, CreditCard, Loader2, Trophy, Upload, CheckCircle2 } from "lucide-react"
+import { Search, UserPlus, AlertCircle, Users, User, Phone, CreditCard, Loader2, Upload, CheckCircle2 } from "lucide-react"
 import { Gender } from "@/types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { toast } from "@/components/ui/use-toast"
@@ -190,7 +190,6 @@ export default function RegisterCoupleForm({
   const [isSearching, setIsSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [selectedCompanionId, setSelectedCompanionId] = useState<string | null>(null)
-  const [currentPlayerInfo, setCurrentPlayerInfo] = useState<PlayerInfo | null>(null)
   const { user: contextUser, userDetails } = useUser()
   
   // Estados para verificacion de telefonos
@@ -215,14 +214,6 @@ export default function RegisterCoupleForm({
   const transferAlias = transferConfig?.alias?.trim() || null
   const transferAmount = transferConfig?.amount ?? null
   const transferConfigInvalid = transferProofEnabled && (!transferAlias || transferAmount === null || transferAmount <= 0)
-
-  // Obtener información del jugador logueado
-  useEffect(() => {
-    if (userDetails?.player_id) {
-      const playerInfo = players.find(p => p.id === userDetails.player_id)
-      setCurrentPlayerInfo(playerInfo || null)
-    }
-  }, [userDetails, players])
 
   // Formulario para registrar nuevo jugador
   const playerForm = useForm<PlayerFormValues>({
@@ -721,37 +712,37 @@ export default function RegisterCoupleForm({
   const isTransferStepReady = !transferProofEnabled || (!!paymentProofFile && !transferConfigInvalid)
 
   const renderTransferProofStep = (stepLabel: string, inputId: string, companionName?: string | null) => (
-    <div className="space-y-4 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-emerald-100 p-5 shadow-sm sm:p-6">
-      <div className="flex items-start gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm">
-          <CreditCard className="h-6 w-6" />
+    <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+          <CreditCard className="h-5 w-5" />
         </div>
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">{stepLabel}</p>
-          <h3 className="text-lg font-semibold text-slate-900 sm:text-xl">Transferi y subi el comprobante</h3>
-          <p className="text-sm text-slate-700 sm:text-base">
+          <h3 className="text-base font-semibold text-slate-900">Transferi y subi el comprobante</h3>
+          <p className="text-sm text-slate-700">
             Cuando adjuntas el comprobante, la inscripcion queda registrada.
           </p>
         </div>
       </div>
 
       {companionName && (
-        <div className="rounded-xl border border-emerald-200 bg-white/90 p-4">
+        <div className="rounded-xl border border-emerald-200 bg-white/90 px-3 py-2">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Pareja seleccionada</p>
-          <p className="mt-1 text-base font-semibold text-slate-900 sm:text-lg">{companionName}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-900">{companionName}</p>
         </div>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-white/80 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-white/80 bg-white p-3 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Alias</p>
-          <p className="mt-2 break-all text-lg font-semibold text-slate-900 sm:text-xl">
+          <p className="mt-1 break-all text-base font-semibold text-slate-900">
             {transferAlias || "No disponible"}
           </p>
         </div>
-        <div className="rounded-xl border border-white/80 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-white/80 bg-white p-3 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Importe</p>
-          <p className="mt-2 text-lg font-semibold text-slate-900 sm:text-xl">
+          <p className="mt-1 text-base font-semibold text-slate-900">
             {formatTransferAmount(transferAmount)}
           </p>
         </div>
@@ -788,26 +779,26 @@ export default function RegisterCoupleForm({
 
         <label
           htmlFor={inputId}
-          className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-white px-5 py-8 text-center transition-colors ${
+          className={`flex cursor-pointer items-center gap-3 rounded-2xl border-2 border-dashed bg-white px-4 py-4 text-left transition-colors ${
             paymentProofError
               ? "border-red-400 bg-red-50"
               : "border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50"
           }`}
         >
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-            {paymentProofFile ? <CheckCircle2 className="h-7 w-7" /> : <Upload className="h-7 w-7" />}
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            {paymentProofFile ? <CheckCircle2 className="h-6 w-6" /> : <Upload className="h-6 w-6" />}
           </div>
-          <p className="mt-4 text-base font-semibold text-slate-900 sm:text-lg">
-            {paymentProofFile ? "Comprobante cargado" : "Subir comprobante"}
-          </p>
-          <p className="mt-1 text-sm text-slate-600">
-            JPG, PNG, WEBP o PDF
-          </p>
-          {paymentProofFile && (
-            <p className="mt-3 max-w-full break-all text-sm font-medium text-emerald-700">
-              {paymentProofFile.name}
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-slate-900">
+              {paymentProofFile ? "Comprobante cargado" : "Subir comprobante"}
             </p>
-          )}
+            <p className="text-xs text-slate-600">JPG, PNG, WEBP o PDF</p>
+            {paymentProofFile && (
+              <p className="mt-1 max-w-full break-all text-xs font-medium text-emerald-700">
+                {paymentProofFile.name}
+              </p>
+            )}
+          </div>
         </label>
 
         {paymentProofError && (
@@ -928,41 +919,22 @@ export default function RegisterCoupleForm({
   }
 
   return (
-    <Card className="w-full bg-white border border-gray-200 shadow-sm">
-      <CardHeader className="text-center pb-4">
-        <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3">
-          <Users className="h-6 w-6 text-blue-600" />
-        </div>
-        <CardTitle className="text-xl font-semibold text-gray-900">Inscripción en Pareja</CardTitle>
-        <p className="text-sm text-gray-600">
-          Primero carga a tu compañero. Si todavía no tiene cuenta, puedes crearle un perfil básico acá mismo.
-        </p>
-      </CardHeader>
-
-      <CardContent>
-        {/* Mostrar información del jugador logueado */}
-        <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">Paso 1</p>
-          <h3 className="mt-2 text-base font-semibold text-slate-900">Tu lugar en la pareja</h3>
-          <div className="mt-2 text-blue-700">
-            {currentPlayerInfo 
-              ? `${currentPlayerInfo.first_name || ""} ${currentPlayerInfo.last_name || ""}`.trim() || "Tu perfil"
-              : "Tu perfil"
-            }
+    <Card className="w-full border-0 bg-transparent shadow-none">
+      <CardContent className="space-y-4 p-0">
+        <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-600 shadow-sm">
+            <Users className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Inscripción en pareja</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Carga a tu compañero: puedes buscarlo si ya existe o crearle un perfil básico.
+            </p>
           </div>
         </div>
 
-        <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Paso 2</p>
-          <h3 className="mt-2 text-base font-semibold text-slate-900">Cómo quieres cargar a tu compañero</h3>
-          <p className="mt-1 text-sm text-slate-600">
-            Usa <span className="font-semibold text-slate-800">Nuevo compañero</span> si todavía no tiene cuenta o nunca fue cargado.
-            Si ya existe en el sistema, usa <span className="font-semibold text-slate-800">Ya está cargado</span>.
-          </p>
-        </div>
-
         <Tabs defaultValue="new" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-gray-100">
+          <TabsList className="grid h-11 w-full grid-cols-2 bg-gray-100">
             <TabsTrigger value="new" className="data-[state=active]:bg-white data-[state=active]:text-blue-600">
               <UserPlus className="mr-2 h-4 w-4" />
               Nuevo compañero
@@ -973,15 +945,7 @@ export default function RegisterCoupleForm({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="search" className="space-y-4 py-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Compañero ya cargado</p>
-              <h3 className="mt-2 text-base font-semibold text-slate-900">Busca a alguien que ya exista en el sistema</h3>
-              <p className="mt-1 text-sm text-slate-600">
-                Usa esta opción solo si tu compañero ya tiene cuenta o ya fue cargado antes en un torneo o por un club.
-              </p>
-            </div>
-
+          <TabsContent value="search" className="space-y-4 pt-4">
             <Form {...searchForm}>
               <form onSubmit={searchForm.handleSubmit(onSearch)} className="space-y-4">
                 <FormField
@@ -1026,7 +990,7 @@ export default function RegisterCoupleForm({
                   searchResults.map((player) => (
                     <div 
                       key={player.id} 
-                      className={`rounded-2xl border p-4 cursor-pointer transition-colors ${
+                      className={`rounded-2xl border p-3 cursor-pointer transition-colors ${
                         selectedCompanionId === player.id 
                           ? 'border-blue-500 bg-blue-50 shadow-sm' 
                           : 'border-gray-200 hover:border-gray-300 hover:bg-slate-50'
@@ -1074,7 +1038,7 @@ export default function RegisterCoupleForm({
                 )}
 
                 {!transferProofEnabled && (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
                     <p className="text-sm font-medium text-emerald-800">
                       La pareja ya está lista para registrarse.
                     </p>
@@ -1082,22 +1046,22 @@ export default function RegisterCoupleForm({
                 )}
 
                 <div className="flex justify-end">
-                <Button
-                  onClick={onSubmitCouple}
-                  disabled={isSubmitting || isCheckingPhones || !isTransferStepReady}
-                  className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto"
-                >
-                  {isCheckingPhones ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Verificando...
-                    </>
-                  ) : isSubmitting ? (
-                    "Procesando..."
-                  ) : (
-                    transferProofEnabled ? "Registrar con comprobante" : "Registrar pareja"
-                  )}
-                </Button>
+                  <Button
+                    onClick={onSubmitCouple}
+                    disabled={isSubmitting || isCheckingPhones || !isTransferStepReady}
+                    className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto"
+                  >
+                    {isCheckingPhones ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Verificando...
+                      </>
+                    ) : isSubmitting ? (
+                      "Procesando..."
+                    ) : (
+                      transferProofEnabled ? "Registrar con comprobante" : "Registrar pareja"
+                    )}
+                  </Button>
                 </div>
               </div>
             )}
@@ -1105,15 +1069,7 @@ export default function RegisterCoupleForm({
             {renderPhoneRequirementForm()}
           </TabsContent>
 
-          <TabsContent value="new" className="py-4">
-            <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Nuevo compañero</p>
-              <h3 className="mt-2 text-base font-semibold text-slate-900">Tu compañero todavía no tiene cuenta</h3>
-              <p className="mt-1 text-sm text-slate-600">
-                Completa sus datos para crearle un perfil básico y continuar. No necesita tener cuenta para que puedas inscribir la pareja.
-              </p>
-            </div>
-            
+          <TabsContent value="new" className="pt-4">
             <Form {...playerForm}>
               <form onSubmit={playerForm.handleSubmit(onSubmitNewPlayer)} className="space-y-4">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

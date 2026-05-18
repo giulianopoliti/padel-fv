@@ -1012,7 +1012,7 @@ export async function updateCoupleAvailability(
     if ((timeSlot as any).slot_type === 'FREE_DATE') {
       return {
         success: false,
-        error: 'Usa la opciÃ³n FECHA LIBRE para marcar disponibilidad de fecha completa'
+        error: 'Usa la opción FECHA LIBRE para marcar disponibilidad de fecha completa'
       }
     }
 

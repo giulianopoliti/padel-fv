@@ -1,6 +1,8 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
+import { checkTournamentAccess } from '@/utils/tournament-permissions';
+import { canViewTournamentParticipantPages } from '@/utils/tournament-visibility';
 import QuallyView from './components/QuallyView';
 
 interface QuallyPageProps {
@@ -19,11 +21,12 @@ export default async function QuallyPage({ params }: QuallyPageProps) {
   const tournamentId = resolvedParams.id;
   
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
   // Verificar que el torneo existe
   const { data: tournament, error } = await supabase
     .from('tournaments')
-    .select('id, name, type, status, club_id')
+    .select('id, name, type, status, club_id, enable_public_inscriptions')
     .eq('id', tournamentId)
     .single();
 
@@ -33,6 +36,15 @@ export default async function QuallyPage({ params }: QuallyPageProps) {
 
   // Por ahora solo para torneos largos, pero se puede extender
   if (tournament.type !== 'LONG') {
+    redirect(`/tournaments/${tournamentId}`);
+  }
+
+  const accessCheck = await checkTournamentAccess(user?.id || null, tournamentId);
+
+  if (!canViewTournamentParticipantPages({
+    enablePublicInscriptions: tournament.enable_public_inscriptions,
+    accessLevel: accessCheck.accessLevel,
+  })) {
     redirect(`/tournaments/${tournamentId}`);
   }
 

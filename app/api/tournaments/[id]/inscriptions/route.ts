@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest } from 'next/server';
 import { checkTournamentAccess } from '@/utils/tournament-permissions';
+import { canViewTournamentParticipantPages } from '@/utils/tournament-visibility';
 
 /**
  * 🎯 API ROUTE: INSCRIPCIONES PARA TORNEOS (AMERICAN Y LONG)
@@ -103,10 +104,10 @@ export async function GET(
 
     const { data: { user } } = await supabase.auth.getUser();
     const accessCheck = await checkTournamentAccess(user?.id || null, tournamentId);
-    const canAccessPrivateInscriptions =
-      accessCheck.accessLevel === 'FULL_MANAGEMENT' || accessCheck.accessLevel === 'PLAYER_ACTIVE';
-
-    if (!tournament.enable_public_inscriptions && !canAccessPrivateInscriptions) {
+    if (!canViewTournamentParticipantPages({
+      enablePublicInscriptions: tournament.enable_public_inscriptions,
+      accessLevel: accessCheck.accessLevel,
+    })) {
       return Response.json(
         { error: 'Las inscripciones públicas de este torneo están deshabilitadas' },
         { status: 403 }

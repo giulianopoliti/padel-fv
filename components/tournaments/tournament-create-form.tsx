@@ -3,19 +3,31 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Check, CheckCircle, AlertCircle, Loader2, ArrowLeft, ArrowRight, Trophy, FileText, Settings, CalendarDays, Users, Tag, Award, Building2, Sparkles, Info, Clock, Calendar, X } from 'lucide-react';
+import {
+  Check,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  ArrowLeft,
+  ArrowRight,
+  Trophy,
+  FileText,
+  Settings,
+  CalendarDays,
+  Users,
+  Tag,
+  Award,
+  Building2,
+  Sparkles,
+  Info,
+  Clock,
+  Calendar,
+  X,
+} from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { createTournamentAction } from '@/app/api/tournaments/actions';
-import { useUser } from '@/contexts/user-context';
-import { getPresetOptionsByType } from '@/config/tournament-format-presets';
-import { useUserClubs } from '@/hooks/use-user-clubs';
-import { buildTournamentFormatConfig } from '@/lib/services/tournament-format-config-builder';
-import { cn } from '@/lib/utils';
-import type { TournamentFormatPresetId } from '@/types/tournament-format-v2';
-import { createClient } from '@/utils/supabase/client';
-import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +42,14 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
+import { getPresetOptionsByType } from '@/config/tournament-format-presets';
+import { useUser } from '@/contexts/user-context';
+import { useUserClubs } from '@/hooks/use-user-clubs';
+import { buildTournamentFormatConfig } from '@/lib/services/tournament-format-config-builder';
+import { cn } from '@/lib/utils';
+import type { TournamentFormatPresetId } from '@/types/tournament-format-v2';
+import { createClient } from '@/utils/supabase/client';
+import { useRouter } from 'next/navigation';
 
 interface Category {
   name: string;
@@ -67,7 +87,7 @@ const STEP_TITLES = [
   {
     id: 3,
     title: 'Cierre',
-    description: 'Cupo y revisión final',
+    description: 'Cupo y revision final',
     icon: Trophy,
   },
 ] as const;
@@ -75,24 +95,24 @@ const STEP_TITLES = [
 const tournamentSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   description: z.string().optional(),
-  category_name: z.string().min(1, 'Selecciona una categoría'),
+  category_name: z.string().min(1, 'Selecciona una categoria'),
   type: z.enum(['LONG', 'AMERICAN'], {
     required_error: 'Selecciona un tipo de torneo',
   }),
   format_preset: z.string().min(1, 'Selecciona un formato'),
   gender: z.enum(['MALE', 'FEMALE', 'MIXED'], {
-    required_error: 'Selecciona un género',
+    required_error: 'Selecciona un genero',
   }),
   start_date: z.string().min(1, 'La fecha de inicio es obligatoria'),
   start_time: z.string().optional(),
   end_date: z.string().optional(),
   end_time: z.string().optional(),
-  max_participants: z.number().min(2, 'Mínimo 2 parejas').max(64, 'Máximo 64 parejas').optional(),
+  max_participants: z.number().min(2, 'Minimo 2 parejas').max(64, 'Maximo 64 parejas').optional(),
   club_id: z.string().min(1, 'Selecciona un club'),
   extra_club_ids: z.array(z.string()).default([]),
-  price: z.number().int('El precio debe ser un número entero').min(0, 'El precio no puede ser negativo').max(32767, 'El precio es demasiado alto').optional(),
+  price: z.number().int('El precio debe ser un numero entero').min(0, 'El precio no puede ser negativo').max(32767, 'El precio es demasiado alto').optional(),
   award: z.string().optional(),
-  single_bracket_advance_count: z.number().int().min(2, 'Mínimo 2 parejas').optional(),
+  single_bracket_advance_count: z.number().int().min(2, 'Minimo 2 parejas').optional(),
   gold_count: z.number().int().min(0, 'No puede ser negativo').optional(),
   silver_count: z.number().int().min(0, 'No puede ser negativo').optional(),
   eliminated_count: z.number().int().min(0, 'No puede ser negativo').optional(),
@@ -110,7 +130,7 @@ const tournamentSchema = z.object({
   }
   return true;
 }, {
-  message: 'Para torneos largos, la fecha de finalización es obligatoria',
+  message: 'Para torneos largos, la fecha de finalizacion es obligatoria',
   path: ['end_date'],
 }).refine((data) => {
   return !data.extra_club_ids.includes(data.club_id);
@@ -124,13 +144,13 @@ type TournamentFormData = z.infer<typeof tournamentSchema>;
 const TYPE_COPY = {
   AMERICAN: {
     title: 'Americano',
-    description: 'Pensado para resolverse en un solo día, con horarios más definidos.',
-    badge: '1 día',
+    description: 'Pensado para resolverse en un solo dia, con horarios mas definidos.',
+    badge: '1 dia',
   },
   LONG: {
     title: 'Long',
-    description: 'Ideal para una competencia distribuida en varios días con cierre estimado.',
-    badge: 'Varios días',
+    description: 'Ideal para una competencia distribuida en varios dias con cierre estimado.',
+    badge: 'Varios dias',
   },
 } as const;
 
@@ -157,13 +177,13 @@ const getPresetMeta = (presetId: string) => {
   const preset = [...PRESET_OPTIONS.AMERICAN, ...PRESET_OPTIONS.LONG].find((option) => option.presetId === presetId);
   if (!preset) return [];
 
-  const zoneLabel = preset.zoneMode === 'MULTI_ZONE' ? 'Múltiples zonas' : 'Zona única';
+  const zoneLabel = preset.zoneMode === 'MULTI_ZONE' ? 'Multiples zonas' : 'Zona unica';
   const stageLabel = preset.zoneStage === 'ROUND_ROBIN' ? 'Todos contra todos' : `${preset.targetMatchesPerCouple ?? 0} partidos por pareja`;
   const bracketLabel = preset.bracketMode === 'SINGLE'
-    ? 'Llave única'
+    ? 'Llave unica'
     : preset.bracketMode === 'GOLD_SILVER'
       ? 'Copa Oro y Plata'
-      : 'Campeón directo';
+      : 'Campeon directo';
 
   return [zoneLabel, stageLabel, bracketLabel];
 };
@@ -216,6 +236,7 @@ export default function TournamentCreateForm() {
   const selectedClub = clubs.find((club) => club.id === watchedValues.club_id);
   const selectedExtraClubs = clubs.filter((club) => extraClubIds.includes(club.id));
   const progressValue = (currentStep / STEP_TITLES.length) * 100;
+  const activeStep = STEP_TITLES[currentStep - 1];
 
   useEffect(() => {
     async function fetchCategories() {
@@ -236,13 +257,13 @@ export default function TournamentCreateForm() {
           .order('name');
 
         if (categoriesError) {
-          throw new Error(`Error al cargar categorías: ${categoriesError.message}`);
+          throw new Error(`Error al cargar categorias: ${categoriesError.message}`);
         }
 
         setCategories(categoriesData || []);
       } catch (err: any) {
         console.error('Error fetching categories:', err);
-        setError(err.message || 'Error al cargar categorías');
+        setError(err.message || 'Error al cargar categorias');
       } finally {
         setIsLoading(false);
       }
@@ -434,7 +455,7 @@ export default function TournamentCreateForm() {
       const result = await createTournamentAction(dataForAction);
 
       if (result.success && result.tournament?.id) {
-        setSuccessMessage('¡Torneo creado exitosamente! Redirigiendo...');
+        setSuccessMessage('Torneo creado exitosamente. Redirigiendo...');
         router.refresh();
         setTimeout(() => {
           window.location.href = `/tournaments/${result.tournament.id}`;
@@ -452,15 +473,15 @@ export default function TournamentCreateForm() {
 
   if (isLoading || isUserLoading || isClubsLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center">
-        <div className="text-center space-y-4">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="space-y-4 text-center">
           <div className="relative">
-            <Loader2 className="h-12 w-12 animate-spin text-slate-900 mx-auto" />
-            <div className="absolute inset-0 h-12 w-12 rounded-full border-2 border-slate-200 animate-pulse mx-auto" />
+            <Loader2 className="mx-auto h-12 w-12 animate-spin text-slate-900" />
+            <div className="absolute inset-0 mx-auto h-12 w-12 rounded-full border-2 border-slate-200 animate-pulse" />
           </div>
           <div className="space-y-2">
             <p className="text-lg font-medium text-slate-900">Preparando asistente...</p>
-            <p className="text-sm text-slate-500">Cargando categorías, clubes y configuración</p>
+            <p className="text-sm text-slate-500">Cargando categorias, clubes y configuracion</p>
           </div>
         </div>
       </div>
@@ -468,131 +489,169 @@ export default function TournamentCreateForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      <div className="bg-white/85 backdrop-blur-sm border-b border-slate-200/60 sticky top-0 z-10 shadow-sm">
-        <div className="container mx-auto px-6 py-6">
-          <div className="flex items-center justify-between gap-4">
-            <Button asChild variant="ghost" size="sm" className="text-slate-600 hover:text-slate-900">
-              <Link href="/tournaments">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Volver
-              </Link>
-            </Button>
+    <div className="min-h-screen bg-slate-50">
+      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
+        <div className="container mx-auto px-4 py-4 sm:px-6 sm:py-5">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start justify-between gap-3 sm:items-center">
+              <Button asChild variant="ghost" size="sm" className="h-9 px-2 text-slate-600 hover:text-slate-900">
+                <Link href="/tournaments">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Volver
+                </Link>
+              </Button>
 
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-2">
-                <Sparkles className="h-5 w-5 text-slate-900" />
-                <h1 className="text-3xl font-light text-slate-900">Crear torneo</h1>
+              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700">
+                <Trophy className="h-3.5 w-3.5 text-slate-700" />
+                <span>Paso {currentStep} de {STEP_TITLES.length}</span>
               </div>
-              <p className="text-sm text-slate-500 mt-1">Un flujo más claro, con el mismo backend de siempre.</p>
             </div>
 
-            <div className="flex items-center gap-2 text-right">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Paso actual</p>
-                <p className="text-sm font-medium text-slate-800">{currentStep} de {STEP_TITLES.length}</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-slate-900 sm:h-5 sm:w-5" />
+                  <h1 className="text-2xl font-light text-slate-900 sm:text-3xl">Crear torneo</h1>
+                </div>
+                <p className="mt-1 text-sm text-slate-500">Flujo simple, mismo backend y mismas reglas.</p>
               </div>
-              <Trophy className="h-7 w-7 text-slate-900" />
+
+              <div className="min-w-0 text-left sm:text-right">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Etapa actual</p>
+                <p className="text-sm font-medium text-slate-800">{activeStep.title}</p>
+              </div>
             </div>
-          </div>
 
-          <div className="mt-6 space-y-4">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-500">Progreso del asistente</span>
-              <span className="text-slate-700 font-medium">{STEP_TITLES[currentStep - 1].title}</span>
-            </div>
-            <Progress value={progressValue} className="h-2" />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-slate-500">Progreso</span>
+                <span className="font-medium text-slate-700">{Math.round(progressValue)}%</span>
+              </div>
+              <Progress value={progressValue} className="h-1.5" />
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {STEP_TITLES.map((step) => {
-                const Icon = step.icon;
-                const isActive = currentStep === step.id;
-                const isCompleted = currentStep > step.id;
+              <div className="flex gap-2 overflow-x-auto pb-1 md:hidden">
+                {STEP_TITLES.map((step) => {
+                  const Icon = step.icon;
+                  const isActive = currentStep === step.id;
+                  const isCompleted = currentStep > step.id;
 
-                return (
-                  <div
-                    key={step.id}
-                    className={cn(
-                      'rounded-2xl border px-4 py-3 transition-colors',
-                      isActive && 'border-slate-900 bg-slate-900 text-white shadow-sm',
-                      isCompleted && 'border-emerald-200 bg-emerald-50 text-emerald-900',
-                      !isActive && !isCompleted && 'border-slate-200 bg-white/70 text-slate-600'
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
+                  return (
+                    <div
+                      key={step.id}
+                      className={cn(
+                        'flex min-w-[112px] items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors',
+                        isActive && 'border-slate-900 bg-slate-900 text-white',
+                        isCompleted && 'border-emerald-200 bg-emerald-50 text-emerald-900',
+                        !isActive && !isCompleted && 'border-slate-200 bg-white text-slate-600'
+                      )}
+                    >
                       <div
                         className={cn(
-                          'flex h-10 w-10 items-center justify-center rounded-full border',
-                          isActive && 'border-white/30 bg-white/10',
+                          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border',
+                          isActive && 'border-white/20 bg-white/10',
                           isCompleted && 'border-emerald-200 bg-white',
-                          !isActive && !isCompleted && 'border-slate-200 bg-white'
+                          !isActive && !isCompleted && 'border-slate-200 bg-slate-50'
                         )}
                       >
-                        {isCompleted ? <Check className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
+                        {isCompleted ? <Check className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
                       </div>
-                      <div>
-                        <p className="text-sm font-medium">Paso {step.id}: {step.title}</p>
-                        <p className={cn('text-xs mt-1', isActive ? 'text-slate-200' : isCompleted ? 'text-emerald-700' : 'text-slate-500')}>
-                          {step.description}
-                        </p>
+                      <span className="truncate font-medium">{step.title}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="hidden grid-cols-3 gap-3 md:grid">
+                {STEP_TITLES.map((step) => {
+                  const Icon = step.icon;
+                  const isActive = currentStep === step.id;
+                  const isCompleted = currentStep > step.id;
+
+                  return (
+                    <div
+                      key={step.id}
+                      className={cn(
+                        'rounded-xl border px-4 py-3 transition-colors',
+                        isActive && 'border-slate-900 bg-slate-900 text-white shadow-sm',
+                        isCompleted && 'border-emerald-200 bg-emerald-50 text-emerald-900',
+                        !isActive && !isCompleted && 'border-slate-200 bg-white text-slate-600'
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={cn(
+                            'flex h-9 w-9 items-center justify-center rounded-full border',
+                            isActive && 'border-white/30 bg-white/10',
+                            isCompleted && 'border-emerald-200 bg-white',
+                            !isActive && !isCompleted && 'border-slate-200 bg-slate-50'
+                          )}
+                        >
+                          {isCompleted ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">Paso {step.id}: {step.title}</p>
+                          <p className={cn('mt-1 text-xs', isActive ? 'text-slate-200' : isCompleted ? 'text-emerald-700' : 'text-slate-500')}>
+                            {step.description}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-8">
-        <div className="mx-auto max-w-5xl space-y-6">
+      <div className="container mx-auto px-4 py-5 sm:px-6 sm:py-8">
+        <div className="mx-auto max-w-5xl space-y-4 sm:space-y-6">
           {error && (
-            <Alert className="border-red-200/60 bg-red-50/70">
+            <Alert className="border-red-200/60 bg-red-50/80">
               <AlertCircle className="h-4 w-4 text-red-600" />
               <AlertDescription className="text-red-700">{error}</AlertDescription>
             </Alert>
           )}
 
           {clubsError && (
-            <Alert className="border-red-200/60 bg-red-50/70">
+            <Alert className="border-red-200/60 bg-red-50/80">
               <AlertCircle className="h-4 w-4 text-red-600" />
               <AlertDescription className="text-red-700">{clubsError}</AlertDescription>
             </Alert>
           )}
 
           {successMessage && (
-            <Alert className="border-emerald-200/60 bg-emerald-50/70">
+            <Alert className="border-emerald-200/60 bg-emerald-50/80">
               <CheckCircle className="h-4 w-4 text-emerald-600" />
               <AlertDescription className="text-emerald-700">{successMessage}</AlertDescription>
             </Alert>
           )}
 
           <Form {...form}>
-            <form onSubmit={handleFormSubmit} className="space-y-6">
+            <form onSubmit={handleFormSubmit} className="space-y-4 sm:space-y-6">
               {currentStep === 1 && (
-                <Card className="border-slate-200/60 bg-white/75 shadow-sm backdrop-blur-sm">
-                  <CardHeader className="border-b border-slate-100 bg-slate-50/60">
-                    <CardTitle className="flex items-center gap-3 text-xl font-light text-slate-900">
+                <Card className="border-slate-200 bg-white shadow-sm">
+                  <CardHeader className="space-y-2 border-b border-slate-100 p-4 sm:p-6">
+                    <CardTitle className="flex items-center gap-3 text-lg font-light text-slate-900 sm:text-xl">
                       <Settings className="h-5 w-5 text-slate-700" />
                       Datos base del torneo
                     </CardTitle>
-                    <CardDescription className="text-slate-500">
-                      Primero definimos qué torneo estás creando y bajo qué formato va a competir.
+                    <CardDescription className="text-sm text-slate-500">
+                      Defini identidad, formato y club principal.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-8 p-8">
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <CardContent className="space-y-6 p-4 sm:space-y-8 sm:p-6">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
                       <FormField
                         control={form.control}
                         name="name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-slate-700 font-medium">Nombre del torneo</FormLabel>
+                            <FormLabel className="font-medium text-slate-700">Nombre del torneo</FormLabel>
                             <FormControl>
                               <Input
                                 placeholder="Ej: Torneo Apertura Club Norte"
-                                className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                                className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900"
                                 {...field}
                               />
                             </FormControl>
@@ -606,11 +665,11 @@ export default function TournamentCreateForm() {
                         name="category_name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-slate-700 font-medium">Categoría</FormLabel>
+                            <FormLabel className="font-medium text-slate-700">Categoria</FormLabel>
                             <FormControl>
                               <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900">
-                                  <SelectValue placeholder="Selecciona una categoría" />
+                                <SelectTrigger className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900">
+                                  <SelectValue placeholder="Selecciona una categoria" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {categories.map((category) => (
@@ -632,16 +691,16 @@ export default function TournamentCreateForm() {
                       name="description"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-slate-700 font-medium">Descripción</FormLabel>
+                          <FormLabel className="font-medium text-slate-700">Descripcion</FormLabel>
                           <FormControl>
                             <Textarea
-                              placeholder="Contá brevemente de qué se trata el torneo, cómo querés presentarlo o qué detalle deben saber los jugadores."
-                              className="min-h-[110px] resize-none border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                              placeholder="Conta brevemente de que se trata el torneo o que deben saber los jugadores."
+                              className="min-h-[104px] resize-none border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900"
                               {...field}
                             />
                           </FormControl>
                           <FormDescription className="text-slate-500">
-                            Opcional, pero ayuda mucho a que la convocatoria se entienda mejor.
+                            Opcional, pero ayuda a que la convocatoria sea mas clara.
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -654,14 +713,14 @@ export default function TournamentCreateForm() {
                       render={({ field }) => (
                         <FormItem className="space-y-4">
                           <div>
-                            <FormLabel className="text-slate-700 font-medium">Tipo de torneo</FormLabel>
-                            <p className="text-sm text-slate-500 mt-1">Elegí primero si el torneo se juega en una jornada o en varios días.</p>
+                            <FormLabel className="font-medium text-slate-700">Tipo de torneo</FormLabel>
+                            <p className="mt-1 text-sm text-slate-500">Elegi si se juega en una jornada o distribuido en varios dias.</p>
                           </div>
                           <FormControl>
                             <RadioGroup
                               value={field.value}
                               onValueChange={field.onChange}
-                              className="grid grid-cols-1 gap-4 md:grid-cols-2"
+                              className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4"
                             >
                               {(['AMERICAN', 'LONG'] as const).map((type) => {
                                 const isSelected = field.value === type;
@@ -671,22 +730,22 @@ export default function TournamentCreateForm() {
                                   <label
                                     key={type}
                                     className={cn(
-                                      'flex cursor-pointer rounded-2xl border p-5 transition-all',
+                                      'flex cursor-pointer rounded-xl border p-4 transition-all sm:p-5',
                                       isSelected
                                         ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
-                                        : 'border-slate-200 bg-white/80 text-slate-800 hover:border-slate-300'
+                                        : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
                                     )}
                                   >
                                     <RadioGroupItem value={type} className="mt-1 border-current text-current" />
-                                    <div className="ml-4 flex-1">
-                                      <div className="flex items-center justify-between gap-3">
-                                        <div>
+                                    <div className="ml-3 flex-1 sm:ml-4">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
                                           <p className="text-base font-medium">{copy.title}</p>
                                           <p className={cn('mt-1 text-sm', isSelected ? 'text-slate-200' : 'text-slate-500')}>
                                             {copy.description}
                                           </p>
                                         </div>
-                                        <Badge variant={isSelected ? 'secondary' : 'outline'} className={cn(isSelected && 'bg-white/10 text-white border-white/20')}>
+                                        <Badge variant={isSelected ? 'secondary' : 'outline'} className={cn('shrink-0', isSelected && 'border-white/20 bg-white/10 text-white')}>
                                           {copy.badge}
                                         </Badge>
                                       </div>
@@ -707,13 +766,13 @@ export default function TournamentCreateForm() {
                       render={({ field }) => (
                         <FormItem className="space-y-4">
                           <div>
-                            <FormLabel className="text-slate-700 font-medium">Formato dentro de {TYPE_COPY[selectedType].title}</FormLabel>
-                            <p className="text-sm text-slate-500 mt-1">
-                              Acá definís cómo se organiza la competencia: zonas, cantidad de partidos y si termina en llave o copas.
+                            <FormLabel className="font-medium text-slate-700">Formato dentro de {TYPE_COPY[selectedType].title}</FormLabel>
+                            <p className="mt-1 text-sm text-slate-500">
+                              Elegi zonas, cantidad de partidos y como cierra la competencia.
                             </p>
                           </div>
                           <FormControl>
-                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
                               {presetOptions.map((preset) => {
                                 const isSelected = field.value === preset.presetId;
                                 const presetMeta = getPresetMeta(preset.presetId);
@@ -724,16 +783,16 @@ export default function TournamentCreateForm() {
                                     type="button"
                                     onClick={() => field.onChange(preset.presetId)}
                                     className={cn(
-                                      'rounded-2xl border p-5 text-left transition-all',
+                                      'rounded-xl border p-4 text-left transition-all sm:p-5',
                                       isSelected
                                         ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
-                                        : 'border-slate-200 bg-white/80 text-slate-800 hover:border-slate-300 hover:bg-white'
+                                        : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
                                     )}
                                   >
                                     <div className="flex items-start justify-between gap-3">
-                                      <div>
+                                      <div className="min-w-0">
                                         <p className="text-base font-medium">{preset.display.name}</p>
-                                        <p className={cn('mt-2 text-sm leading-relaxed', isSelected ? 'text-slate-200' : 'text-slate-500')}>
+                                        <p className={cn('mt-1 text-sm leading-relaxed', isSelected ? 'text-slate-200' : 'text-slate-500')}>
                                           {preset.display.description}
                                         </p>
                                       </div>
@@ -744,15 +803,12 @@ export default function TournamentCreateForm() {
                                       )}
                                     </div>
 
-                                    <div className="mt-4 flex flex-wrap gap-2">
+                                    <div className="mt-3 flex flex-wrap gap-2">
                                       {presetMeta.map((item) => (
                                         <Badge
                                           key={item}
                                           variant="outline"
-                                          className={cn(
-                                            'border-current/20 bg-transparent',
-                                            isSelected ? 'text-white' : 'text-slate-600'
-                                          )}
+                                          className={cn('border-current/20 bg-transparent', isSelected ? 'text-white' : 'text-slate-600')}
                                         >
                                           {item}
                                         </Badge>
@@ -769,13 +825,13 @@ export default function TournamentCreateForm() {
                     />
 
                     {selectedPreset && (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
                         <div className="flex items-start gap-3">
-                          <Info className="h-5 w-5 text-slate-700 mt-0.5" />
+                          <Info className="mt-0.5 h-5 w-5 text-slate-700" />
                           <div className="space-y-3">
                             <div>
                               <p className="font-medium text-slate-900">{selectedPreset.display.name}</p>
-                              <p className="text-sm text-slate-600 mt-1">{selectedPreset.display.description}</p>
+                              <p className="mt-1 text-sm text-slate-600">{selectedPreset.display.description}</p>
                             </div>
 
                             {selectedPreset.advancementConfig.kind === 'SINGLE' && (
@@ -784,18 +840,18 @@ export default function TournamentCreateForm() {
                                 name="single_bracket_advance_count"
                                 render={({ field }) => (
                                   <FormItem className="max-w-xs">
-                                    <FormLabel className="text-slate-700 font-medium">Parejas que avanzan a la llave</FormLabel>
+                                    <FormLabel className="font-medium text-slate-700">Parejas que avanzan a la llave</FormLabel>
                                     <FormControl>
                                       <Input
                                         type="number"
                                         min="2"
-                                        className="border-slate-200/60 bg-white/90 focus:border-slate-900 focus:ring-slate-900"
+                                        className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900"
                                         value={field.value ?? ''}
                                         onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : undefined)}
                                       />
                                     </FormControl>
                                     <FormDescription className="text-slate-500">
-                                      Podés ajustar cuántas parejas pasan a la etapa final.
+                                      Ajusta cuantas parejas pasan a la etapa final.
                                     </FormDescription>
                                     <FormMessage />
                                   </FormItem>
@@ -810,12 +866,12 @@ export default function TournamentCreateForm() {
                                   name="gold_count"
                                   render={({ field }) => (
                                     <FormItem>
-                                      <FormLabel className="text-slate-700 font-medium">Copa Oro</FormLabel>
+                                      <FormLabel className="font-medium text-slate-700">Copa Oro</FormLabel>
                                       <FormControl>
                                         <Input
                                           type="number"
                                           min="0"
-                                          className="border-slate-200/60 bg-white/90 focus:border-slate-900 focus:ring-slate-900"
+                                          className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900"
                                           value={field.value ?? ''}
                                           onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : undefined)}
                                         />
@@ -829,12 +885,12 @@ export default function TournamentCreateForm() {
                                   name="silver_count"
                                   render={({ field }) => (
                                     <FormItem>
-                                      <FormLabel className="text-slate-700 font-medium">Copa Plata</FormLabel>
+                                      <FormLabel className="font-medium text-slate-700">Copa Plata</FormLabel>
                                       <FormControl>
                                         <Input
                                           type="number"
                                           min="0"
-                                          className="border-slate-200/60 bg-white/90 focus:border-slate-900 focus:ring-slate-900"
+                                          className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900"
                                           value={field.value ?? ''}
                                           onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : undefined)}
                                         />
@@ -848,12 +904,12 @@ export default function TournamentCreateForm() {
                                   name="eliminated_count"
                                   render={({ field }) => (
                                     <FormItem>
-                                      <FormLabel className="text-slate-700 font-medium">Eliminadas</FormLabel>
+                                      <FormLabel className="font-medium text-slate-700">Eliminadas</FormLabel>
                                       <FormControl>
                                         <Input
                                           type="number"
                                           min="0"
-                                          className="border-slate-200/60 bg-white/90 focus:border-slate-900 focus:ring-slate-900"
+                                          className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900"
                                           value={field.value ?? ''}
                                           onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : undefined)}
                                         />
@@ -871,17 +927,17 @@ export default function TournamentCreateForm() {
 
                     <Separator className="bg-slate-100" />
 
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
                       <FormField
                         control={form.control}
                         name="gender"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-slate-700 font-medium">Género</FormLabel>
+                            <FormLabel className="font-medium text-slate-700">Genero</FormLabel>
                             <FormControl>
                               <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900">
-                                  <SelectValue placeholder="Selecciona género" />
+                                <SelectTrigger className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900">
+                                  <SelectValue placeholder="Selecciona genero" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="MALE">Masculino</SelectItem>
@@ -900,14 +956,14 @@ export default function TournamentCreateForm() {
                         name="club_id"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-slate-700 font-medium">
-                              <Building2 className="h-4 w-4 inline mr-1" />
+                            <FormLabel className="font-medium text-slate-700">
+                              <Building2 className="mr-1 inline h-4 w-4" />
                               {userRole === 'ORGANIZADOR' ? 'Club principal' : 'Tu club'}
                             </FormLabel>
                             <FormControl>
                               {userRole === 'ORGANIZADOR' ? (
                                 <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
-                                  <SelectTrigger className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900">
+                                  <SelectTrigger className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900">
                                     <SelectValue placeholder="Selecciona un club" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -916,7 +972,7 @@ export default function TournamentCreateForm() {
                                         <div className="flex items-center gap-2">
                                           <span>{club.name}</span>
                                           <Badge variant="secondary" className="text-xs">
-                                            {club.source === 'owned' ? 'Propio' : 'Organización'}
+                                            {club.source === 'owned' ? 'Propio' : 'Organizacion'}
                                           </Badge>
                                         </div>
                                       </SelectItem>
@@ -925,11 +981,7 @@ export default function TournamentCreateForm() {
                                 </Select>
                               ) : (
                                 <div className="relative">
-                                  <Input
-                                    value={clubs[0]?.name || ''}
-                                    disabled
-                                    className="border-slate-200/60 bg-slate-50/80 pr-24"
-                                  />
+                                  <Input value={clubs[0]?.name || ''} disabled className="h-11 border-slate-200/80 bg-slate-50 pr-24" />
                                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                                     <Badge variant="outline" className="text-xs">Asignado</Badge>
                                   </div>
@@ -938,7 +990,7 @@ export default function TournamentCreateForm() {
                             </FormControl>
                             {userRole === 'ORGANIZADOR' && clubs.length === 0 && (
                               <FormDescription className="text-amber-600">
-                                No tenés clubes asociados a tu organización.
+                                No tenes clubes asociados a tu organizacion.
                               </FormDescription>
                             )}
                             <FormMessage />
@@ -953,8 +1005,8 @@ export default function TournamentCreateForm() {
                         name="extra_club_ids"
                         render={() => (
                           <FormItem>
-                            <FormLabel className="text-slate-700 font-medium">
-                              <Building2 className="h-4 w-4 inline mr-1" />
+                            <FormLabel className="font-medium text-slate-700">
+                              <Building2 className="mr-1 inline h-4 w-4" />
                               Clubes adicionales
                             </FormLabel>
                             <FormControl>
@@ -965,9 +1017,9 @@ export default function TournamentCreateForm() {
                                     role="combobox"
                                     aria-expanded="false"
                                     aria-label="Seleccionar clubes adicionales"
-                                    className="inline-flex h-11 w-full items-center justify-between rounded-md border border-slate-200/60 bg-white/80 px-3 py-2 text-sm text-slate-700 ring-offset-background focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+                                    className="inline-flex h-11 w-full items-center justify-between rounded-md border border-slate-200/80 bg-white px-3 py-2 text-left text-sm text-slate-700 ring-offset-background focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
                                   >
-                                    <span>
+                                    <span className="truncate">
                                       {extraClubIds.length === 0
                                         ? 'Sumar clubes relacionados al torneo'
                                         : `${extraClubIds.length} club${extraClubIds.length > 1 ? 'es' : ''} adicional${extraClubIds.length > 1 ? 'es' : ''}`}
@@ -994,7 +1046,7 @@ export default function TournamentCreateForm() {
                                             />
                                             <span className="flex-1">{club.name}</span>
                                             <Badge variant="secondary" className="text-xs">
-                                              {club.source === 'owned' ? 'Propio' : 'Organización'}
+                                              {club.source === 'owned' ? 'Propio' : 'Organizacion'}
                                             </Badge>
                                           </CommandItem>
                                         ))}
@@ -1005,12 +1057,12 @@ export default function TournamentCreateForm() {
                               </Popover>
                             </FormControl>
                             <FormDescription className="text-slate-500">
-                              Opcional. Sirve para vincular el torneo a más de un club sin cambiar el backend actual.
+                              Opcional. Sirve para vincular el torneo a mas de un club.
                             </FormDescription>
                             {selectedExtraClubs.length > 0 && (
                               <div className="mt-3 flex flex-wrap gap-2">
                                 {selectedExtraClubs.map((club) => (
-                                  <Badge key={club.id} variant="outline" className="border-slate-200 bg-white/80 px-2 py-1">
+                                  <Badge key={club.id} variant="outline" className="border-slate-200 bg-white px-2 py-1">
                                     <span className="mr-2">{club.name}</span>
                                     <button
                                       type="button"
@@ -1034,48 +1086,48 @@ export default function TournamentCreateForm() {
               )}
 
               {currentStep === 2 && (
-                <Card className="border-slate-200/60 bg-white/75 shadow-sm backdrop-blur-sm">
-                  <CardHeader className="border-b border-slate-100 bg-slate-50/60">
-                    <CardTitle className="flex items-center gap-3 text-xl font-light text-slate-900">
+                <Card className="border-slate-200 bg-white shadow-sm">
+                  <CardHeader className="space-y-2 border-b border-slate-100 p-4 sm:p-6">
+                    <CardTitle className="flex items-center gap-3 text-lg font-light text-slate-900 sm:text-xl">
                       <CalendarDays className="h-5 w-5 text-slate-700" />
                       Agenda del torneo
                     </CardTitle>
-                    <CardDescription className="text-slate-500">
+                    <CardDescription className="text-sm text-slate-500">
                       {isAmericanTournament
-                        ? 'Como es un torneo americano, definimos claramente cuándo empieza.'
-                        : 'Como es un torneo long, definimos inicio y una fecha estimada de cierre.'}
+                        ? 'Definimos fecha y hora de inicio.'
+                        : 'Definimos inicio y fecha estimada de cierre.'}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-8 p-8">
-                    <div className="rounded-2xl border border-blue-200/70 bg-blue-50/70 p-5">
+                  <CardContent className="space-y-6 p-4 sm:space-y-8 sm:p-6">
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 sm:p-5">
                       <div className="flex items-start gap-3">
-                        <Info className="h-5 w-5 text-blue-700 mt-0.5" />
+                        <Info className="mt-0.5 h-5 w-5 text-blue-700" />
                         <div>
                           <p className="font-medium text-blue-900">{TYPE_COPY[selectedType].title}</p>
                           <p className="mt-1 text-sm text-blue-800">
                             {isAmericanTournament
-                              ? 'Te vamos a pedir fecha y hora de inicio porque este formato se organiza como una sola jornada.'
-                              : 'Te vamos a pedir fecha de inicio y una fecha aproximada de finalización. La hora final ya no se solicita en esta pantalla.'}
+                              ? 'Necesitamos fecha y hora porque este formato se organiza como una sola jornada.'
+                              : 'Necesitamos fecha de inicio y una fecha aproximada de finalizacion.'}
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    <div className={cn('grid gap-6', isAmericanTournament ? 'md:grid-cols-2' : 'md:grid-cols-2')}>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
                       <FormField
                         control={form.control}
                         name="start_date"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-slate-700 font-medium">
-                              <Calendar className="h-4 w-4 inline mr-1" />
+                            <FormLabel className="font-medium text-slate-700">
+                              <Calendar className="mr-1 inline h-4 w-4" />
                               Fecha de inicio
                             </FormLabel>
                             <FormControl>
                               <Input
                                 type="date"
                                 min={new Date().toISOString().split('T')[0]}
-                                className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                                className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900"
                                 {...field}
                               />
                             </FormControl>
@@ -1090,14 +1142,14 @@ export default function TournamentCreateForm() {
                           name="start_time"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-slate-700 font-medium">
-                                <Clock className="h-4 w-4 inline mr-1" />
+                              <FormLabel className="font-medium text-slate-700">
+                                <Clock className="mr-1 inline h-4 w-4" />
                                 Hora de inicio
                               </FormLabel>
                               <FormControl>
                                 <Input
                                   type="time"
-                                  className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                                  className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900"
                                   {...field}
                                 />
                               </FormControl>
@@ -1114,15 +1166,15 @@ export default function TournamentCreateForm() {
                           name="end_date"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-slate-700 font-medium">
-                                <Calendar className="h-4 w-4 inline mr-1" />
-                                Fecha aproximada de finalización
+                              <FormLabel className="font-medium text-slate-700">
+                                <Calendar className="mr-1 inline h-4 w-4" />
+                                Fecha aproximada de finalizacion
                               </FormLabel>
                               <FormControl>
                                 <Input
                                   type="date"
                                   min={watchedValues.start_date || new Date().toISOString().split('T')[0]}
-                                  className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                                  className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900"
                                   {...field}
                                 />
                               </FormControl>
@@ -1140,27 +1192,27 @@ export default function TournamentCreateForm() {
               )}
 
               {currentStep === 3 && (
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-                  <Card className="border-slate-200/60 bg-white/75 shadow-sm backdrop-blur-sm">
-                    <CardHeader className="border-b border-slate-100 bg-slate-50/60">
-                      <CardTitle className="flex items-center gap-3 text-xl font-light text-slate-900">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.05fr_0.95fr] xl:gap-6">
+                  <Card className="border-slate-200 bg-white shadow-sm">
+                    <CardHeader className="space-y-2 border-b border-slate-100 p-4 sm:p-6">
+                      <CardTitle className="flex items-center gap-3 text-lg font-light text-slate-900 sm:text-xl">
                         <Users className="h-5 w-5 text-slate-700" />
                         Cupo, precio y premio
                       </CardTitle>
-                      <CardDescription className="text-slate-500">
-                        Últimos detalles antes de crear el torneo.
+                      <CardDescription className="text-sm text-slate-500">
+                        Ultimos datos antes de crear el torneo.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-8 p-8">
-                      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <CardContent className="space-y-6 p-4 sm:space-y-8 sm:p-6">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
                         <FormField
                           control={form.control}
                           name="max_participants"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-slate-700 font-medium">
-                                <Users className="h-4 w-4 inline mr-1" />
-                                Máximo de parejas
+                              <FormLabel className="font-medium text-slate-700">
+                                <Users className="mr-1 inline h-4 w-4" />
+                                Maximo de parejas
                               </FormLabel>
                               <FormControl>
                                 <Input
@@ -1168,13 +1220,13 @@ export default function TournamentCreateForm() {
                                   min="2"
                                   max="64"
                                   placeholder="Ej: 16"
-                                  className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                                  className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900"
                                   value={field.value ?? ''}
                                   onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : undefined)}
                                 />
                               </FormControl>
                               <FormDescription className="text-slate-500">
-                                Opcional. Si lo dejás vacío, el torneo queda sin tope definido.
+                                Opcional. Si lo dejas vacio, el torneo queda sin tope.
                               </FormDescription>
                               <FormMessage />
                             </FormItem>
@@ -1186,9 +1238,9 @@ export default function TournamentCreateForm() {
                           name="price"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-slate-700 font-medium">
-                                <Tag className="h-4 w-4 inline mr-1" />
-                                Precio de inscripción
+                              <FormLabel className="font-medium text-slate-700">
+                                <Tag className="mr-1 inline h-4 w-4" />
+                                Precio de inscripcion
                               </FormLabel>
                               <FormControl>
                                 <Input
@@ -1197,13 +1249,13 @@ export default function TournamentCreateForm() {
                                   max="32767"
                                   step="1"
                                   placeholder="Ej: 5000"
-                                  className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                                  className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900"
                                   value={field.value ?? ''}
                                   onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : undefined)}
                                 />
                               </FormControl>
                               <FormDescription className="text-slate-500">
-                                Opcional. Solo números enteros, igual que en el flujo actual.
+                                Opcional. Solo numeros enteros.
                               </FormDescription>
                               <FormMessage />
                             </FormItem>
@@ -1216,20 +1268,20 @@ export default function TournamentCreateForm() {
                         name="award"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-slate-700 font-medium">
-                              <Award className="h-4 w-4 inline mr-1" />
+                            <FormLabel className="font-medium text-slate-700">
+                              <Award className="mr-1 inline h-4 w-4" />
                               Premio
                             </FormLabel>
                             <FormControl>
                               <Input
                                 type="text"
                                 placeholder="Ej: Trofeos + efectivo"
-                                className="border-slate-200/60 bg-white/80 focus:border-slate-900 focus:ring-slate-900"
+                                className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900"
                                 {...field}
                               />
                             </FormControl>
                             <FormDescription className="text-slate-500">
-                              Opcional. Se guarda exactamente como texto, igual que ahora.
+                              Opcional. Se guarda tal como lo escribas.
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1238,36 +1290,36 @@ export default function TournamentCreateForm() {
                     </CardContent>
                   </Card>
 
-                  <Card className="border-slate-200/60 bg-white/85 shadow-sm backdrop-blur-sm">
-                    <CardHeader className="border-b border-slate-100 bg-slate-50/60">
-                      <CardTitle className="text-xl font-light text-slate-900">Resumen final</CardTitle>
-                      <CardDescription className="text-slate-500">
-                        Revisá todo antes de crear. El backend y las reglas siguen siendo las mismas.
+                  <Card className="border-slate-200 bg-white shadow-sm">
+                    <CardHeader className="space-y-2 border-b border-slate-100 p-4 sm:p-6">
+                      <CardTitle className="text-lg font-light text-slate-900 sm:text-xl">Resumen final</CardTitle>
+                      <CardDescription className="text-sm text-slate-500">
+                        Revisa todo antes de crear el torneo.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-5 p-8">
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Torneo</p>
-                        <p className="mt-2 text-lg font-medium text-slate-900">{watchedValues.name || 'Sin nombre todavía'}</p>
-                        <p className="mt-1 text-sm text-slate-600">{watchedValues.description?.trim() || 'Sin descripción'}</p>
+                    <CardContent className="space-y-5 p-4 sm:p-6">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Torneo</p>
+                        <p className="mt-2 text-base font-medium text-slate-900 sm:text-lg">{watchedValues.name || 'Sin nombre todavia'}</p>
+                        <p className="mt-1 text-sm text-slate-600">{watchedValues.description?.trim() || 'Sin descripcion'}</p>
                       </div>
 
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="rounded-xl border border-slate-200 bg-white/80 p-4">
+                        <div className="rounded-xl border border-slate-200 bg-white p-4">
                           <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Tipo</p>
                           <p className="mt-2 font-medium text-slate-900">{TYPE_COPY[selectedType].title}</p>
                         </div>
-                        <div className="rounded-xl border border-slate-200 bg-white/80 p-4">
+                        <div className="rounded-xl border border-slate-200 bg-white p-4">
                           <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Formato</p>
                           <p className="mt-2 font-medium text-slate-900">{selectedPreset?.display.name || 'Sin definir'}</p>
                         </div>
-                        <div className="rounded-xl border border-slate-200 bg-white/80 p-4">
-                          <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Categoría y género</p>
+                        <div className="rounded-xl border border-slate-200 bg-white p-4">
+                          <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Categoria y genero</p>
                           <p className="mt-2 font-medium text-slate-900">
-                            {watchedValues.category_name || 'Sin categoría'} · {watchedValues.gender === 'MALE' ? 'Masculino' : watchedValues.gender === 'FEMALE' ? 'Femenino' : 'Mixto'}
+                            {watchedValues.category_name || 'Sin categoria'} · {watchedValues.gender === 'MALE' ? 'Masculino' : watchedValues.gender === 'FEMALE' ? 'Femenino' : 'Mixto'}
                           </p>
                         </div>
-                        <div className="rounded-xl border border-slate-200 bg-white/80 p-4">
+                        <div className="rounded-xl border border-slate-200 bg-white p-4">
                           <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Club principal</p>
                           <p className="mt-2 font-medium text-slate-900">{selectedClub?.name || 'Sin definir'}</p>
                         </div>
@@ -1278,7 +1330,7 @@ export default function TournamentCreateForm() {
                           <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Clubes adicionales</p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {selectedExtraClubs.map((club) => (
-                              <Badge key={club.id} variant="outline" className="border-slate-200 bg-white/80">
+                              <Badge key={club.id} variant="outline" className="border-slate-200 bg-white">
                                 {club.name}
                               </Badge>
                             ))}
@@ -1291,7 +1343,7 @@ export default function TournamentCreateForm() {
                       <div className="space-y-3 text-sm">
                         <div className="flex items-center justify-between gap-4">
                           <span className="text-slate-500">Inicio</span>
-                          <span className="font-medium text-slate-900">
+                          <span className="text-right font-medium text-slate-900">
                             {formatInputDate(watchedValues.start_date)}
                             {isAmericanTournament && watchedValues.start_time ? ` · ${watchedValues.start_time}` : ''}
                           </span>
@@ -1299,19 +1351,19 @@ export default function TournamentCreateForm() {
 
                         {!isAmericanTournament && (
                           <div className="flex items-center justify-between gap-4">
-                            <span className="text-slate-500">Finalización estimada</span>
-                            <span className="font-medium text-slate-900">{formatInputDate(watchedValues.end_date || '')}</span>
+                            <span className="text-slate-500">Finalizacion estimada</span>
+                            <span className="text-right font-medium text-slate-900">{formatInputDate(watchedValues.end_date || '')}</span>
                           </div>
                         )}
 
                         <div className="flex items-center justify-between gap-4">
-                          <span className="text-slate-500">Máximo de parejas</span>
-                          <span className="font-medium text-slate-900">{watchedValues.max_participants || 'Sin tope'}</span>
+                          <span className="text-slate-500">Maximo de parejas</span>
+                          <span className="text-right font-medium text-slate-900">{watchedValues.max_participants || 'Sin tope'}</span>
                         </div>
 
                         <div className="flex items-center justify-between gap-4">
-                          <span className="text-slate-500">Inscripción</span>
-                          <span className="font-medium text-slate-900">{formatCurrency(watchedValues.price)}</span>
+                          <span className="text-slate-500">Inscripcion</span>
+                          <span className="text-right font-medium text-slate-900">{formatCurrency(watchedValues.price)}</span>
                         </div>
 
                         <div className="flex items-center justify-between gap-4">
@@ -1324,48 +1376,52 @@ export default function TournamentCreateForm() {
                 </div>
               )}
 
-              <div className="flex flex-col gap-4 border-t border-slate-200/70 pt-6 sm:flex-row sm:items-center sm:justify-between">
-                <Button asChild variant="outline" size="lg">
-                  <Link href="/tournaments">
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Cancelar
-                  </Link>
-                </Button>
-
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="sticky bottom-0 z-10 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-4 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur sm:static sm:mx-0 sm:border-t sm:bg-transparent sm:px-0 sm:py-0 sm:shadow-none">
+                <div className="flex flex-col gap-3 sm:gap-4">
                   {selectedClub && (
-                    <div className="text-sm text-slate-500 sm:mr-2">
+                    <div className="break-words text-sm text-slate-500 sm:text-left">
                       Se crea en <span className="font-medium text-slate-700">{selectedClub.name}</span>
                     </div>
                   )}
 
-                  {currentStep > 1 && (
-                    <Button type="button" variant="outline" size="lg" onClick={handlePreviousStep}>
-                      <ArrowLeft className="h-4 w-4 mr-2" />
-                      Volver
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <Button asChild variant="outline" size="lg" className="w-full sm:w-auto">
+                      <Link href="/tournaments">
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Cancelar
+                      </Link>
                     </Button>
-                  )}
 
-                  {currentStep < STEP_TITLES.length ? (
-                    <Button type="button" size="lg" className="bg-slate-900 hover:bg-slate-800" onClick={() => void handleNextStep()}>
-                      Siguiente
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </Button>
-                  ) : (
-                    <Button type="button" size="lg" className="bg-slate-900 hover:bg-slate-800" disabled={isSubmitting} onClick={() => void handleCreateTournament()}>
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Creando torneo...
-                        </>
-                      ) : (
-                        <>
-                          <Trophy className="h-4 w-4 mr-2" />
-                          Crear torneo
-                        </>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      {currentStep > 1 && (
+                        <Button type="button" variant="outline" size="lg" className="w-full sm:w-auto" onClick={handlePreviousStep}>
+                          <ArrowLeft className="mr-2 h-4 w-4" />
+                          Volver
+                        </Button>
                       )}
-                    </Button>
-                  )}
+
+                      {currentStep < STEP_TITLES.length ? (
+                        <Button type="button" size="lg" className="w-full bg-slate-900 hover:bg-slate-800 sm:w-auto" onClick={() => void handleNextStep()}>
+                          Siguiente
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button type="button" size="lg" className="w-full bg-slate-900 hover:bg-slate-800 sm:w-auto" disabled={isSubmitting} onClick={() => void handleCreateTournament()}>
+                          {isSubmitting ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Creando torneo...
+                            </>
+                          ) : (
+                            <>
+                              <Trophy className="mr-2 h-4 w-4" />
+                              Crear torneo
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </form>

@@ -57,6 +57,7 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 TENANT_ORGANIZATION_ID=
+TENANT_ORGANIZATION_SLUG=
 NEXT_PUBLIC_SITE_URL=
 NEXT_PUBLIC_TENANT_ORGANIZATION_SLUG=
 ```
@@ -84,7 +85,7 @@ Vercel project padel-fv    -> mismo repo -> env FV    -> dominio padelfv.com
 Vercel project padel-elite -> mismo repo -> env Elite -> dominio padelelite.com
 ```
 
-En cada proyecto de Vercel, definir explicitamente `NEXT_PUBLIC_TENANT_KEY`, `NEXT_PUBLIC_SITE_URL`, `TENANT_ORGANIZATION_ID` y las credenciales Supabase correspondientes.
+En cada proyecto de Vercel, definir explicitamente `NEXT_PUBLIC_TENANT_KEY`, `NEXT_PUBLIC_SITE_URL`, `TENANT_ORGANIZATION_ID`, `TENANT_ORGANIZATION_SLUG` y las credenciales Supabase correspondientes.
 
 Un `git push` deploya el codigo en los proyectos Vercel que esten conectados a esa rama. Si ambos proyectos Vercel escuchan `main`, el mismo push puede redeployar ambos. Cual Supabase usa cada deploy depende exclusivamente de las variables configuradas en ese proyecto Vercel.
 

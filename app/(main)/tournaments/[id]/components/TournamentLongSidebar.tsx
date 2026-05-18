@@ -4,14 +4,12 @@ import React from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { useUser } from '@/contexts/user-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Calendar,
-  FileText,
   Trophy,
   Clock,
   Users,
@@ -29,6 +27,7 @@ interface TournamentLongSidebarProps {
     id: string
     name: string
     category?: string
+    enable_public_inscriptions?: boolean | null
     is_draft?: boolean
     organization?: {
       name: string
@@ -53,68 +52,81 @@ interface TournamentLongSidebarProps {
   hasManagePermission?: boolean
 }
 
+interface NavigationItem {
+  title: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  description: string
+  showForEliminated: boolean
+  requiresParticipantVisibility?: boolean
+}
+
 const getNavigationItems = (
   userRole?: string,
-  isEliminated?: boolean
+  isEliminated?: boolean,
+  canViewParticipantPages: boolean = true
 ) => {
   const isPlayer = userRole === 'PLAYER'
 
-  const baseItems = [
+  const baseItems: NavigationItem[] = [
     {
       title: 'Fechas y Horarios',
       href: '/schedules',
       icon: Calendar,
       description: 'Gestión de fechas y horarios',
-      showForEliminated: false // Players eliminados no ven horarios
+      showForEliminated: false
     },
     {
       title: 'Encuentros de qually',
       href: isPlayer ? '/zone-matches' : '/match-scheduling',
       icon: Clock,
       description: isPlayer ? 'Ver partidos de zona' : 'Programación de encuentros',
-      showForEliminated: true // Players eliminados pueden ver sus partidos pasados
+      showForEliminated: true
     },
     {
       title: 'Clasificatoria',
       href: '/qually',
       icon: Trophy,
       description: 'Fase clasificatoria',
-      showForEliminated: true // Players eliminados pueden ver clasificatoria
+      showForEliminated: true,
+      requiresParticipantVisibility: true
     },
     {
       title: 'Llaves',
       href: '/bracket',
       icon: Zap,
       description: 'Llaves eliminatorias',
-      showForEliminated: true // Players eliminados pueden ver llaves
+      showForEliminated: true
     },
     {
       title: 'Inscripciones',
       href: '/inscriptions',
       icon: Users,
       description: 'Gestión de inscripciones',
-      showForEliminated: true // Players eliminados pueden ver inscripciones
+      showForEliminated: true,
+      requiresParticipantVisibility: true
     }
   ]
 
-  // Si es player eliminado, filtrar items
+  const visibleItems = baseItems.filter(item =>
+    canViewParticipantPages || !item.requiresParticipantVisibility
+  )
+
   if (isPlayer && isEliminated) {
-    return baseItems.filter(item => item.showForEliminated)
+    return visibleItems.filter(item => item.showForEliminated)
   }
 
-  // Solo agregar Configuración para organizadores (no players y solo si hay userRole)
-  // Si userRole es undefined, significa que es vista pública (no autenticado)
   if (userRole && !isPlayer) {
-    baseItems.push({
+    visibleItems.push({
       title: 'Configuración',
       href: '/settings',
       icon: Settings,
       description: 'Configuración del torneo',
-      showForEliminated: false // No aplica para no-players
+      showForEliminated: false
     })
   }
 
-  return baseItems
+  return visibleItems
 }
 
 export default function TournamentLongSidebar({
@@ -130,7 +142,13 @@ export default function TournamentLongSidebar({
   const pathname = usePathname()
 
   const isEliminated = playerInscription?.is_eliminated || false
-  const navigationItems = getNavigationItems(userRole, isEliminated)
+  const hasActivePlayerInscription = Boolean(playerInscription && !playerInscription.is_eliminated)
+  const canViewParticipantPages =
+    Boolean(tournament.enable_public_inscriptions) ||
+    hasManagePermission ||
+    hasActivePlayerInscription
+
+  const navigationItems = getNavigationItems(userRole, isEliminated, canViewParticipantPages)
 
   const getIsActive = (href: string) => {
     return pathname.includes(href)
@@ -148,18 +166,14 @@ export default function TournamentLongSidebar({
       mobile ? "w-full" : collapsed ? "w-16" : "w-64",
       !mobile && "flex-shrink-0 h-full"
     )}>
-      {/* Subtle ambient glow effect at top */}
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent" />
 
-      {/* Header Section - Tournament Info */}
       <div className={cn(
         "transition-all duration-300 relative",
         collapsed && !mobile ? "p-3" : "p-6 space-y-4"
       )}>
-        {/* Ambient background glow */}
         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 rounded-lg blur-xl" />
 
-        {/* Tournament Info with premium icon container */}
         <div className="flex items-start gap-3 relative">
           <div className={cn(
             "flex-shrink-0 p-2.5 rounded-xl transition-all duration-300 relative group",
@@ -168,7 +182,6 @@ export default function TournamentLongSidebar({
               ? "from-red-500/10 via-red-400/5 to-orange-500/10 border border-red-500/20 shadow-red-500/10"
               : "from-blue-500/10 via-blue-400/5 to-purple-500/10 border border-blue-500/20 shadow-blue-500/10"
           )}>
-            {/* Animated glow on hover */}
             <div className={cn(
               "absolute inset-0 rounded-xl bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-all duration-500",
               isEliminated ? "from-red-400/20 to-orange-400/20" : "from-blue-400/20 to-purple-400/20"
@@ -212,7 +225,6 @@ export default function TournamentLongSidebar({
         <Separator className="bg-gradient-to-r from-transparent via-border to-transparent" />
       </div>
 
-      {/* Navigation Section */}
       <nav className={cn(
         "flex-1 transition-all duration-300",
         collapsed && !mobile ? "px-2 py-4" : "px-3 py-4"
@@ -245,10 +257,8 @@ export default function TournamentLongSidebar({
                         )}
                         aria-current={isActive ? "page" : undefined}
                       >
-                        {/* Hover gradient overlay */}
                         <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-purple-500/0 to-blue-500/0 opacity-0 group-hover:opacity-10 transition-opacity duration-500" />
 
-                        {/* Icon with animation */}
                         <Icon className={cn(
                           "h-4 w-4 flex-shrink-0 transition-all duration-300 relative z-10",
                           "group-hover:scale-110 group-hover:rotate-3",
@@ -261,7 +271,6 @@ export default function TournamentLongSidebar({
                           </span>
                         )}
 
-                        {/* Active indicator bar */}
                         {isActive && (
                           <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-primary-foreground/0 via-primary-foreground to-primary-foreground/0 rounded-r-full" />
                         )}
@@ -280,7 +289,6 @@ export default function TournamentLongSidebar({
         </ul>
       </nav>
 
-      {/* Collapse Button */}
       {!mobile && onToggle && (
         <div className="relative px-3 pb-4">
           <TooltipProvider>
@@ -312,7 +320,6 @@ export default function TournamentLongSidebar({
         </div>
       )}
 
-      {/* Footer Section - Club/Organizers Info */}
       {(!collapsed || mobile) && (
         <div className="p-6 border-t border-border">
           <OrganizerLogo

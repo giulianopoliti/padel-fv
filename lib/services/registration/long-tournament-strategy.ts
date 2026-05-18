@@ -521,7 +521,7 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
         })
         return {
           success: false,
-          error: ensuredZoneResult.error || 'No se encontrÃ³ zona para el torneo'
+          error: ensuredZoneResult.error || 'No se encontró zona para el torneo'
         }
       }
 

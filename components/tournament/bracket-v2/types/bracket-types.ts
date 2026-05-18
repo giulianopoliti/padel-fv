@@ -1,11 +1,11 @@
 /**
  * BRACKET TYPES V2 - SISTEMA MODERNO DE BRACKETS
  * 
- * Tipos fundamentales para el nuevo sistema de visualizaci�n de brackets.
- * Dise�ados para ser:
+ * Tipos fundamentales para el nuevo sistema de visualización de brackets.
+ * Diseñados para ser:
  * - Extensibles (soportar diferentes formatos de torneo)
  * - Type-safe (TypeScript estricto)
- * - Modulares (separaci�n clara de responsabilidades)
+ * - Modulares (separación clara de responsabilidades)
  * - Compatibles con el algoritmo serpenteo existente
  * 
  * @author Claude Code Assistant
@@ -25,11 +25,11 @@ export type MatchStatus =
   | 'IN_PROGRESS'    // Match en curso
   | 'FINISHED'       // Match completado con resultado
   | 'CANCELED'       // Match cancelado
-  | 'BYE'           // Match con BYE (avance autom�tico)
+  | 'BYE'           // Match con BYE (avance automático)
   | 'WAITING_OPPONENT' // Esperando que se defina el oponente
 
 /**
- * Rounds disponibles en el sistema de eliminaci�n
+ * Rounds disponibles en el sistema de eliminación
  * Ordenados desde el primer round hasta la final
  */
 export type Round = 
@@ -44,7 +44,7 @@ export type Round =
  * Algoritmos de bracket soportados
  */
 export type BracketAlgorithm = 
-  | 'traditional'  // Seeding tradicional est�ndar
+  | 'traditional'  // Seeding tradicional estándar
   | 'serpentine'   // Algoritmo serpenteo (1A vs 1B solo en final)
   | 'custom'       // Algoritmo personalizado futuro
 
@@ -69,7 +69,7 @@ export type ScoringType =
 // ============================================================================
 
 /**
- * Informaci�n b�sica de un jugador
+ * Información básica de un jugador
  */
 export interface PlayerData {
   id: string
@@ -80,7 +80,7 @@ export interface PlayerData {
 }
 
 /**
- * Informaci�n completa de una pareja
+ * Información completa de una pareja
  */
 export interface CoupleData {
   id: string
@@ -92,12 +92,12 @@ export interface CoupleData {
   player1_details?: PlayerData
   /** Detalles del jugador 2 */
   player2_details?: PlayerData
-  /** Informaci�n de seeding si est� disponible */
+  /** Información de seeding si está disponible */
   seed?: SeedInfo
 }
 
 /**
- * Informaci�n de seeding de una pareja
+ * Información de seeding de una pareja
  * Conecta con la tabla tournament_couple_seeds
  */
 export interface SeedInfo {
@@ -128,14 +128,14 @@ export interface SeedInfo {
 }
 
 /**
- * Informaci�n de una zona del torneo
+ * Información de una zona del torneo
  */
 export interface ZoneData {
   id: string
   name: string
   /** Parejas asignadas a esta zona */
   couples: CoupleData[]
-  /** Indica si la zona ya finaliz� */
+  /** Indica si la zona ya finalizó */
   is_completed: boolean
 }
 
@@ -149,7 +149,7 @@ export interface ZoneData {
 export type ParticipantType = 
   | 'couple'      // Pareja real confirmada
   | 'placeholder' // Placeholder (ej: "Ganador Zona A")  
-  | 'bye'         // BYE (avance autom�tico)
+  | 'bye'         // BYE (avance automático)
   | 'empty'       // Slot vacío (sin pareja asignada)
 
 /**
@@ -157,7 +157,7 @@ export type ParticipantType =
  * Se define en placeholder-types.ts para evitar imports circulares
  */
 export interface PlaceholderData {
-  /** Texto a mostrar (ej: "1� Zona A") */
+  /** Texto a mostrar (ej: "1° Zona A") */
   display: string
   /** ID de zona que alimenta el placeholder */
   zoneId?: string | null
@@ -169,20 +169,20 @@ export interface PlaceholderData {
   sourceMatchId?: string | null
   /** Regla que define este placeholder */
   rule: PlaceholderRule
-  /** Si ya se puede resolver a una pareja espec�fica */
+  /** Si ya se puede resolver a una pareja específica */
   isDefinitive: boolean
-  /** Pareja real si ya est� resuelta */
+  /** Pareja real si ya está resuelta */
   resolvedCouple?: CoupleData
 }
 
 /**
- * Regla que define c�mo resolver un placeholder
+ * Regla que define cómo resolver un placeholder
  */
 export interface PlaceholderRule {
   type: 'zone-winner' | 'zone-runner-up' | 'zone-position' | 'match-winner'
   /** ID de zona (para placeholders de zona) */
   zoneId?: string
-  /** Posici�n en zona (1 = ganador, 2 = segundo, etc) */
+  /** Posición en zona (1 = ganador, 2 = segundo, etc) */
   position?: number
   /** ID de match padre (para placeholders de match) */
   parentMatchId?: string
@@ -199,7 +199,7 @@ export interface ParticipantSlot {
   couple?: CoupleData
   /** Datos de placeholder (si type === 'placeholder') */
   placeholder?: PlaceholderData
-  /** Informaci�n de seed (si est� disponible) */
+  /** Información de seed (si está disponible) */
   seed?: SeedInfo
 }
 
@@ -233,19 +233,19 @@ export interface MatchResultV2 {
   sets: SetResult[]
   /** Metadatos adicionales */
   metadata?: {
-    /** Duraci�n del match en minutos */
+    /** Duración del match en minutos */
     duration?: number
-    /** Cancha donde se jug� */
+    /** Cancha donde se jugó */
     court?: string
-    /** �rbitro o referee */
+    /** Árbitro o referee */
     referee?: string
-    /** Timestamp de finalizaci�n */
+    /** Timestamp de finalización */
     finished_at?: string
   }
 }
 
 /**
- * Informaci�n de programaci�n de un match
+ * Información de programación de un match
  */
 export interface MatchScheduling {
   /** Cancha asignada */
@@ -254,7 +254,7 @@ export interface MatchScheduling {
   scheduled_time?: string
   /** Hora real de inicio */
   actual_start_time?: string
-  /** Hora real de finalizaci�n */
+  /** Hora real de finalización */
   actual_end_time?: string
 }
 
@@ -264,10 +264,10 @@ export interface MatchScheduling {
 
 /**
  * Match del sistema de brackets V2
- * Dise�ado para ser extensible y type-safe
+ * Diseñado para ser extensible y type-safe
  */
 export interface BracketMatchV2 {
-  /** ID �nico del match */
+  /** ID único del match */
   id: string
   /** Round en el que se juega este match */
   round: Round
@@ -282,9 +282,9 @@ export interface BracketMatchV2 {
     slot2: ParticipantSlot
   }
   
-  /** Resultado del match (si est� completado) */
+  /** Resultado del match (si está completado) */
   result?: MatchResultV2
-  /** Informaci�n de programaci�n */
+  /** Información de programación */
   scheduling?: MatchScheduling
   
   // Campos de resultado directo para compatibilidad con componentes existentes
@@ -297,13 +297,13 @@ export interface BracketMatchV2 {
   tournament_couple_seed2_id?: string | null
   /** Metadatos adicionales */
   metadata?: {
-    /** Si este match fue generado autom�ticamente */
+    /** Si este match fue generado automáticamente */
     is_auto_generated?: boolean
-    /** Timestamp de creaci�n */
+    /** Timestamp de creación */
     created_at?: string
-    /** �ltima actualizaci�n */
+    /** Última actualización */
     updated_at?: string
-    /** Informaci�n espec�fica del algoritmo usado */
+    /** Información específica del algoritmo usado */
     algorithm_info?: {
       algorithm: BracketAlgorithm
       seed_pair?: [number, number] // Para algoritmo serpenteo
@@ -316,10 +316,10 @@ export interface BracketMatchV2 {
 // ============================================================================
 
 /**
- * Posici�n calculada de un match en el layout visual
+ * Posición calculada de un match en el layout visual
  */
 export interface MatchPosition {
-  /** Match al que corresponde esta posici�n */
+  /** Match al que corresponde esta posición */
   match: BracketMatchV2
   /** Coordenada X en pixels */
   x: number
@@ -332,8 +332,8 @@ export interface MatchPosition {
 }
 
 /**
- * L�nea conectora entre matches
- * Para el sistema SVG de l�neas
+ * Línea conectora entre matches
+ * Para el sistema SVG de líneas
  */
 export interface ConnectorLine {
   /** Coordenada X inicial */
@@ -344,11 +344,11 @@ export interface ConnectorLine {
   x2: number
   /** Coordenada Y final */
   y2: number
-  /** �ndice del round (para styling) */
+  /** Índice del round (para styling) */
   roundIndex: number
   /** Metadatos para styling */
   metadata?: {
-    /** Tipo de l�nea */
+    /** Tipo de línea */
     type?: 'horizontal' | 'vertical' | 'connector'
     /** Si conecta matches con BYE */
     hasBYE?: boolean
@@ -363,18 +363,18 @@ export interface BracketDimensions {
   totalWidth: number
   /** Alto total necesario */
   totalHeight: number
-  /** N�mero de columnas (rounds) */
+  /** Número de columnas (rounds) */
   columns: number
-  /** N�mero m�ximo de matches por columna */
+  /** Número máximo de matches por columna */
   maxMatchesPerColumn: number
 }
 
 // ============================================================================
-// CONFIGURACI�N DEL BRACKET
+// CONFIGURACIÓN DEL BRACKET
 // ============================================================================
 
 /**
- * Configuraci�n de layout del bracket
+ * Configuración de layout del bracket
  */
 export interface BracketLayoutConfig {
   /** Ancho de cada columna (round) */
@@ -391,29 +391,29 @@ export interface BracketLayoutConfig {
  * Features habilitadas en el bracket
  */
 export interface BracketFeatures {
-  /** Mostrar informaci�n de seeds */
+  /** Mostrar información de seeds */
   showSeeds: boolean
-  /** Mostrar informaci�n de zonas */
+  /** Mostrar información de zonas */
   showZoneInfo: boolean
   /** Habilitar drag & drop */
   enableDragDrop: boolean
   /** Habilitar scoring en vivo */
   enableLiveScoring: boolean
-  /** Mostrar estad�sticas */
+  /** Mostrar estadísticas */
   showStatistics: boolean
-  /** Procesar BYEs autom�ticamente */
+  /** Procesar BYEs automáticamente */
   autoProcessBYEs: boolean
 }
 
 /**
- * Configuraci�n completa del bracket
+ * Configuración completa del bracket
  */
 export interface BracketConfig {
   /** Formato de matches */
   matchFormat: MatchFormat
   /** Tipo de scoring */
   scoring: ScoringType
-  /** Configuraci�n de layout */
+  /** Configuración de layout */
   layout: BracketLayoutConfig
   /** Features habilitadas */
   features: BracketFeatures
@@ -433,7 +433,7 @@ export interface BracketVisualizationV2Props {
   tournamentId: string
   /** Algoritmo de bracket a usar */
   algorithm?: BracketAlgorithm
-  /** Configuraci�n personalizada */
+  /** Configuración personalizada */
   config?: Partial<BracketConfig>
   /** Si el usuario es propietario (puede editar) */
   isOwner?: boolean
@@ -451,7 +451,7 @@ export interface BracketVisualizationV2Props {
  * Estados posibles del bracket completo
  */
 export enum BracketState {
-  /** No generado a�n */
+  /** No generado aún */
   NOT_GENERATED = 'NOT_GENERATED',
   /** Generado con placeholders */
   GENERATED_WITH_PLACEHOLDERS = 'GENERATED_WITH_PLACEHOLDERS', 
@@ -468,7 +468,7 @@ export enum BracketState {
 // ============================================================================
 
 /**
- * Respuesta est�ndar de las APIs del bracket
+ * Respuesta estándar de las APIs del bracket
  */
 export interface BracketApiResponse<T = any> {
   success: boolean
@@ -503,15 +503,15 @@ export interface BracketDataResponse {
 export interface BracketData {
   /** Matches del bracket */
   matches: BracketMatchV2[]
-  /** Informaci�n de seeds */
+  /** Información de seeds */
   seeds: SeedInfo[]
   /** Datos de zonas */
   zones: ZoneData[]
-  /** Configuraci�n utilizada */
+  /** Configuración utilizada */
   config: BracketConfig
   /** Estado actual */
   state: BracketState
-  /** Informaci�n del algoritmo */
+  /** Información del algoritmo */
   algorithmInfo: {
     algorithm: BracketAlgorithm
     guarantee?: string

@@ -15,9 +15,8 @@ interface TournamentLongLayoutProps {
   children: React.ReactNode
 }
 
-// Pages que NO deben mostrar la sidebar
 const EXCLUDED_PAGES = [
-  '/tournaments/[id]/recategorize-players' // Página temporal
+  '/tournaments/[id]/recategorize-players'
 ]
 
 const fetcher = async (tournamentId: string) => {
@@ -33,6 +32,7 @@ const fetcher = async (tournamentId: string) => {
       club_id,
       status,
       is_draft,
+      enable_public_inscriptions,
       organization_id,
       organizaciones:organization_id(name, logo_url, slug),
       clubes:club_id(name, logo_url)
@@ -47,6 +47,7 @@ const fetcher = async (tournamentId: string) => {
     console.error('[FETCHER] Error occurred:', error)
     throw error
   }
+
   return data
 }
 
@@ -66,9 +67,9 @@ const playerInscriptionFetcher = async ([, tournamentId, playerId]: [string, str
       )
     `)
     .eq('tournament_id', tournamentId)
- 
+
   if (error) {
-    return null // Player not inscribed
+    return null
   }
 
   const inscription = (data || []).find((row: any) => {
@@ -89,6 +90,23 @@ const playerInscriptionFetcher = async ([, tournamentId, playerId]: [string, str
   }
 }
 
+const organizerAccessFetcher = async ([, organizationId, userId]: [string, string, string]) => {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('organization_members')
+    .select('id')
+    .eq('organizacion_id', organizationId)
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (error) {
+    return false
+  }
+
+  return Boolean(data)
+}
+
 function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
   const params = useParams()
   const pathname = usePathname()
@@ -96,19 +114,14 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
   const { userDetails } = useUser()
   const isMobile = useIsMobile()
 
-  // Mobile sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false)
-
-  // Desktop sidebar collapse state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
-  // Verificar si la página actual debe mostrar sidebar
   const shouldShowSidebar = !EXCLUDED_PAGES.some(excludedPath => {
     const normalizedPath = pathname.replace(`/tournaments/${tournamentId}`, '/tournaments/[id]')
     return normalizedPath === excludedPath
   })
 
-  // DEBUG LOGS
   console.log('[TournamentLongLayout] pathname:', pathname)
   console.log('[TournamentLongLayout] tournamentId:', tournamentId)
   console.log('[TournamentLongLayout] normalizedPath:', pathname.replace(`/tournaments/${tournamentId}`, '/tournaments/[id]'))
@@ -116,13 +129,11 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
   console.log('[TournamentLongLayout] isMobile:', isMobile)
   console.log('[TournamentLongLayout] window.innerWidth:', typeof window !== 'undefined' ? window.innerWidth : 'server')
 
-  // Obtener datos del torneo usando SWR
   const { data: tournament, isLoading, error } = useSWR(
     shouldShowSidebar && tournamentId ? `tournament-sidebar-${tournamentId}` : null,
     () => fetcher(tournamentId)
   )
 
-  // Obtener datos de inscripción si es un player
   const { data: playerInscription } = useSWR(
     shouldShowSidebar && tournamentId && userDetails?.role === 'PLAYER' && userDetails?.player_id
       ? ['player-inscription', tournamentId, userDetails.player_id]
@@ -130,29 +141,34 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
     playerInscriptionFetcher
   )
 
+  const { data: hasOrganizerManagementPermission = false } = useSWR(
+    shouldShowSidebar &&
+    tournament?.organization_id &&
+    userDetails?.role === 'ORGANIZADOR' &&
+    userDetails?.id
+      ? ['organization-access', tournament.organization_id, userDetails.id]
+      : null,
+    organizerAccessFetcher
+  )
+
   console.log('[TournamentLongLayout] tournament:', tournament)
   console.log('[TournamentLongLayout] isLoading:', isLoading)
   console.log('[TournamentLongLayout] error:', error)
 
-  // Si no debe mostrar sidebar, renderizar solo el contenido
   if (!shouldShowSidebar) {
     return <>{children}</>
   }
 
-  // Si está cargando, renderizar solo el contenido
   if (isLoading || !tournament) {
     return <>{children}</>
   }
 
-  // Si no es LONG ni AMERICAN, renderizar solo el contenido
   if (tournament.type !== 'LONG' && tournament.type !== 'AMERICAN') {
     return <>{children}</>
   }
 
-  // Renderizar layout con sidebar para torneos LONG y AMERICAN
-  console.log('[TournamentLongLayout] RENDERING SIDEBAR! 🎉', 'Type:', tournament.type)
+  console.log('[TournamentLongLayout] RENDERING SIDEBAR! ðŸŽ‰', 'Type:', tournament.type)
 
-  // Seleccionar componente de sidebar según tipo de torneo
   const SidebarComponent = tournament.type === 'LONG'
     ? TournamentLongSidebar
     : TournamentAmericanSidebar
@@ -165,12 +181,19 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
     ? tournament.clubes[0]
     : tournament.clubes
 
+  const hasManagePermission =
+    (userDetails?.role as string | undefined) === 'ADMIN' ||
+    (userDetails?.role === 'CLUB' &&
+      Boolean(userDetails.club_id && tournament.club_id && userDetails.club_id === tournament.club_id)) ||
+    (userDetails?.role === 'ORGANIZADOR' && hasOrganizerManagementPermission)
+
   const sidebarProps = {
     tournament: {
       id: tournament.id,
       name: tournament.name,
       category: tournament.category_name,
       status: tournament.status,
+      enable_public_inscriptions: tournament.enable_public_inscriptions,
       is_draft: tournament.is_draft ?? false,
       organization: organization ? {
         name: organization.name,
@@ -183,18 +206,16 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
       } : null
     },
     userRole: userDetails?.role,
-    playerInscription: playerInscription,
+    playerInscription,
     collapsed: sidebarCollapsed,
     onToggle: () => setSidebarCollapsed(!sidebarCollapsed),
-    hasManagePermission: false
+    hasManagePermission
   }
 
   if (isMobile) {
-    // Mobile: Sheet/Drawer pattern
     console.log('[TournamentLongLayout] Rendering MOBILE layout with tournament:', sidebarProps.tournament.name)
     return (
       <div className="min-h-screen bg-background">
-        {/* Mobile Header - Sticky at top */}
         <TournamentMobileHeader
           tournament={sidebarProps.tournament}
           onSidebarToggle={() => {
@@ -203,7 +224,6 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
           }}
         />
 
-        {/* Mobile Sidebar Sheet */}
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
           <SheetContent side="left" className="w-80 p-0">
             <SheetTitle className="sr-only">Menú del Torneo</SheetTitle>
@@ -215,7 +235,6 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
           </SheetContent>
         </Sheet>
 
-        {/* Main Content - Full width on mobile, no internal scroll */}
         <main>
           {children}
         </main>
@@ -223,7 +242,6 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
     )
   }
 
-  // Desktop: Collapsible sidebar
   return (
     <div className="flex min-h-screen bg-background">
       <div className="flex-shrink-0 sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto">

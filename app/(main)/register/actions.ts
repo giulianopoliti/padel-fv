@@ -166,11 +166,11 @@ function advancedNormalize(str: string | null | undefined): string {
   return str
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, ' ')                    // MÃºltiples espacios â†’ uno
-    .replace(/[.,-]/g, '')                   // Quita puntuaciÃ³n
+    .replace(/\s+/g, ' ')                    // Múltiples espacios → uno
+    .replace(/[.,-]/g, '')                   // Quita puntuación
     .normalize('NFD')                        // Descompone acentos
     .replace(/[\u0300-\u036f]/g, '')         // Quita marcas de acento
-    .replace(/[^a-z0-9\s]/g, '')             // Solo letras, nÃºmeros, espacios
+    .replace(/[^a-z0-9\s]/g, '')             // Solo letras, números, espacios
     .trim();
 }
 
@@ -233,7 +233,7 @@ function superFlexibleNameMatch(existing: string, provided: string): {
   }
 
   // NIVEL 2: Uno contiene al otro - MEJORADO para segundos nombres
-  // Caso especial: "Giuliano" estÃ¡ contenido en "Giuliano Agustin"
+  // Caso especial: "Giuliano" está contenido en "Giuliano Agustin"
   if (normalizedExisting.includes(normalizedProvided) || normalizedProvided.includes(normalizedExisting)) {
     // Si uno es substring del otro al inicio (caso de segundos nombres)
     if (normalizedProvided.startsWith(normalizedExisting + ' ') ||
@@ -247,7 +247,7 @@ function superFlexibleNameMatch(existing: string, provided: string): {
     }
   }
 
-  // NIVEL 3: Palabras en comÃºn (para nombres compuestos)
+  // NIVEL 3: Palabras en común (para nombres compuestos)
   const existingWords = normalizedExisting.split(' ').filter(w => w.length > 1);
   const providedWords = normalizedProvided.split(' ').filter(w => w.length > 1);
 
@@ -262,7 +262,7 @@ function superFlexibleNameMatch(existing: string, provided: string): {
           commonWords += 1;
           break;
         }
-        // Match flexible de palabra (mÃ¡ximo 1 error)
+        // Match flexible de palabra (máximo 1 error)
         if (existingWord.length > 2 && providedWord.length > 2) {
           if (levenshteinDistance(existingWord, providedWord) <= 1) {
             commonWords += 0.8; // Peso menor para matches con typo
@@ -278,7 +278,7 @@ function superFlexibleNameMatch(existing: string, provided: string): {
     }
   }
 
-  // NIVEL 4: Similitud por distancia de ediciÃ³n (mÃ­nimo 80%)
+  // NIVEL 4: Similitud por distancia de edición (mínimo 80%)
   const similarity = calculateSimilarity(normalizedExisting, normalizedProvided);
   if (similarity >= 0.8) {
     return { isMatch: true, confidence: similarity, reason: 'edit_distance' };
@@ -322,12 +322,12 @@ function validatePlayerLinking(existingPlayer: any, formData: FormData) {
     lastName || ''
   );
 
-  // TambiÃ©n comparar nombres completos
+  // También comparar nombres completos
   const fullExistingName = `${existingPlayer.first_name || ''} ${existingPlayer.last_name || ''}`.trim();
   const fullProvidedName = `${firstName || ''} ${lastName || ''}`.trim();
   const fullNameResult = superFlexibleNameMatch(fullExistingName, fullProvidedName);
 
-  // Determinar si es vÃ¡lido (mÃºltiples criterios)
+  // Determinar si es válido (múltiples criterios)
   // MEJORADO: Aceptar si:
   // 1. Ambos nombres coinciden con confianza >= 0.7
   // 2. Nombre completo coincide con confianza >= 0.8
@@ -404,7 +404,7 @@ export async function confirmPlayerLinking(playerId: string, tempUserId: string,
     return {
       success: true,
       matched: true,
-      message: `Â¡Cuenta vinculada exitosamente! Tu perfil de jugador existente ha sido conectado con tu nueva cuenta.`,
+      message: `¡Cuenta vinculada exitosamente! Tu perfil de jugador existente ha sido conectado con tu nueva cuenta.`,
       playerData: {
         name: `${playerCheck.first_name} ${playerCheck.last_name}`,
         score: playerCheck.score || 0,
@@ -465,7 +465,7 @@ export async function confirmPlayerLinkingWithFormData(
     return {
       success: true,
       matched: true,
-      message: `Â¡Cuenta vinculada exitosamente! Tu perfil de jugador existente ha sido conectado con tu nueva cuenta y datos actualizados.`,
+      message: `¡Cuenta vinculada exitosamente! Tu perfil de jugador existente ha sido conectado con tu nueva cuenta y datos actualizados.`,
       playerData: {
         name: `${playerCheck.first_name} ${playerCheck.last_name}`,
         score: playerCheck.score || 0,
@@ -615,7 +615,7 @@ export async function checkDNIConflictBeforeRegistration(formData: FormData): Pr
       
       return {
         success: false,
-        error: 'Este DNI ya estÃ¡ registrado con un nombre diferente. Contacta al administrador para resolver este conflicto.',
+        error: 'Este DNI ya está registrado con un nombre diferente. Contacta al administrador para resolver este conflicto.',
         showConflictReport: true,
         conflictData: {
           dni: normalizedDni.dni,
@@ -660,10 +660,10 @@ export async function registerAndLinkToExistingPlayer(formData: FormData, player
     
     // Basic validation
     if (!email || !password) {
-      return { success: false, error: 'Email y contraseÃ±a son requeridos.' };
+      return { success: false, error: 'Email y contraseña son requeridos.' };
     }
     if (password.length < 6) {
-      return { success: false, error: 'La contraseÃ±a debe tener al menos 6 caracteres.' };
+      return { success: false, error: 'La contraseña debe tener al menos 6 caracteres.' };
     }
     
     // Double-check that the player doesn't already have a user linked
@@ -691,12 +691,12 @@ export async function registerAndLinkToExistingPlayer(formData: FormData, player
 
     if (signUpError) {
       console.error('[registerAndLinkToExistingPlayer] Supabase auth signUp error:', signUpError);
-      return { success: false, error: `Error de autenticaciÃ³n: ${signUpError.message}` };
+      return { success: false, error: `Error de autenticación: ${signUpError.message}` };
     }
 
     const authUser = authData.user;
     if (!authUser) {
-      return { success: false, error: 'Error al crear usuario de autenticaciÃ³n.' };
+      return { success: false, error: 'Error al crear usuario de autenticación.' };
     }
     
     console.log(`[registerAndLinkToExistingPlayer] Auth user created: ${authUser.id}`);
@@ -730,7 +730,7 @@ export async function registerAndLinkToExistingPlayer(formData: FormData, player
     return {
       success: true,
       matched: true,
-      message: `Â¡Cuenta creada y vinculada exitosamente! Tu perfil de jugador existente ha sido conectado con tu nueva cuenta.`,
+      message: `¡Cuenta creada y vinculada exitosamente! Tu perfil de jugador existente ha sido conectado con tu nueva cuenta.`,
       playerData: {
         name: `${playerCheck.first_name} ${playerCheck.last_name}`,
         score: playerCheck.score || 0,
