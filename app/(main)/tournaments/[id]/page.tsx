@@ -2,6 +2,7 @@ import React from 'react';
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import { mapTournamentToPublicInfo } from '@/lib/tournaments/public-tournament-details';
+import { getTournamentCategoryDisplay } from '@/lib/services/tournament-category-config';
 import { checkTournamentAccess } from '@/utils/tournament-permissions';
 import { ensureSerializable } from '@/utils/serialization';
 import AmericanTournamentOverview from './components/AmericanTournamentOverview';
@@ -24,6 +25,7 @@ interface ClientTournament {
   start_date: string | null;
   end_date: string | null;
   category_name: string | null;
+  category_config?: unknown;
   description: string | null;
   award: string | null;
   max_participants: number | null;
@@ -60,7 +62,8 @@ const serializeTournamentForClient = (tournament: any): ClientTournament => ({
   transfer_amount: tournament.transfer_amount ?? null,
   start_date: tournament.start_date ?? null,
   end_date: tournament.end_date ?? null,
-  category_name: tournament.category_name ?? null,
+  category_name: getTournamentCategoryDisplay(tournament),
+  category_config: tournament.category_config ?? null,
   description: tournament.description ?? null,
   award: tournament.award ?? null,
   max_participants: tournament.max_participants ?? null,

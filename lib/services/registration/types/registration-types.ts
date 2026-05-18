@@ -1,3 +1,5 @@
+import type { TournamentCategoryConfig } from "@/lib/services/tournament-category-config"
+
 /**
  * REGISTRATION TYPES
  *
@@ -138,6 +140,7 @@ export interface Tournament {
   type: TournamentType
   gender: Gender
   category_name?: string
+  category_config?: TournamentCategoryConfig | null
   status: string
 }
 

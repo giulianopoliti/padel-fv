@@ -12,6 +12,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { createRegistrationStrategy, RegistrationStrategyError } from './registration-strategy.factory'
+import { validateMixedPairGender } from '@/lib/services/tournament-category-config'
 import type { IRegistrationStrategy } from './registration-strategy.interface'
 import type {
   RegisterCoupleRequest,
@@ -324,7 +325,7 @@ export class RegistrationService {
       // Obtener datos del torneo
       const { data: tournament, error: tournamentError } = await this.supabase
         .from('tournaments')
-        .select('id, name, type, gender, category_name, status')
+        .select('id, name, type, gender, category_name, category_config, status')
         .eq('id', tournamentId)
         .single()
 
@@ -341,6 +342,7 @@ export class RegistrationService {
           type: tournament.type,
           gender: tournament.gender,
           category_name: tournament.category_name,
+          category_config: tournament.category_config,
           status: tournament.status
         },
         user: {
@@ -384,11 +386,24 @@ export class RegistrationService {
     // Validar que los jugadores existan
     const { data: players } = await context.supabase
       .from('players')
-      .select('id')
+      .select('id, gender')
       .in('id', [request.player1Id, request.player2Id])
 
     if (!players || players.length !== 2) {
       return { success: false, error: 'Uno o ambos jugadores no existen' }
+    }
+
+    const player1 = players.find((player: any) => player.id === request.player1Id)
+    const player2 = players.find((player: any) => player.id === request.player2Id)
+
+    const mixedValidation = validateMixedPairGender(
+      context.tournament.gender,
+      player1?.gender,
+      player2?.gender,
+    )
+
+    if (!mixedValidation.success) {
+      return { success: false, error: mixedValidation.error }
     }
 
     return { success: true }
@@ -419,6 +434,16 @@ export class RegistrationService {
 
     if (hasSameNormalizedPlayerName(player1.firstName, player1.lastName, player2.firstName, player2.lastName)) {
       return { success: false, error: 'Los jugadores no pueden tener el mismo nombre y apellido' }
+    }
+
+    const mixedValidation = validateMixedPairGender(
+      context.tournament.gender,
+      player1.gender,
+      player2.gender,
+    )
+
+    if (!mixedValidation.success) {
+      return { success: false, error: mixedValidation.error }
     }
 
     return { success: true }

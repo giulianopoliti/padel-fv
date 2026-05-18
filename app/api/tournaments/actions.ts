@@ -15,6 +15,14 @@ import { CoupleWithStats as CoupleWithStatsType } from '@/types';
 import { MatchPoints, PlayerScore, TournamentPointsCalculation, MatchPointsCouple } from '@/types';
 import { createApiResponse } from '@/utils/serialization';
 import { markEliminatedCouples } from '@/utils/bracket-seeding-algorithm';
+import {
+  areCategoriesConsecutive,
+  categorizePlayerForTournament,
+  fetchOrderedCategories,
+  resolveInitialPlayerProfile,
+  resolvePersistedTournamentCategoryName,
+  type TournamentCategoryConfig,
+} from '@/lib/services/tournament-category-config';
 import { normalizePlayerDni } from '@/lib/utils/player-dni';
 import { findExistingPlayerByIdentity } from '@/lib/utils/player-identity';
 import { ensureLongTournamentGeneralZone } from '@/lib/services/tournaments/long-general-zone';
@@ -55,6 +63,7 @@ interface CreateTournamentData {
   name: string;
   description: string | null;
   category_name: string;
+  category_config?: TournamentCategoryConfig | null;
   type: 'LONG' | 'AMERICAN';
   gender: 'MALE' | 'FEMALE' | 'MIXED';
   start_date: string | null; // ISO string
@@ -62,6 +71,7 @@ interface CreateTournamentData {
   max_participants: number | null;
   price: number | null;
   award: string | null;
+  format_config?: any;
 }
 
 // Interface for couple with extended stats used in sorting (extends the imported CoupleWithStats)
@@ -491,79 +501,21 @@ async function recategorizePlayersAfterPoints(tournamentId: string, supabase: an
  * Helper function to check and categorize a player if they haven't been categorized yet
  * This function assigns the minimum score for the category and marks the player as categorized
  */
-export async function checkAndCategorizePlayer(playerId: string, categoryName: string, supabase: any) {
-  console.log(`[checkAndCategorizePlayer] Checking categorization for player ${playerId} in category ${categoryName}`);
-  
-  try {
-    // Get current player info
-    const { data: playerData, error: playerError } = await supabase
-      .from('players')
-      .select('id, is_categorized, score, category_name')
-      .eq('id', playerId)
-      .single();
+export async function checkAndCategorizePlayer(
+  playerId: string,
+  categoryName: { category_name?: string | null; category_config?: unknown } | string,
+  supabase: any,
+) {
+  const normalizedTournament =
+    typeof categoryName === 'string'
+      ? { category_name: categoryName, category_config: null }
+      : categoryName;
 
-    if (playerError) {
-      console.error(`[checkAndCategorizePlayer] Error fetching player ${playerId}:`, playerError);
-      return { success: false, message: "Error al obtener información del jugador" };
-    }
-
-    if (!playerData) {
-      console.error(`[checkAndCategorizePlayer] Player ${playerId} not found`);
-      return { success: false, message: "Jugador no encontrado" };
-    }
-
-    // If player is already categorized, no action needed
-    if (playerData.is_categorized) {
-      console.log(`[checkAndCategorizePlayer] Player ${playerId} is already categorized with score ${playerData.score}`);
-      return { success: true, message: "Jugador ya categorizado", alreadyCategorized: true };
-    }
-
-    // Get category information
-    const { data: categoryData, error: categoryError } = await supabase
-      .from('categories')
-      .select('name, lower_range')
-      .eq('name', categoryName)
-      .single();
-
-    if (categoryError) {
-      console.error(`[checkAndCategorizePlayer] Error fetching category ${categoryName}:`, categoryError);
-      return { success: false, message: "Error al obtener información de la categoría" };
-    }
-
-    if (!categoryData) {
-      console.error(`[checkAndCategorizePlayer] Category ${categoryName} not found`);
-      return { success: false, message: "Categoría no encontrada" };
-    }
-
-    // Update player with minimum score for the category and mark as categorized
-    const newScore = categoryData.lower_range ?? 0;
-    const { error: updateError } = await supabase
-      .from('players')
-      .update({
-        score: newScore,
-        category_name: categoryName,
-        is_categorized: true
-      })
-      .eq('id', playerId);
-
-    if (updateError) {
-      console.error(`[checkAndCategorizePlayer] Error updating player ${playerId}:`, updateError);
-      return { success: false, message: "Error al actualizar el jugador" };
-    }
-
-    console.log(`[checkAndCategorizePlayer] Player ${playerId} successfully categorized with score ${newScore} in category ${categoryName}`);
-    return { 
-      success: true, 
-      message: "Jugador categorizado exitosamente", 
-      newScore, 
-      categoryName,
-      wasCategorized: true 
-    };
-
-  } catch (error) {
-    console.error(`[checkAndCategorizePlayer] Unexpected error:`, error);
-    return { success: false, message: "Error inesperado al categorizar jugador" };
-  }
+  return categorizePlayerForTournament({
+    playerId,
+    supabase,
+    tournament: normalizedTournament,
+  });
 }
 
 // --- MAIN EXPORTED ACTIONS (existing functions adapted or kept as is if not directly affected by refactor) ---
@@ -625,10 +577,25 @@ export async function createTournamentAction(formData: CreateTournamentData & { 
       return { success: false, error: 'Only club owners and organizers can create tournaments.' };
     }
 
+    const categories = await fetchOrderedCategories(supabase)
+
+    let normalizedCategoryName = formData.category_name
+    if (formData.category_config) {
+      if (
+        formData.category_config.mode === 'RANGE' &&
+        !areCategoriesConsecutive(categories, formData.category_config.categoryA, formData.category_config.categoryB)
+      ) {
+        return { success: false, error: 'Las categorías combinadas deben ser consecutivas.' }
+      }
+
+      normalizedCategoryName = resolvePersistedTournamentCategoryName(formData.category_config, categories)
+    }
+
     // 3. Prepare data for insertion (remove club_id and extra_club_ids from formData to avoid conflicts)
     const { club_id: _, extra_club_ids: __, ...cleanFormData } = formData;
     const tournamentToInsert = {
       ...cleanFormData,
+      category_name: normalizedCategoryName,
       club_id: club_id,
       status: 'NOT_STARTED', // Default status
       uses_new_system: true, // Nuevos torneos usan el sistema nuevo por defecto
@@ -1138,7 +1105,7 @@ export async function registerPlayerForTournament(tournamentId: string, playerId
   // First, get tournament info to determine category
   const { data: tournamentData, error: tournamentError } = await supabase
     .from('tournaments')
-    .select('category_name, gender')
+    .select('category_name, category_config, gender')
     .eq('id', tournamentId)
     .single();
     
@@ -1159,11 +1126,11 @@ export async function registerPlayerForTournament(tournamentId: string, playerId
     return { success: false, message: "El torneo es para mujeres, pero el jugador no es mujer" };
   }
   // Determine category name
-  const categoryName = tournamentData.category_name || '';
-  
+  const hasTournamentCategoryConfig = Boolean(tournamentData.category_name || tournamentData.category_config);
+
   // Check and categorize player if needed
-  if (categoryName) {
-    const categorizationResult = await checkAndCategorizePlayer(playerId, categoryName, supabase);
+  if (hasTournamentCategoryConfig) {
+    const categorizationResult = await checkAndCategorizePlayer(playerId, tournamentData, supabase);
     
     if (!categorizationResult.success) {
       console.error("[registerPlayerForTournament] Error categorizing player:", categorizationResult.message);

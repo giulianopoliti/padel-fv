@@ -10,6 +10,7 @@
  */
 
 import { BaseRegistrationStrategy } from './registration-strategy.interface'
+import { validateMixedPairGender } from '@/lib/services/tournament-category-config'
 import { ensureLongTournamentGeneralZone } from '@/lib/services/tournaments/long-general-zone'
 import { normalizePlayerDni } from '@/lib/utils/player-dni'
 import { findExistingPlayerByIdentity } from '@/lib/utils/player-identity'
@@ -695,19 +696,19 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
   ): Promise<{ success: boolean; error?: string }> {
     const { tournament, supabase } = context
 
-    if (!tournament.category_name) {
+    if (!tournament.category_name && !tournament.category_config) {
       return { success: true }
     }
 
     try {
       const { checkAndCategorizePlayer } = await import('@/utils/player-categorization')
 
-      const categorization1 = await checkAndCategorizePlayer(player1Id, tournament.category_name, supabase)
+      const categorization1 = await checkAndCategorizePlayer(player1Id, tournament, supabase)
       if (!categorization1.success) {
         return { success: false, error: categorization1.message }
       }
 
-      const categorization2 = await checkAndCategorizePlayer(player2Id, tournament.category_name, supabase)
+      const categorization2 = await checkAndCategorizePlayer(player2Id, tournament, supabase)
       if (!categorization2.success) {
         return { success: false, error: categorization2.message }
       }
@@ -805,15 +806,7 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
     player2Gender: Gender,
     tournament: any
   ): Promise<{ success: boolean; error?: string }> {
-    const tournamentGender = tournament.gender?.toUpperCase()
-
-    if (tournamentGender === 'FEMALE') {
-      if (player1Gender?.toUpperCase() !== 'FEMALE' || player2Gender?.toUpperCase() !== 'FEMALE') {
-        return { success: false, error: 'Es un torneo femenino, ambos jugadores deben ser femeninos.' }
-      }
-    }
-
-    return { success: true }
+    return validateMixedPairGender(tournament.gender, player1Gender, player2Gender)
   }
 
   private async createNewPlayer(

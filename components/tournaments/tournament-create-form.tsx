@@ -24,7 +24,7 @@ import {
   Calendar,
   X,
 } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { useForm, type FieldPath } from 'react-hook-form';
 import * as z from 'zod';
 
 import { createTournamentAction } from '@/app/api/tournaments/actions';
@@ -46,6 +46,15 @@ import { getPresetOptionsByType } from '@/config/tournament-format-presets';
 import { useUser } from '@/contexts/user-context';
 import { useUserClubs } from '@/hooks/use-user-clubs';
 import { buildTournamentFormatConfig } from '@/lib/services/tournament-format-config-builder';
+import {
+  areCategoriesConsecutive,
+  buildTournamentCategoryLabel,
+  getCategoryForScore,
+  getAvailableMixedSumTargets,
+  resolveInitialScoreFromCategories,
+  resolvePersistedTournamentCategoryName,
+  type TournamentCategoryConfig,
+} from '@/lib/services/tournament-category-config';
 import { cn } from '@/lib/utils';
 import type { TournamentFormatPresetId } from '@/types/tournament-format-v2';
 import { createClient } from '@/utils/supabase/client';
@@ -53,6 +62,8 @@ import { useRouter } from 'next/navigation';
 
 interface Category {
   name: string;
+  lower_range: number;
+  upper_range: number | null;
 }
 
 interface Club {
@@ -95,6 +106,12 @@ const STEP_TITLES = [
 const tournamentSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   description: z.string().optional(),
+  category_mode: z.enum(['SINGLE', 'RANGE', 'MIXED_SUM'], {
+    required_error: 'Selecciona un modo de categoria',
+  }),
+  primary_category_name: z.string().optional(),
+  secondary_category_name: z.string().optional(),
+  mixed_sum_target: z.number().int().optional(),
   category_name: z.string().min(1, 'Selecciona una categoria'),
   type: z.enum(['LONG', 'AMERICAN'], {
     required_error: 'Selecciona un tipo de torneo',
@@ -137,6 +154,51 @@ const tournamentSchema = z.object({
 }, {
   message: 'El club principal no puede estar en clubes adicionales',
   path: ['extra_club_ids'],
+}).refine((data) => {
+  if (data.category_mode !== 'SINGLE') {
+    return true;
+  }
+
+  return Boolean(data.primary_category_name?.trim());
+}, {
+  message: 'Selecciona una categoria base',
+  path: ['primary_category_name'],
+}).refine((data) => {
+  if (data.category_mode !== 'RANGE') {
+    return true;
+  }
+
+  return Boolean(data.primary_category_name?.trim()) && Boolean(data.secondary_category_name?.trim());
+}, {
+  message: 'Selecciona las dos categorias de la combinacion',
+  path: ['secondary_category_name'],
+}).refine((data) => {
+  if (data.category_mode !== 'RANGE') {
+    return true;
+  }
+
+  return data.primary_category_name !== data.secondary_category_name;
+}, {
+  message: 'Las categorias combinadas deben ser distintas',
+  path: ['secondary_category_name'],
+}).refine((data) => {
+  if (data.category_mode !== 'MIXED_SUM') {
+    return true;
+  }
+
+  return typeof data.mixed_sum_target === 'number' && Number.isFinite(data.mixed_sum_target);
+}, {
+  message: 'Selecciona una suma objetivo',
+  path: ['mixed_sum_target'],
+}).refine((data) => {
+  if (data.category_mode !== 'MIXED_SUM') {
+    return true;
+  }
+
+  return data.gender === 'MIXED';
+}, {
+  message: 'La categoria por suma solo esta disponible para torneos mixtos',
+  path: ['gender'],
 });
 
 type TournamentFormData = z.infer<typeof tournamentSchema>;
@@ -188,6 +250,49 @@ const getPresetMeta = (presetId: string) => {
   return [zoneLabel, stageLabel, bracketLabel];
 };
 
+const buildCategoryConfigFromFormValues = (
+  values: Pick<
+    TournamentFormData,
+    'category_mode' | 'primary_category_name' | 'secondary_category_name' | 'mixed_sum_target'
+  >,
+): TournamentCategoryConfig | null => {
+  if (values.category_mode === 'SINGLE') {
+    if (!values.primary_category_name?.trim()) {
+      return null;
+    }
+
+    return {
+      mode: 'SINGLE',
+      category: values.primary_category_name.trim(),
+      validationEnabled: false,
+    };
+  }
+
+  if (values.category_mode === 'RANGE') {
+    if (!values.primary_category_name?.trim() || !values.secondary_category_name?.trim()) {
+      return null;
+    }
+
+    return {
+      mode: 'RANGE',
+      categoryA: values.primary_category_name.trim(),
+      categoryB: values.secondary_category_name.trim(),
+      validationEnabled: false,
+    };
+  }
+
+  if (typeof values.mixed_sum_target !== 'number' || !Number.isFinite(values.mixed_sum_target)) {
+    return null;
+  }
+
+  return {
+    mode: 'MIXED_SUM',
+    targetSum: values.mixed_sum_target,
+    mixedPairRequired: true,
+    validationEnabled: false,
+  };
+};
+
 export default function TournamentCreateForm() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -206,6 +311,10 @@ export default function TournamentCreateForm() {
     defaultValues: {
       name: '',
       description: '',
+      category_mode: 'SINGLE',
+      primary_category_name: '',
+      secondary_category_name: '',
+      mixed_sum_target: undefined,
       category_name: '',
       type: 'AMERICAN',
       format_preset: DEFAULT_PRESET_BY_TYPE.AMERICAN,
@@ -228,6 +337,7 @@ export default function TournamentCreateForm() {
 
   const watchedValues = form.watch();
   const selectedType = watchedValues.type;
+  const categoryMode = watchedValues.category_mode;
   const isAmericanTournament = selectedType === 'AMERICAN';
   const presetOptions = PRESET_OPTIONS[selectedType];
   const selectedPreset = presetOptions.find((preset) => preset.presetId === watchedValues.format_preset);
@@ -237,6 +347,64 @@ export default function TournamentCreateForm() {
   const selectedExtraClubs = clubs.filter((club) => extraClubIds.includes(club.id));
   const progressValue = (currentStep / STEP_TITLES.length) * 100;
   const activeStep = STEP_TITLES[currentStep - 1];
+  const availableMixedSumTargets = useMemo(() => getAvailableMixedSumTargets(categories), [categories]);
+  const categoryPreview = useMemo(() => {
+    const categoryConfig = buildCategoryConfigFromFormValues({
+      category_mode: watchedValues.category_mode,
+      primary_category_name: watchedValues.primary_category_name,
+      secondary_category_name: watchedValues.secondary_category_name,
+      mixed_sum_target: watchedValues.mixed_sum_target,
+    });
+
+    if (!categoryConfig || categories.length === 0) {
+      return null;
+    }
+
+    try {
+      const initialScore = resolveInitialScoreFromCategories(categoryConfig, categories);
+      const persistedCategory = getCategoryForScore(categories, initialScore);
+
+      return {
+        label: buildTournamentCategoryLabel(categoryConfig),
+        initialScore,
+        persistedCategoryName: persistedCategory?.name ?? null,
+      };
+    } catch (previewError) {
+      console.error('Error calculating category preview:', previewError);
+      return null;
+    }
+  }, [
+    categories,
+    watchedValues.category_mode,
+    watchedValues.mixed_sum_target,
+    watchedValues.primary_category_name,
+    watchedValues.secondary_category_name,
+  ]);
+  const rangeSecondaryOptions = useMemo(() => {
+    if (!watchedValues.primary_category_name) {
+      return categories;
+    }
+
+    return categories.filter((category) =>
+      areCategoriesConsecutive(categories, watchedValues.primary_category_name || '', category.name),
+    );
+  }, [categories, watchedValues.primary_category_name]);
+
+  useEffect(() => {
+    if (categoryMode !== 'RANGE') {
+      return;
+    }
+
+    const secondaryCategoryName = form.getValues('secondary_category_name');
+    if (!secondaryCategoryName) {
+      return;
+    }
+
+    const isStillAllowed = rangeSecondaryOptions.some((category) => category.name === secondaryCategoryName);
+    if (!isStillAllowed) {
+      form.setValue('secondary_category_name', '', { shouldValidate: true });
+    }
+  }, [categoryMode, form, rangeSecondaryOptions]);
 
   useEffect(() => {
     async function fetchCategories() {
@@ -253,8 +421,8 @@ export default function TournamentCreateForm() {
 
         const { data: categoriesData, error: categoriesError } = await supabase
           .from('categories')
-          .select('name')
-          .order('name');
+          .select('name, lower_range, upper_range')
+          .order('lower_range', { ascending: true });
 
         if (categoriesError) {
           throw new Error(`Error al cargar categorias: ${categoriesError.message}`);
@@ -338,6 +506,76 @@ export default function TournamentCreateForm() {
     return () => subscription.unsubscribe();
   }, [form]);
 
+  useEffect(() => {
+    if (categoryMode === 'SINGLE') {
+      if (form.getValues('secondary_category_name')) {
+        form.setValue('secondary_category_name', '', { shouldValidate: false });
+      }
+      if (form.getValues('mixed_sum_target') !== undefined) {
+        form.setValue('mixed_sum_target', undefined, { shouldValidate: false });
+      }
+    }
+
+    if (categoryMode === 'RANGE') {
+      if (form.getValues('mixed_sum_target') !== undefined) {
+        form.setValue('mixed_sum_target', undefined, { shouldValidate: false });
+      }
+    }
+
+    if (categoryMode === 'MIXED_SUM') {
+      if (form.getValues('secondary_category_name')) {
+        form.setValue('secondary_category_name', '', { shouldValidate: false });
+      }
+      if (form.getValues('gender') !== 'MIXED') {
+        form.setValue('gender', 'MIXED', { shouldValidate: true });
+      }
+    }
+  }, [categoryMode, form]);
+
+  useEffect(() => {
+    const categoryConfig = buildCategoryConfigFromFormValues({
+      category_mode: watchedValues.category_mode,
+      primary_category_name: watchedValues.primary_category_name,
+      secondary_category_name: watchedValues.secondary_category_name,
+      mixed_sum_target: watchedValues.mixed_sum_target,
+    });
+
+    if (!categoryConfig || categories.length === 0) {
+      if (form.getValues('category_name') !== '') {
+        form.setValue('category_name', '', {
+          shouldDirty: true,
+          shouldValidate: false,
+        });
+      }
+      return;
+    }
+
+    try {
+      const persistedCategoryName = resolvePersistedTournamentCategoryName(categoryConfig, categories);
+
+      if (form.getValues('category_name') !== persistedCategoryName) {
+        form.setValue('category_name', persistedCategoryName, {
+          shouldDirty: true,
+          shouldValidate: false,
+        });
+      }
+    } catch {
+      if (form.getValues('category_name') !== '') {
+        form.setValue('category_name', '', {
+          shouldDirty: true,
+          shouldValidate: false,
+        });
+      }
+    }
+  }, [
+    categories,
+    form,
+    watchedValues.category_mode,
+    watchedValues.mixed_sum_target,
+    watchedValues.primary_category_name,
+    watchedValues.secondary_category_name,
+  ]);
+
   const handleToggleExtraClub = (clubId: string) => {
     const mainId = form.getValues('club_id');
     if (!clubId || clubId === mainId) return;
@@ -352,9 +590,21 @@ export default function TournamentCreateForm() {
     form.setValue('extra_club_ids', Array.from(next), { shouldValidate: true });
   };
 
-  const getStepFields = () => {
+  const getStepFields = (): FieldPath<TournamentFormData>[] => {
     if (currentStep === 1) {
-      const baseFields: (keyof TournamentFormData)[] = ['name', 'category_name', 'type', 'format_preset', 'gender', 'club_id'];
+      const baseFields: (keyof TournamentFormData)[] = ['name', 'category_mode', 'category_name', 'type', 'format_preset', 'gender', 'club_id'];
+
+      if (categoryMode === 'SINGLE') {
+        baseFields.push('primary_category_name');
+      }
+
+      if (categoryMode === 'RANGE') {
+        baseFields.push('primary_category_name', 'secondary_category_name');
+      }
+
+      if (categoryMode === 'MIXED_SUM') {
+        baseFields.push('mixed_sum_target');
+      }
 
       if (selectedPreset?.advancementConfig.kind === 'SINGLE') {
         baseFields.push('single_bracket_advance_count');
@@ -431,9 +681,32 @@ export default function TournamentCreateForm() {
       };
 
       const dataForAction = {
+        category_config: buildCategoryConfigFromFormValues({
+          category_mode: data.category_mode,
+          primary_category_name: data.primary_category_name,
+          secondary_category_name: data.secondary_category_name,
+          mixed_sum_target: data.mixed_sum_target,
+        }),
         name: data.name.trim(),
         description: data.description?.trim() || null,
-        category_name: data.category_name,
+        category_name: (() => {
+          const categoryConfig = buildCategoryConfigFromFormValues({
+            category_mode: data.category_mode,
+            primary_category_name: data.primary_category_name,
+            secondary_category_name: data.secondary_category_name,
+            mixed_sum_target: data.mixed_sum_target,
+          });
+
+          if (!categoryConfig) {
+            throw new Error('No se pudo construir la configuracion de categoria');
+          }
+
+          if (categoryConfig.mode === 'RANGE' && !areCategoriesConsecutive(categories, categoryConfig.categoryA, categoryConfig.categoryB)) {
+            throw new Error('La categoria combinada solo permite categorias consecutivas');
+          }
+
+          return resolvePersistedTournamentCategoryName(categoryConfig, categories);
+        })(),
         type: data.type as 'LONG' | 'AMERICAN',
         format_config: buildTournamentFormatConfig({
           presetId: data.format_preset as TournamentFormatPresetId,
@@ -660,12 +933,75 @@ export default function TournamentCreateForm() {
                         )}
                       />
 
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 md:col-span-1">
+                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Categoria visible</p>
+                        <p className="mt-2 text-base font-medium text-slate-900">
+                          {categoryPreview?.label || 'Configura el modo para generar la etiqueta'}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Esta es la etiqueta que ve la gente. Internamente se persiste una categoria base valida para respetar la FK actual.
+                        </p>
+                      </div>
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="category_mode"
+                      render={({ field }) => (
+                        <FormItem className="space-y-4">
+                          <div>
+                            <FormLabel className="font-medium text-slate-700">Modo de categoria</FormLabel>
+                            <p className="mt-1 text-sm text-slate-500">
+                              Define si el torneo usa una categoria simple, una combinacion o una suma mixta.
+                            </p>
+                          </div>
+                          <FormControl>
+                            <RadioGroup
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              className="grid grid-cols-1 gap-3 lg:grid-cols-3"
+                            >
+                              {[
+                                { value: 'SINGLE', title: 'Simple', description: 'Una sola categoria base.' },
+                                { value: 'RANGE', title: 'Combinada', description: 'Ej: 6ta-7ma.' },
+                                { value: 'MIXED_SUM', title: 'Mixto por suma', description: 'Ej: Suma 11 o Suma 12.' },
+                              ].map((option) => {
+                                const isSelected = field.value === option.value;
+
+                                return (
+                                  <label
+                                    key={option.value}
+                                    className={cn(
+                                      'flex cursor-pointer rounded-xl border p-4 transition-all',
+                                      isSelected
+                                        ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                                        : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
+                                    )}
+                                  >
+                                    <RadioGroupItem value={option.value} className="mt-1 border-current text-current" />
+                                    <div className="ml-3">
+                                      <p className="font-medium">{option.title}</p>
+                                      <p className={cn('mt-1 text-sm', isSelected ? 'text-slate-200' : 'text-slate-500')}>
+                                        {option.description}
+                                      </p>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </RadioGroup>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {categoryMode === 'SINGLE' && (
                       <FormField
                         control={form.control}
-                        name="category_name"
+                        name="primary_category_name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="font-medium text-slate-700">Categoria</FormLabel>
+                            <FormLabel className="font-medium text-slate-700">Categoria base</FormLabel>
                             <FormControl>
                               <Select onValueChange={field.onChange} value={field.value}>
                                 <SelectTrigger className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900">
@@ -674,16 +1010,128 @@ export default function TournamentCreateForm() {
                                 <SelectContent>
                                   {categories.map((category) => (
                                     <SelectItem key={category.name} value={category.name}>
-                                      {category.name}
+                                      {category.name} · {category.lower_range}
+                                      {category.upper_range !== null ? `-${category.upper_range}` : '+'}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                             </FormControl>
+                            <FormDescription className="text-slate-500">
+                              Los jugadores nuevos arrancan en el puntaje base de esta categoria.
+                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
+                    )}
+
+                    {categoryMode === 'RANGE' && (
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
+                        <FormField
+                          control={form.control}
+                          name="primary_category_name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="font-medium text-slate-700">Categoria A</FormLabel>
+                              <FormControl>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <SelectTrigger className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900">
+                                    <SelectValue placeholder="Primera categoria" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {categories.map((category) => (
+                                      <SelectItem key={category.name} value={category.name}>
+                                        {category.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="secondary_category_name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="font-medium text-slate-700">Categoria B</FormLabel>
+                              <FormControl>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <SelectTrigger className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900">
+                                    <SelectValue placeholder="Segunda categoria" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {rangeSecondaryOptions.map((category) => (
+                                      <SelectItem key={category.name} value={category.name}>
+                                        {category.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    )}
+
+                    {categoryMode === 'MIXED_SUM' && (
+                      <FormField
+                        control={form.control}
+                        name="mixed_sum_target"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="font-medium text-slate-700">Suma objetivo</FormLabel>
+                            <FormControl>
+                              <Select
+                                onValueChange={(value) => field.onChange(value ? Number(value) : undefined)}
+                                value={field.value !== undefined ? String(field.value) : undefined}
+                              >
+                                <SelectTrigger className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900">
+                                  <SelectValue placeholder="Selecciona una suma" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {availableMixedSumTargets.map((targetSum) => (
+                                    <SelectItem key={targetSum} value={String(targetSum)}>
+                                      Suma {targetSum}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </FormControl>
+                            <FormDescription className="text-slate-500">
+                              Disponible solo para torneos mixtos. La validacion de categoria queda preparada y el puntaje inicial sale de categories.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
+                    <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Puntaje inicial</p>
+                        <p className="mt-2 text-xl font-medium text-slate-900">
+                          {categoryPreview ? `${categoryPreview.initialScore} pts` : 'Pendiente'}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Se calcula leyendo `categories.lower_range` desde la base.
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Regla actual</p>
+                        <p className="mt-2 text-sm font-medium text-slate-900">
+                          {categoryPreview?.label || 'Sin definir'}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Se persiste como {categoryPreview?.persistedCategoryName || 'sin categoria base'} para respetar la FK actual.
+                        </p>
+                      </div>
                     </div>
 
                     <FormField
@@ -1316,7 +1764,10 @@ export default function TournamentCreateForm() {
                         <div className="rounded-xl border border-slate-200 bg-white p-4">
                           <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Categoria y genero</p>
                           <p className="mt-2 font-medium text-slate-900">
-                            {watchedValues.category_name || 'Sin categoria'} · {watchedValues.gender === 'MALE' ? 'Masculino' : watchedValues.gender === 'FEMALE' ? 'Femenino' : 'Mixto'}
+                            {categoryPreview?.label || 'Sin categoria'} · {watchedValues.gender === 'MALE' ? 'Masculino' : watchedValues.gender === 'FEMALE' ? 'Femenino' : 'Mixto'}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {categoryPreview ? `${categoryPreview.initialScore} pts iniciales` : 'Sin preview de puntaje'}
                           </p>
                         </div>
                         <div className="rounded-xl border border-slate-200 bg-white p-4">

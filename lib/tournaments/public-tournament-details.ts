@@ -1,4 +1,5 @@
 import type { Gender, TournamentStatus } from '@/types'
+import { getTournamentCategoryDisplay } from '@/lib/services/tournament-category-config'
 
 type NullableString = string | null | undefined
 
@@ -8,6 +9,7 @@ type TournamentPublicInfoSource = {
   type?: NullableString
   status?: TournamentStatus | string | null
   category_name?: NullableString
+  category_config?: unknown
   gender?: Gender | string | null
   price?: string | number | null
   award?: NullableString
@@ -114,7 +116,7 @@ export const mapTournamentToPublicInfo = (
     typeLabel: getTournamentTypeLabel(type),
     status,
     statusLabel: getTournamentStatusLabel(status),
-    category: cleanText(tournament.category_name),
+    category: getTournamentCategoryDisplay(tournament),
     gender,
     genderLabel: getGenderLabel(gender),
     price: tournament.price ?? null,

@@ -3,6 +3,10 @@
 import { createClient, createClientServiceRole } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { PlayerDTO, Gender } from '@/types';
+import {
+  categorizePlayerForTournament,
+  resolveInitialPlayerProfile,
+} from '@/lib/services/tournament-category-config';
 import { normalizePlayerDni, sanitizeDniInput } from '@/lib/utils/player-dni';
 import { ExistingPlayerMatch, findExistingPlayerByIdentity } from '@/lib/utils/player-identity';
 import { createPlayerForCoupleService } from '@/lib/services/players/create-player-for-couple';
@@ -172,79 +176,21 @@ export async function checkPlayerIdentity({
  * Helper function to check and categorize a player if they haven't been categorized yet
  * This function assigns the minimum score for the category and marks the player as categorized
  */
-async function checkAndCategorizePlayer(playerId: string, categoryName: string, supabase: any) {
-  console.log(`[checkAndCategorizePlayer] Checking categorization for player ${playerId} in category ${categoryName}`);
-  
-  try {
-    // Get current player info
-    const { data: playerData, error: playerError } = await supabase
-      .from('players')
-      .select('id, is_categorized, score, category_name')
-      .eq('id', playerId)
-      .single();
+async function checkAndCategorizePlayer(
+  playerId: string,
+  tournament: { category_name?: string | null; category_config?: unknown } | string,
+  supabase: any,
+) {
+  const normalizedTournament =
+    typeof tournament === 'string'
+      ? { category_name: tournament, category_config: null }
+      : tournament;
 
-    if (playerError) {
-      console.error(`[checkAndCategorizePlayer] Error fetching player ${playerId}:`, playerError);
-      return { success: false, message: "Error al obtener información del jugador" };
-    }
-
-    if (!playerData) {
-      console.error(`[checkAndCategorizePlayer] Player ${playerId} not found`);
-      return { success: false, message: "Jugador no encontrado" };
-    }
-
-    // If player is already categorized, no action needed
-    if (playerData.is_categorized) {
-      console.log(`[checkAndCategorizePlayer] Player ${playerId} is already categorized with score ${playerData.score}`);
-      return { success: true, message: "Jugador ya categorizado", alreadyCategorized: true };
-    }
-
-    // Get category information
-    const { data: categoryData, error: categoryError } = await supabase
-      .from('categories')
-      .select('name, lower_range')
-      .eq('name', categoryName)
-      .single();
-
-    if (categoryError) {
-      console.error(`[checkAndCategorizePlayer] Error fetching category ${categoryName}:`, categoryError);
-      return { success: false, message: "Error al obtener información de la categoría" };
-    }
-
-    if (!categoryData) {
-      console.error(`[checkAndCategorizePlayer] Category ${categoryName} not found`);
-      return { success: false, message: "Categoría no encontrada" };
-    }
-
-    // Update player with minimum score for the category and mark as categorized
-    const newScore = categoryData.lower_range ?? 0;
-    const { error: updateError } = await supabase
-      .from('players')
-      .update({
-        score: newScore,
-        category_name: categoryName,
-        is_categorized: true
-      })
-      .eq('id', playerId);
-
-    if (updateError) {
-      console.error(`[checkAndCategorizePlayer] Error updating player ${playerId}:`, updateError);
-      return { success: false, message: "Error al actualizar el jugador" };
-    }
-
-    console.log(`[checkAndCategorizePlayer] Player ${playerId} successfully categorized with score ${newScore} in category ${categoryName}`);
-    return { 
-      success: true, 
-      message: "Jugador categorizado exitosamente", 
-      newScore, 
-      categoryName,
-      wasCategorized: true 
-    };
-
-  } catch (error) {
-    console.error(`[checkAndCategorizePlayer] Unexpected error:`, error);
-    return { success: false, message: "Error inesperado al categorizar jugador" };
-  }
+  return categorizePlayerForTournament({
+    playerId,
+    supabase,
+    tournament: normalizedTournament,
+  });
 }
 
 /**
@@ -291,9 +237,6 @@ export async function registerNewPlayer({
   console.log("[registerNewPlayer] Datos del torneo:", tournamentData);
   
   // Determinar el nombre de la categoría
-  const categoryName = tournamentData.category_name || '';
-  console.log("[registerNewPlayer] Nombre de categoría determinado:", categoryName);
-  
   let playerToRegister = playerId;
   
   // Si es un nuevo jugador, verificar si ya existe con ese DNI
@@ -317,33 +260,22 @@ export async function registerNewPlayer({
     }
 
     if (!playerToRegister) {
-      // Si no existe, crear un nuevo jugador
-      // Obtener el score más bajo para la categoría
-      const { data: categoryData, error: categoryError } = await supabase
-        .from('categories')
-        .select('lower_range')
-        .eq('name', categoryName)
-        .single();
-        
-      if (categoryError) {
-        console.error("[registerNewPlayer] Error fetching category:", categoryError);
-        throw new Error("No se pudo obtener información de la categoría");
-      }
-      
-      console.log("[registerNewPlayer] Datos de la categoría:", categoryData);
-      
-        // Crear el nuevo jugador con el score mínimo de la categoría
-  const newPlayerData = {
-    first_name: playerData.first_name,
-    last_name: playerData.last_name,
-    gender: playerData.gender,
-    dni: normalizedDni.dni,
-    dni_is_temporary: normalizedDni.dniIsTemporary,
-    score: categoryData.lower_range ?? 0,
-    category_name: categoryName,
-    is_categorized: true, // Mark as categorized when creating new player
-    created_at: new Date().toISOString()
-  };
+      const initialPlayerProfile = await resolveInitialPlayerProfile({
+        supabase,
+        tournament: tournamentData,
+      });
+
+      const newPlayerData = {
+        first_name: playerData.first_name,
+        last_name: playerData.last_name,
+        gender: playerData.gender,
+        dni: normalizedDni.dni,
+        dni_is_temporary: normalizedDni.dniIsTemporary,
+        score: initialPlayerProfile.score,
+        category_name: initialPlayerProfile.categoryName,
+        is_categorized: true,
+        created_at: new Date().toISOString()
+      };
       
       // Los nuevos jugadores se crean sin club asignado
       
@@ -380,7 +312,7 @@ export async function registerNewPlayer({
     console.log("[registerNewPlayer] Jugador existente verificado:", existingPlayer);
     
     // Check if the player needs to be categorized for their first tournament
-    const categorizationResult = await checkAndCategorizePlayer(playerId, categoryName, supabase);
+    const categorizationResult = await checkAndCategorizePlayer(playerId, tournamentData, supabase);
     
     if (!categorizationResult.success) {
       console.error("[registerNewPlayer] Error categorizing existing player:", categorizationResult.message);

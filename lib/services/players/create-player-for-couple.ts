@@ -1,3 +1,6 @@
+import {
+  resolveInitialPlayerProfile,
+} from "@/lib/services/tournament-category-config";
 import { normalizePlayerDni } from "@/lib/utils/player-dni";
 import { findExistingPlayerByIdentity } from "@/lib/utils/player-identity";
 
@@ -115,6 +118,7 @@ export async function createPlayerForCoupleService(
     .from("tournaments")
     .select(`
       category_name,
+      category_config,
       club:club_id (
         id,
         name
@@ -130,21 +134,10 @@ export async function createPlayerForCoupleService(
 
   console.log("[createPlayerForCouple] Datos del torneo:", tournamentData);
 
-  const categoryName = tournamentData.category_name || "";
-  console.log("[createPlayerForCouple] Nombre de categoría determinado:", categoryName);
-
-  const { data: categoryData, error: categoryError } = await supabase
-    .from("categories")
-    .select("lower_range")
-    .eq("name", categoryName)
-    .single();
-
-  if (categoryError) {
-    console.error("[createPlayerForCouple] Error fetching category:", categoryError);
-    throw new Error("No se pudo obtener información de la categoría");
-  }
-
-  console.log("[createPlayerForCouple] Datos de la categoría:", categoryData);
+  const initialPlayerProfile = await resolveInitialPlayerProfile({
+    supabase,
+    tournament: tournamentData,
+  });
 
   const newPlayerData = {
     first_name: playerData.first_name,
@@ -153,8 +146,8 @@ export async function createPlayerForCoupleService(
     dni: normalizedDni.dni,
     dni_is_temporary: normalizedDni.dniIsTemporary,
     phone: playerData.phone?.trim() || null,
-    score: categoryData.lower_range ?? 0,
-    category_name: categoryName,
+    score: initialPlayerProfile.score,
+    category_name: initialPlayerProfile.categoryName,
     is_categorized: true,
     created_at: new Date().toISOString(),
   };

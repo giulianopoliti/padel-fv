@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { Category, Tournament } from "@/types";
+import { getTournamentCategoryDisplay } from "@/lib/services/tournament-category-config";
 import { getTenantOrganization } from "@/lib/services/tenant-organization.service";
 
 /**
@@ -70,7 +71,7 @@ export async function getTournaments() {
                     createdAt: rawTournament.created_at || null,
                     startDate: rawTournament.start_date || null,
                     endDate: rawTournament.end_date || null,
-                    category: rawTournament.category_name || null,
+                    category: getTournamentCategoryDisplay(rawTournament),
                     gender: rawTournament.gender || "MALE",
                     status: rawTournament.status || "NOT_STARTED",
                     type: rawTournament.type || "AMERICAN",
@@ -217,7 +218,7 @@ export async function getTournamentById(id: string) {
             createdAt: tournamentData.created_at,
             startDate: tournamentData.start_date,
             endDate: tournamentData.end_date,
-            category: tournamentData.category,
+            category: getTournamentCategoryDisplay(tournamentData) || '',
             gender: tournamentData.gender || "MALE",
             status: tournamentData.status || "NOT_STARTED",
             type: tournamentData.type || "AMERICAN"
@@ -253,6 +254,7 @@ export async function getUpcomingTournamentsForHome(limit: number = 3) {
                 start_date,
                 end_date,
                 category_name,
+                category_config,
                 gender,
                 status,
                 type,
@@ -312,7 +314,7 @@ export async function getUpcomingTournamentsForHome(limit: number = 3) {
                 createdAt: rawTournament.created_at || null,
                 startDate: rawTournament.start_date || null,
                 endDate: rawTournament.end_date || null,
-                category: rawTournament.category_name || null,
+                category: getTournamentCategoryDisplay(rawTournament),
                 gender: rawTournament.gender || "MALE",
                 status: rawTournament.status || "NOT_STARTED",
                 type: rawTournament.type || "AMERICAN",
@@ -390,6 +392,7 @@ export async function getTournamentsOptimized({
                 start_date,
                 end_date,
                 category_name,
+                category_config,
                 gender,
                 status,
                 type,
@@ -493,7 +496,7 @@ export async function getTournamentsOptimized({
                 createdAt: rawTournament.created_at || null,
                 startDate: rawTournament.start_date || null,
                 endDate: rawTournament.end_date || null,
-                category: rawTournament.category_name || null,
+                category: getTournamentCategoryDisplay(rawTournament),
                 gender: rawTournament.gender || "MALE",
                 status: rawTournament.status || "NOT_STARTED",
                 type: rawTournament.type || "AMERICAN",

@@ -38,6 +38,7 @@ import { addTournamentClubsAction, removeTournamentClubsAction } from './actions
 import BackToNotStartedButton from './components/BackToNotStartedButton'
 import BackFromBracketButton from './components/BackFromBracketButton'
 import CancelTournamentButton from '@/components/tournament/club/cancel-tournament'
+import { getTournamentCategoryDisplay } from '@/lib/services/tournament-category-config'
 import { shouldUseLegacyQualifying } from '@/lib/services/tournament-format-policy'
 
 interface SettingsPageProps {
@@ -125,6 +126,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
       description,
       max_participants,
       category_name,
+      category_config,
+      gender,
       type,
       format_type,
       format_config,
@@ -153,6 +156,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   if (error || !tournament) {
     notFound()
   }
+
+  const tournamentCategoryDisplay = getTournamentCategoryDisplay(tournament)
 
   const { count: inscriptionsCount } = await supabase
     .from('inscriptions')
@@ -233,7 +238,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     end_date: (tournament as any).end_date ?? undefined,
     status: tournament.status ?? 'NOT_STARTED',
     type: tournament.type ?? 'AMERICANO',
-    gender: tournament.category_name ?? 'MIXTO',
+    gender: (tournament as any).gender ?? 'MIXTO',
     max_participants: tournament.max_participants ?? undefined,
     clubes: (() => {
       const clubes = (tournament as any).clubes
@@ -303,7 +308,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
               <div className="space-y-3">
               <MetricCard
                 label="Tipo"
-                helper={tournament.category_name || 'Sin categoria'}
+                helper={tournamentCategoryDisplay || 'Sin categoria'}
                 value={tournamentTypeLabel}
               />
                 <MetricCard
