@@ -1,6 +1,7 @@
 import React from 'react'
-import { createClient } from '@/utils/supabase/server'
 import { notFound } from 'next/navigation'
+import { getTournamentCategoryDisplay } from '@/lib/services/tournament-category-config'
+import { createClient } from '@/utils/supabase/server'
 import ZoneMatchesView from './components/ZoneMatchesView'
 
 interface ZoneMatchesPageProps {
@@ -15,7 +16,7 @@ export default async function ZoneMatchesPage({ params, searchParams }: ZoneMatc
 
   const { data: tournament, error } = await supabase
     .from('tournaments')
-    .select('id, name, category_name, type')
+    .select('id, name, category_name, category_config, type')
     .eq('id', resolvedParams.id)
     .single()
 
@@ -23,36 +24,31 @@ export default async function ZoneMatchesPage({ params, searchParams }: ZoneMatc
     notFound()
   }
 
+  const tournamentCategoryDisplay = getTournamentCategoryDisplay(tournament)
+
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
       <div className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="container mx-auto px-4 sm:px-6 py-4">
-          <div className="max-w-7xl mx-auto">
+        <div className="container mx-auto px-4 py-4 sm:px-6">
+          <div className="mx-auto max-w-7xl">
             <div className="space-y-2">
-              <h1 className="text-2xl lg:text-3xl font-bold text-foreground">
-                Partidos de Zona
-              </h1>
+              <h1 className="text-2xl font-bold text-foreground lg:text-3xl">Partidos de Zona</h1>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span>{tournament.name}</span>
-                {tournament.category_name && (
+                {tournamentCategoryDisplay ? (
                   <>
                     <span>•</span>
-                    <span>{tournament.category_name}</span>
+                    <span>{tournamentCategoryDisplay}</span>
                   </>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Content */}
       <div className="container mx-auto px-6 py-6">
-        <ZoneMatchesView
-          tournamentId={resolvedParams.id}
-          selectedZoneId={resolvedSearchParams.zone}
-        />
+        <ZoneMatchesView tournamentId={resolvedParams.id} selectedZoneId={resolvedSearchParams.zone} />
       </div>
     </div>
   )

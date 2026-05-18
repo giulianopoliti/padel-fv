@@ -1,6 +1,7 @@
 import React from 'react'
 import { createClient } from '@/utils/supabase/server'
 import { notFound } from 'next/navigation'
+import { getTournamentCategoryDisplay } from '@/lib/services/tournament-category-config'
 import ReadOnlyBracketVisualization from '@/components/tournament/bracket-v2/components/ReadOnlyBracketVisualization'
 
 interface PlayerBracketPageProps {
@@ -13,13 +14,15 @@ export default async function PlayerBracketPage({ params }: PlayerBracketPagePro
 
   const { data: tournament, error } = await supabase
     .from('tournaments')
-    .select('id, name, category_name, type, status')
+    .select('id, name, category_name, category_config, type, status')
     .eq('id', id)
     .single()
 
   if (error || !tournament) {
     notFound()
   }
+
+  const tournamentCategoryDisplay = getTournamentCategoryDisplay(tournament)
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -32,9 +35,7 @@ export default async function PlayerBracketPage({ params }: PlayerBracketPagePro
             </h1>
             <div className="space-y-1">
               <h2 className="text-lg font-semibold text-foreground">{tournament.name}</h2>
-              {tournament.category_name && (
-                <p className="text-sm text-muted-foreground">{tournament.category_name}</p>
-              )}
+              {tournamentCategoryDisplay ? <p className="text-sm text-muted-foreground">{tournamentCategoryDisplay}</p> : null}
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server"
 import { getTenantOrganization } from "@/lib/services/tenant-organization.service"
+import { getTournamentCategoryDisplay } from "@/lib/services/tournament-category-config"
 import type { PublicTournamentSummary } from "@/types/public-tournament"
 
 export interface TenantClub {
@@ -48,6 +49,7 @@ export async function getTenantUpcomingTournamentSummaries(limit: number = 12): 
       name,
       status,
       category_name,
+      category_config,
       gender,
       type,
       start_date,
@@ -68,13 +70,14 @@ export async function getTenantUpcomingTournamentSummaries(limit: number = 12): 
 
   return (data || []).map((tournament: any) => {
     const club = Array.isArray(tournament.clubes) ? tournament.clubes[0] || null : tournament.clubes || null
+    const categoryDisplay = getTournamentCategoryDisplay(tournament)
 
     return {
       id: tournament.id,
       name: tournament.name,
       status: tournament.status,
-      category: tournament.category_name,
-      categoryName: tournament.category_name,
+      category: categoryDisplay,
+      categoryName: categoryDisplay,
       gender: tournament.gender,
       type: tournament.type || "LONG",
       startDate: tournament.start_date,

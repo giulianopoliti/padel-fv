@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { getTenantUpcomingTournamentSummaries } from '@/lib/services/tenant-home.service'
+import { getTournamentCategoryDisplay } from '@/lib/services/tournament-category-config'
 
 export type PlayerNextMatch = {
   match_id: string
@@ -103,6 +104,34 @@ export type UpcomingTournamentsResult = {
   error?: string
 }
 
+const resolveTournamentCategoryDisplayMap = async (
+  tournamentIds: string[],
+): Promise<Record<string, string>> => {
+  if (tournamentIds.length === 0) {
+    return {}
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('tournaments')
+    .select('id, category_name, category_config')
+    .in('id', tournamentIds)
+
+  if (error) {
+    console.error('Error fetching tournament category display map:', error)
+    return {}
+  }
+
+  return (data || []).reduce<Record<string, string>>((accumulator, tournament: any) => {
+    const display = getTournamentCategoryDisplay(tournament)
+    if (display) {
+      accumulator[tournament.id] = display
+    }
+
+    return accumulator
+  }, {})
+}
+
 export async function getPlayerNextMatch(playerId: string): Promise<PlayerNextMatchResult> {
   try {
     const supabase = await createClient()
@@ -142,7 +171,28 @@ export async function getPlayerInscribedTournaments(playerId: string): Promise<I
       }
     }
 
-    return data as InscribedTournamentsResult
+    const result = data as InscribedTournamentsResult
+    const inscribedTournaments = result.inscribedTournaments || []
+
+    if (inscribedTournaments.length === 0) {
+      return result
+    }
+
+    const categoryDisplayMap = await resolveTournamentCategoryDisplayMap(
+      inscribedTournaments.map((inscription) => inscription.tournament.id),
+    )
+
+    return {
+      ...result,
+      inscribedTournaments: inscribedTournaments.map((inscription) => ({
+        ...inscription,
+        tournament: {
+          ...inscription.tournament,
+          category_name:
+            categoryDisplayMap[inscription.tournament.id] || inscription.tournament.category_name || '',
+        },
+      })),
+    }
   } catch (error) {
     console.error('Error calling edge function:', error)
     return {
