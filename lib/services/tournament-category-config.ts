@@ -435,7 +435,11 @@ export const categorizePlayerForTournament = async ({
       return { success: false, message: "Jugador no encontrado" }
     }
 
-    if (playerData.score !== null && playerData.score !== undefined) {
+    const hasAssignedScore = playerData.score !== null && playerData.score !== undefined
+    const hasAssignedCategory = typeof playerData.category_name === "string" && playerData.category_name.trim().length > 0
+    const isAlreadyCategorized = playerData.is_categorized === true && hasAssignedScore && hasAssignedCategory
+
+    if (isAlreadyCategorized) {
       return { success: true, message: "Jugador ya categorizado", alreadyCategorized: true }
     }
 

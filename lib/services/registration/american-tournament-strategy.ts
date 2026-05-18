@@ -262,6 +262,29 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
         }
       }
 
+      const categorizationResult = await this.categorizePlayers(playerData.id, playerData.id, context)
+      if (!categorizationResult.success) {
+        console.log(`⚠️ [AmericanStrategy] Advertencia en categorización autenticada: ${categorizationResult.error}`)
+      }
+
+      const { data: existingInscription } = await supabase
+        .from('inscriptions')
+        .select('id, couple_id, is_pending')
+        .eq('tournament_id', tournamentId)
+        .eq('player_id', playerData.id)
+        .maybeSingle()
+
+      if (existingInscription) {
+        if (existingInscription.is_pending) {
+          return { success: false, error: 'Ya tiene una solicitud pendiente para este torneo.' }
+        }
+
+        return {
+          success: false,
+          error: existingInscription.couple_id ? 'Ya inscrito como pareja.' : 'Ya inscrito.'
+        }
+      }
+
       // Registrar como individual con datos adicionales
       const { data: inscription, error: insertError } = await supabase
         .from('inscriptions')
@@ -286,7 +309,8 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
       return {
         success: true,
         inscriptionId: inscription.id,
-        playerId: playerData.id
+        playerId: playerData.id,
+        wasCategorized: categorizationResult.success
       }
 
     } catch (error) {

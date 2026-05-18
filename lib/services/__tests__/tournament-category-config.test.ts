@@ -227,6 +227,32 @@ describe("tournament-category-config", () => {
     expect(mock.state.lastUpdate).toBeNull()
   })
 
+  test("recategoriza jugadores legacy con score 0 pero sin categoria asignada", async () => {
+    const mock = createMockSupabase({
+      score: 0,
+      is_categorized: false,
+      category_name: null,
+    })
+
+    const result = await categorizePlayerForTournament({
+      playerId: "player-1",
+      supabase: mock.client,
+      tournament: {
+        category_name: "6ta",
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.wasCategorized).toBe(true)
+    expect(result.newScore).toBe(900)
+    expect(result.categoryName).toBe("6ta")
+    expect(mock.state.lastUpdate?.payload).toMatchObject({
+      score: 900,
+      category_name: "6ta",
+      is_categorized: true,
+    })
+  })
+
   test("valida parejas mixtas en modo estricto", () => {
     expect(validateMixedPairGender("MIXED", "MALE", "FEMALE")).toEqual({ success: true })
     expect(validateMixedPairGender("MIXED", "MALE", "MALE")).toEqual({
