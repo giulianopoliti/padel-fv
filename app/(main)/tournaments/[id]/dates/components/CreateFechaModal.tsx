@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import { Calendar, Loader2 } from 'lucide-react'
 import { TournamentFecha } from '../../schedules/types'
 import { toast } from 'sonner'
 import { createTournamentFecha, CreateFechaData } from '../actions'
+
+type RoundType = 'ZONE' | '32VOS' | '16VOS' | '8VOS' | '4TOS' | 'SEMIFINAL' | 'FINAL'
 
 interface CreateFechaModalProps {
   isOpen: boolean
@@ -33,7 +34,8 @@ export default function CreateFechaModal({
     description: '',
     start_date: '',
     end_date: '',
-    is_qualifying: true,
+    round_type: 'ZONE' as RoundType,
+    bracket_key: 'MAIN' as 'MAIN' | 'GOLD' | 'SILVER',
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -48,7 +50,8 @@ export default function CreateFechaModal({
         description: formData.description || undefined,
         start_date: formData.start_date || undefined,
         end_date: formData.end_date || undefined,
-        is_qualifying: formData.is_qualifying,
+        round_type: formData.round_type,
+        bracket_key: formData.round_type === 'ZONE' ? 'MAIN' : formData.bracket_key,
       }
 
       const result = await createTournamentFecha(fechaData)
@@ -56,14 +59,14 @@ export default function CreateFechaModal({
       if (result.success && result.data) {
         onSuccess(result.data as TournamentFecha)
         onClose()
-        
-        // Reset form
+
         setFormData({
           name: '',
           description: '',
           start_date: '',
           end_date: '',
-          is_qualifying: true,
+          round_type: 'ZONE',
+          bracket_key: 'MAIN',
         })
 
         toast.success(result.message || `Fecha ${nextFechaNumber} creada exitosamente`)
@@ -94,14 +97,12 @@ export default function CreateFechaModal({
             Nueva Fecha del Torneo
           </DialogTitle>
           <DialogDescription>
-            Crea una nueva fecha para organizar los partidos del torneo. 
+            Crea una nueva fecha para organizar los partidos del torneo.
             Fecha número: <strong>{nextFechaNumber}</strong>
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          
-          {/* Nombre */}
           <div className="space-y-2">
             <Label htmlFor="name">Nombre de la Fecha *</Label>
             <Input
@@ -114,7 +115,6 @@ export default function CreateFechaModal({
             />
           </div>
 
-          {/* Descripción */}
           <div className="space-y-2">
             <Label htmlFor="description">Descripción (opcional)</Label>
             <Textarea
@@ -127,7 +127,6 @@ export default function CreateFechaModal({
             />
           </div>
 
-          {/* Fechas */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="start_date">Fecha Inicio</Label>
@@ -139,7 +138,7 @@ export default function CreateFechaModal({
                 disabled={loading}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="end_date">Fecha Fin</Label>
               <Input
@@ -152,28 +151,53 @@ export default function CreateFechaModal({
             </div>
           </div>
 
-          {/* Tipo de fecha */}
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div className="space-y-1">
-              <Label htmlFor="is_qualifying">Fase Clasificatoria</Label>
-              <p className="text-xs text-gray-600">
-                {formData.is_qualifying ? 
-                  'Los partidos serán clasificatorios (sistema de zonas)' : 
-                  'Los partidos serán eliminatorios (sistema de llaves)'}
-              </p>
-            </div>
-            <Switch
-              id="is_qualifying"
-              checked={formData.is_qualifying}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_qualifying: checked }))}
+          <div className="space-y-2">
+            <Label htmlFor="round_type">Tipo de Ronda</Label>
+            <select
+              id="round_type"
+              value={formData.round_type}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                round_type: e.target.value as RoundType,
+                bracket_key: e.target.value === 'ZONE' ? 'MAIN' : prev.bracket_key
+              }))}
               disabled={loading}
-            />
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="ZONE">Qually (Zona)</option>
+              <option value="32VOS">32vos de Final</option>
+              <option value="16VOS">16vos de Final</option>
+              <option value="8VOS">8vos de Final</option>
+              <option value="4TOS">Cuartos de Final</option>
+              <option value="SEMIFINAL">Semifinal</option>
+              <option value="FINAL">Final</option>
+            </select>
           </div>
 
+          {formData.round_type !== 'ZONE' && (
+            <div className="space-y-2">
+              <Label htmlFor="bracket_key">Copa de la Llave</Label>
+              <select
+                id="bracket_key"
+                value={formData.bracket_key}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  bracket_key: e.target.value as 'MAIN' | 'GOLD' | 'SILVER'
+                }))}
+                disabled={loading}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="MAIN">Principal</option>
+                <option value="GOLD">Copa de Oro</option>
+                <option value="SILVER">Copa de Plata</option>
+              </select>
+            </div>
+          )}
+
           <DialogFooter className="flex gap-2">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={handleClose}
               disabled={loading}
             >

@@ -23,6 +23,7 @@ import {
 import { TournamentFecha } from '../../schedules/types'
 import { UserPermissions } from '@/hooks/use-tournament-permissions'
 import CreateTimeSlotModal from '../../schedules/components/CreateTimeSlotModal'
+import { getBracketLabel } from '../../schedules/utils'
 
 interface ActionsPanelProps {
   selectedFecha: TournamentFecha | undefined
@@ -213,7 +214,9 @@ export default function ActionsPanel({
                 <div>
                   <span className="font-medium text-gray-700">Tipo:</span>
                   <p className="text-gray-600 mt-1">
-                    {selectedFecha.is_qualifying ? 'Clasificatoria' : 'Eliminatoria'}
+                    {selectedFecha.round_type === 'ZONE'
+                      ? 'Clasificatoria'
+                      : `Eliminatoria (${getBracketLabel(selectedFecha.bracket_key)})`}
                   </p>
                 </div>
 

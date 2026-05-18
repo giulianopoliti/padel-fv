@@ -19,6 +19,9 @@ import type { BracketMatchV2 } from '@/components/tournament/bracket-v2/types/br
 import { toast } from 'sonner'
 import useSWR from 'swr'
 import { createClient } from '@/utils/supabase/client'
+import { useTournament } from '@/hooks/use-tournament'
+import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
+import type { BracketKey } from '@/types/tournament-format-v2'
 
 interface Club {
   id: string
@@ -71,7 +74,10 @@ function LongScheduleViewContent({
   roundSchedulingError,
   isLoading,
   refetchAll,
-  clubes
+  clubes,
+  isGoldSilverFormat,
+  activeBracketKey,
+  setActiveBracketKey
 }: {
   tournamentId: string
   selectedRound: Round | 'all'
@@ -93,6 +99,9 @@ function LongScheduleViewContent({
   isLoading: boolean
   refetchAll: () => void
   clubes: Club[]
+  isGoldSilverFormat: boolean
+  activeBracketKey: BracketKey
+  setActiveBracketKey: (key: BracketKey) => void
 }) {
 
   // Hook del contexto de drag & drop
@@ -146,13 +155,13 @@ function LongScheduleViewContent({
     console.log('🔍 [LongScheduleView] Bracket data received:', {
       totalMatches: bracketData.matches.length,
       sampleMatch: bracketData.matches[0],
-      matchesWithCouples: bracketData.matches.filter(m =>
-        m.participants?.slot1?.couple && m.participants?.slot2?.couple
-      ).length,
-      allMatches: bracketData.matches.map(m => ({
-        id: m.id,
-        round: m.round,
-        status: m.status,
+        matchesWithCouples: bracketData.matches.filter((m: BracketMatchV2) =>
+          m.participants?.slot1?.couple && m.participants?.slot2?.couple
+        ).length,
+        allMatches: bracketData.matches.map((m: BracketMatchV2) => ({
+          id: m.id,
+          round: m.round,
+          status: m.status,
         hasCouple1: !!m.participants?.slot1?.couple,
         hasCouple2: !!m.participants?.slot2?.couple
       }))
@@ -204,9 +213,9 @@ function LongScheduleViewContent({
 
     return {
       total: filteredMatches.length,
-      completed: filteredMatches.filter(m => m.status === 'FINISHED').length,
-      scheduled: filteredMatches.filter(m => m.status === 'NOT_STARTED' || m.status === 'IN_PROGRESS').length,
-      pending: filteredMatches.filter(m => m.status === 'PENDING').length
+      completed: filteredMatches.filter((m: BracketMatchV2) => m.status === 'FINISHED').length,
+      scheduled: filteredMatches.filter((m: BracketMatchV2) => m.status === 'IN_PROGRESS').length,
+      pending: filteredMatches.filter((m: BracketMatchV2) => m.status === 'PENDING').length
     }
   }, [filteredMatches])
 
@@ -252,7 +261,7 @@ function LongScheduleViewContent({
 
   // Handlers
   const handleScheduleMatch = (matchId: string) => {
-    const match = filteredMatches.find(m => m.id === matchId)
+    const match = filteredMatches.find((m: BracketMatchV2) => m.id === matchId)
     if (match) {
       const existingMatch = convertToExistingMatch(match)
       setScheduleMatch(existingMatch)
@@ -260,7 +269,7 @@ function LongScheduleViewContent({
   }
 
   const handleLoadResult = (matchId: string) => {
-    const match = filteredMatches.find(m => m.id === matchId)
+    const match = filteredMatches.find((m: BracketMatchV2) => m.id === matchId)
     if (match) {
       setResultMatch(match)
     }
@@ -420,6 +429,37 @@ function LongScheduleViewContent({
           />
         </CardContent>
       </Card>
+
+      {isGoldSilverFormat && selectedRound !== 'all' && (
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base">Copa de Llave</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={activeBracketKey === 'GOLD' ? 'default' : 'outline'}
+                onClick={() => setActiveBracketKey('GOLD')}
+              >
+                Copa de Oro
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={activeBracketKey === 'SILVER' ? 'default' : 'outline'}
+                onClick={() => setActiveBracketKey('SILVER')}
+              >
+                Copa de Plata
+              </Button>
+              <Badge variant="outline">
+                {activeBracketKey === 'GOLD' ? 'Mostrando Oro' : 'Mostrando Plata'}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Controles de reorganización */}
       {selectedRound !== 'all' && (
@@ -681,6 +721,25 @@ export default function LongScheduleView({ tournamentId }: LongScheduleViewProps
   const [resultMatch, setResultMatch] = useState<BracketMatchV2 | null>(null)
   const [isEditMode, setIsEditMode] = useState<boolean>(false)
   const [clubes, setClubes] = useState<Club[]>([])
+  const [activeBracketKey, setActiveBracketKey] = useState<BracketKey>('MAIN')
+
+  const { tournament } = useTournament(tournamentId)
+  const resolvedFormat = useMemo(() => {
+    if (!tournament) return null
+    return TournamentFormatResolver.getResolvedFormat(tournament)
+  }, [tournament])
+  const isGoldSilverFormat = resolvedFormat?.effectiveBracketMode === 'GOLD_SILVER'
+
+  useEffect(() => {
+    if (isGoldSilverFormat && activeBracketKey === 'MAIN') {
+      setActiveBracketKey('GOLD')
+      return
+    }
+
+    if (!isGoldSilverFormat && activeBracketKey !== 'MAIN') {
+      setActiveBracketKey('MAIN')
+    }
+  }, [isGoldSilverFormat, activeBracketKey])
 
   // Obtener clubes del torneo
   useEffect(() => {
@@ -691,9 +750,12 @@ export default function LongScheduleView({ tournamentId }: LongScheduleViewProps
         .select('clubes(id, name)')
         .eq('tournament_id', tournamentId)
 
-      const clubsList = (data || [])
-        .map(item => item.clubes)
-        .filter((club): club is Club => club !== null && typeof club === 'object')
+      const clubsList: Club[] = (data || []).flatMap((item: any) => {
+        const rawClub = item?.clubes
+        const club = Array.isArray(rawClub) ? rawClub[0] : rawClub
+        if (!club || typeof club !== 'object') return []
+        return [{ id: club.id, name: club.name }]
+      })
 
       setClubes(clubsList)
     }
@@ -715,6 +777,7 @@ export default function LongScheduleView({ tournamentId }: LongScheduleViewProps
   } = useLongBracketData(tournamentId, {
     selectedRound: selectedRound === 'all' ? undefined : selectedRound,
     selectedRoundType: selectedRound !== 'all' ? ROUND_TO_ENUM_MAP[selectedRound] : undefined,
+    bracketKey: selectedRound === 'all' ? undefined : activeBracketKey,
     includeSchedulingData: false
   })
 
@@ -741,6 +804,9 @@ export default function LongScheduleView({ tournamentId }: LongScheduleViewProps
         isLoading={isLoading}
         refetchAll={refetchAll}
         clubes={clubes}
+        isGoldSilverFormat={isGoldSilverFormat}
+        activeBracketKey={activeBracketKey}
+        setActiveBracketKey={setActiveBracketKey}
       />
     </BracketDragDropProvider>
   )

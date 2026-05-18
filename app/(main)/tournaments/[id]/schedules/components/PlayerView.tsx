@@ -14,9 +14,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { Clock, Users, Save, Check, AlertCircle, Info, CalendarDays, CalendarX } from 'lucide-react'
+import { Clock, Users, Save, Check, AlertCircle, Info, CalendarDays } from 'lucide-react'
 import { UserAccess, PlayerScheduleData, TimeSlot } from '../types'
-import { getPlayerScheduleData, updateCoupleAvailability, updateFreeDateAvailability } from '../actions'
+import { getPlayerScheduleData, updateCoupleAvailability } from '../actions'
 import { PlayerAvailabilitySkeleton } from './LoadingStates'
 import { InlineError } from './ErrorStates'
 import { toast } from 'sonner'
@@ -49,7 +49,7 @@ export default function PlayerView({
         if (result.success && result.data) {
           setScheduleData(result.data)
         } else {
-          setError(result.error || 'Error al cargar los datos')
+          setError(result.error || 'No se pudieron cargar los datos de disponibilidad')
         }
       } catch (err) {
         setError('Error inesperado al cargar los datos')
@@ -68,6 +68,10 @@ export default function PlayerView({
     notes?: string
   ) => {
     if (!scheduleData || !userAccess.coupleId) return
+    if (!scheduleData.can_edit_availability) {
+      toast.error(scheduleData.availability_restriction_reason || 'No puedes marcar disponibilidad en esta fecha.')
+      return
+    }
 
     startTransition(async () => {
       try {
@@ -111,52 +115,6 @@ export default function PlayerView({
     })
   }
 
-  const handleFreeDateChange = async (
-    isFreeDate: boolean,
-    notes?: string
-  ) => {
-    if (!scheduleData || !userAccess.coupleId) return
-
-    startTransition(async () => {
-      try {
-        const result = await updateFreeDateAvailability({
-          fecha_id: fechaId,
-          couple_id: userAccess.coupleId!,
-          is_free_date: isFreeDate,
-          notes: notes || null
-        })
-
-        if (result.success) {
-          setScheduleData(prev => {
-            if (!prev) return prev
-
-            return {
-              ...prev,
-              freeDateSlot: prev.freeDateSlot ? {
-                ...prev.freeDateSlot,
-                my_availability: isFreeDate ? {
-                  couple_id: userAccess.coupleId!,
-                  is_available: false,
-                  notes: notes || null
-                } : undefined
-              } : prev.freeDateSlot,
-              timeSlots: isFreeDate
-                ? prev.timeSlots.map(slot => ({ ...slot, my_availability: undefined }))
-                : prev.timeSlots
-            }
-          })
-
-          toast.success(isFreeDate ? 'FECHA LIBRE marcada correctamente' : 'FECHA LIBRE removida')
-        } else {
-          toast.error(result.error)
-        }
-      } catch (err) {
-        toast.error('Error inesperado al actualizar FECHA LIBRE')
-        console.error('Error updating free date:', err)
-      }
-    })
-  }
-
   const handleRetry = () => {
     setScheduleData(null)
     setError(null)
@@ -189,8 +147,12 @@ export default function PlayerView({
     )
   }
 
-  const { timeSlots, coupleInfo, freeDateSlot } = scheduleData
-  const isFreeDateMarked = Boolean(freeDateSlot?.my_availability && freeDateSlot.my_availability.is_available === false)
+  const {
+    timeSlots,
+    coupleInfo,
+    can_edit_availability: canEditAvailability = true,
+    availability_restriction_reason: availabilityRestrictionReason
+  } = scheduleData
 
   // Defensive check
   if (!coupleInfo) {
@@ -261,15 +223,23 @@ export default function PlayerView({
         </AccordionItem>
       </Accordion>
 
-      {/* Time Slots Availability */}
-      {freeDateSlot && (
-        <FreeDateAvailabilityCard
-          freeDateSlot={freeDateSlot}
-          onFreeDateChange={handleFreeDateChange}
-          isPending={isPending}
-        />
+      {!canEditAvailability && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">Disponibilidad en modo lectura</p>
+                <p className="text-sm text-amber-800">
+                  {availabilityRestrictionReason || 'Todavía no podés editar disponibilidad para esta fecha.'}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
+      {/* Time Slots Availability */}
       {timeSlots.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
@@ -288,108 +258,12 @@ export default function PlayerView({
               timeSlot={timeSlot}
               onAvailabilityChange={handleAvailabilityChange}
               isPending={isPending}
-              disabled={isFreeDateMarked}
+              disabledByPolicy={!canEditAvailability}
             />
           ))}
         </div>
       )}
     </div>
-  )
-}
-
-interface FreeDateAvailabilityCardProps {
-  freeDateSlot: TimeSlot & { my_availability?: { couple_id: string; is_available: boolean; notes?: string | null } }
-  onFreeDateChange: (isFreeDate: boolean, notes?: string) => void
-  isPending: boolean
-}
-
-function FreeDateAvailabilityCard({
-  freeDateSlot,
-  onFreeDateChange,
-  isPending
-}: FreeDateAvailabilityCardProps) {
-  const [isFreeDate, setIsFreeDate] = useState(Boolean(freeDateSlot.my_availability && freeDateSlot.my_availability.is_available === false))
-  const [notes, setNotes] = useState(freeDateSlot.my_availability?.notes || '')
-  const [hasChanges, setHasChanges] = useState(false)
-
-  const handleToggle = (checked: boolean) => {
-    setIsFreeDate(checked)
-    setHasChanges(true)
-  }
-
-  const handleNotesChange = (value: string) => {
-    setNotes(value)
-    setHasChanges(true)
-  }
-
-  const handleSave = () => {
-    onFreeDateChange(isFreeDate, notes)
-    setHasChanges(false)
-  }
-
-  return (
-    <Card className={`border-l-4 shadow-md ${isFreeDate ? 'border-l-red-500 bg-red-50/40' : 'border-l-amber-400 bg-amber-50/30'}`}>
-      <CardHeader className="pb-4">
-        <CardTitle className="flex items-center gap-3 text-xl">
-          <div className="p-2.5 bg-red-100 rounded-xl">
-            <CalendarX className="h-5 w-5 text-red-600" />
-          </div>
-          FECHA LIBRE
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <div className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${isFreeDate ? 'bg-red-50 border-red-300' : 'bg-white border-amber-200'}`}>
-          <Switch
-            id={`free-date-${freeDateSlot.id}`}
-            checked={isFreeDate}
-            onCheckedChange={handleToggle}
-            disabled={isPending}
-            className="data-[state=checked]:bg-red-600"
-          />
-          <Label
-            htmlFor={`free-date-${freeDateSlot.id}`}
-            className="text-base font-semibold cursor-pointer flex-1"
-          >
-            No podemos jugar esta fecha
-          </Label>
-          {freeDateSlot.my_availability && !hasChanges && (
-            <div className="flex items-center gap-1 bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium">
-              <Check className="h-3 w-3" />
-              <span>Guardado</span>
-            </div>
-          )}
-        </div>
-
-        {isFreeDate && (
-          <div className="space-y-2">
-            <Label htmlFor={`free-date-notes-${freeDateSlot.id}`} className="text-sm font-medium">
-              Observacion (opcional)
-            </Label>
-            <Textarea
-              id={`free-date-notes-${freeDateSlot.id}`}
-              placeholder="Ej: estamos de viaje, no llegamos ese dia, etc."
-              value={notes}
-              onChange={(e) => handleNotesChange(e.target.value)}
-              disabled={isPending}
-              rows={3}
-              className="resize-none bg-white"
-            />
-          </div>
-        )}
-
-        {hasChanges && (
-          <Button
-            onClick={handleSave}
-            disabled={isPending}
-            className="w-full sm:w-auto gap-2 shadow-md hover:shadow-lg transition-shadow"
-            size="lg"
-          >
-            <Save className="h-4 w-4" />
-            {isPending ? 'Guardando...' : 'Guardar FECHA LIBRE'}
-          </Button>
-        )}
-      </CardContent>
-    </Card>
   )
 }
 
@@ -400,14 +274,14 @@ interface TimeSlotAvailabilityCardProps {
   }
   onAvailabilityChange: (timeSlotId: string, isAvailable: boolean, notes?: string) => void
   isPending: boolean
-  disabled?: boolean
+  disabledByPolicy?: boolean
 }
 
 function TimeSlotAvailabilityCard({
   timeSlot,
   onAvailabilityChange,
   isPending,
-  disabled = false
+  disabledByPolicy = false
 }: TimeSlotAvailabilityCardProps) {
   const [isAvailable, setIsAvailable] = useState(timeSlot.my_availability?.is_available || false)
   const [notes, setNotes] = useState(timeSlot.my_availability?.notes || '')
@@ -428,7 +302,7 @@ function TimeSlotAvailabilityCard({
     setHasChanges(false)
   }
 
-  const availableCount = timeSlot.couple_availabilities?.filter(ca => ca.is_available).length || 0
+  const availableCount = timeSlot.couple_availabilities?.filter((ca: { is_available: boolean }) => ca.is_available).length || 0
   const totalCouples = timeSlot.couple_availabilities?.length || 0
   const availabilityPercentage = totalCouples > 0 ? (availableCount / totalCouples) * 100 : 0
 
@@ -478,7 +352,7 @@ function TimeSlotAvailabilityCard({
               id={`available-${timeSlot.id}`}
               checked={isAvailable}
               onCheckedChange={handleAvailabilityToggle}
-              disabled={isPending || disabled}
+              disabled={isPending || disabledByPolicy}
               className="data-[state=checked]:bg-green-600"
             />
             <Label
@@ -490,16 +364,10 @@ function TimeSlotAvailabilityCard({
             {timeSlot.my_availability?.is_available && !hasChanges && (
               <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
                 <Check className="h-3 w-3" />
-                  <span>Guardado</span>
-                </div>
+                <span>Guardado</span>
+              </div>
             )}
           </div>
-
-          {disabled && (
-            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
-              Desmarca FECHA LIBRE para cargar horarios disponibles.
-            </div>
-          )}
 
           {/* Notes - Now with Accordion for cleaner look */}
           {isAvailable && (
@@ -518,7 +386,7 @@ function TimeSlotAvailabilityCard({
                       placeholder="Ej: Solo después de las 18h, preferimos temprano, etc."
                       value={notes}
                       onChange={(e) => handleNotesChange(e.target.value)}
-                      disabled={isPending || disabled}
+                      disabled={isPending || disabledByPolicy}
                       rows={3}
                       className="resize-none"
                     />
@@ -532,8 +400,7 @@ function TimeSlotAvailabilityCard({
           {hasChanges && (
             <Button
               onClick={handleSave}
-              disabled={isPending}
-              aria-disabled={disabled}
+              disabled={isPending || disabledByPolicy}
               className="w-full sm:w-auto gap-2 shadow-md hover:shadow-lg transition-shadow"
               size="lg"
             >

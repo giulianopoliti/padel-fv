@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
 
 export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
@@ -12,7 +13,7 @@ export async function GET(
     // Obtener estado del torneo
     const { data: tournament, error: tournamentError } = await supabase
       .from('tournaments')
-      .select('status, winner_id, end_date')
+      .select('status, winner_id, end_date, type, format_type, format_config')
       .eq('id', tournamentId)
       .single()
 
@@ -23,13 +24,20 @@ export async function GET(
       }, { status: 404 })
     }
 
+    const resolvedFormat = TournamentFormatResolver.getResolvedFormat(tournament || {})
+    const winnerBracketKey = resolvedFormat.effectiveBracketMode === 'GOLD_SILVER' ? 'GOLD' : 'MAIN'
+
     // Verificar si hay final terminada
-    const { data: finalMatch, error: finalError } = await supabase
+    let finalMatchQuery = supabase
       .from('matches')
       .select('id, status, winner_id, round')
       .eq('tournament_id', tournamentId)
       .eq('round', 'FINAL')
-      .single()
+      .eq('type', 'ELIMINATION')
+      .eq('bracket_key', winnerBracketKey)
+      .maybeSingle()
+
+    const { data: finalMatch } = await finalMatchQuery
 
     const finalCompleted = finalMatch && finalMatch.status === 'FINISHED'
     const isFinalized = ['FINISHED_POINTS_PENDING', 'FINISHED_POINTS_CALCULATED'].includes(tournament.status)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown, Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -16,7 +16,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { TournamentFecha } from '../types'
-import { formatDate } from '../utils'
+import { formatDate, getBracketBadgeClass, getBracketLabel } from '../utils'
 import { LoadingSpinner } from './LoadingStates'
 
 interface FechaSelectorProps {
@@ -33,8 +33,17 @@ export default function FechaSelector({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
+  const [bracketFilter, setBracketFilter] = useState<'ALL' | 'MAIN' | 'GOLD' | 'SILVER'>('ALL')
   
   const selectedFecha = fechas.find(f => f.id === selectedFechaId)
+  const hasBracketSplit = fechas.some(f => f.bracket_key === 'GOLD' || f.bracket_key === 'SILVER')
+
+  const filteredFechas = useMemo(() => {
+    if (bracketFilter === 'ALL') return fechas
+    return fechas.filter(fecha => fecha.bracket_key === bracketFilter)
+  }, [fechas, bracketFilter])
+
+  const selectableFechas = filteredFechas.length > 0 ? filteredFechas : fechas
 
   const handleFechaChange = (fechaId: string) => {
     startTransition(() => {
@@ -101,12 +110,17 @@ export default function FechaSelector({
                   {isPending && <LoadingSpinner size="sm" />}
                 </SelectTrigger>
                 <SelectContent>
-                  {fechas.map((fecha) => (
+                  {selectableFechas.map((fecha) => (
                     <SelectItem key={fecha.id} value={fecha.id}>
                       <div className="flex items-center gap-3 py-1">
                         <div className="flex flex-col">
-                          <span className="font-semibold">
+                          <span className="font-semibold flex items-center gap-2">
                             {fecha.name} (Fecha {fecha.fecha_number})
+                            {fecha.round_type !== 'ZONE' && (
+                              <span className={`px-2 py-0.5 rounded border text-[10px] font-semibold ${getBracketBadgeClass(fecha.bracket_key)}`}>
+                                {getBracketLabel(fecha.bracket_key)}
+                              </span>
+                            )}
                           </span>
                           {fecha.description && (
                             <span className="text-xs text-muted-foreground">
@@ -122,15 +136,15 @@ export default function FechaSelector({
             </div>
 
             {/* Quick navigation for adjacent fechas */}
-            {fechas.length > 1 && (
+            {selectableFechas.length > 1 && (
               <div className="flex gap-2">
                 <Button
                   variant="outline"
                   size="default"
                   onClick={() => {
-                    const currentIndex = fechas.findIndex(f => f.id === selectedFechaId)
-                    const prevIndex = currentIndex > 0 ? currentIndex - 1 : fechas.length - 1
-                    handleFechaChange(fechas[prevIndex].id)
+                    const currentIndex = selectableFechas.findIndex(f => f.id === selectedFechaId)
+                    const prevIndex = currentIndex > 0 ? currentIndex - 1 : selectableFechas.length - 1
+                    handleFechaChange(selectableFechas[prevIndex].id)
                   }}
                   disabled={isPending}
                   className="gap-1 border-2"
@@ -142,9 +156,9 @@ export default function FechaSelector({
                   variant="outline"
                   size="default"
                   onClick={() => {
-                    const currentIndex = fechas.findIndex(f => f.id === selectedFechaId)
-                    const nextIndex = currentIndex < fechas.length - 1 ? currentIndex + 1 : 0
-                    handleFechaChange(fechas[nextIndex].id)
+                    const currentIndex = selectableFechas.findIndex(f => f.id === selectedFechaId)
+                    const nextIndex = currentIndex < selectableFechas.length - 1 ? currentIndex + 1 : 0
+                    handleFechaChange(selectableFechas[nextIndex].id)
                   }}
                   disabled={isPending}
                   className="gap-1 border-2"
@@ -157,6 +171,47 @@ export default function FechaSelector({
           </div>
         </CardContent>
       </Card>
+
+      {hasBracketSplit && (
+        <Card className="border border-slate-200">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={bracketFilter === 'ALL' ? 'default' : 'outline'}
+                onClick={() => setBracketFilter('ALL')}
+              >
+                Todas
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={bracketFilter === 'GOLD' ? 'default' : 'outline'}
+                onClick={() => setBracketFilter('GOLD')}
+              >
+                Copa de Oro
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={bracketFilter === 'SILVER' ? 'default' : 'outline'}
+                onClick={() => setBracketFilter('SILVER')}
+              >
+                Copa de Plata
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={bracketFilter === 'MAIN' ? 'default' : 'outline'}
+                onClick={() => setBracketFilter('MAIN')}
+              >
+                Principal
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Selected Fecha Info */}
       {selectedFecha && (
@@ -177,6 +232,11 @@ export default function FechaSelector({
                   {selectedFecha.round_type === 'ZONE' && (
                     <Badge variant="outline" className="border-2 border-purple-300 text-purple-700 font-medium">
                       Clasificatoria
+                    </Badge>
+                  )}
+                  {selectedFecha.round_type !== 'ZONE' && (
+                    <Badge variant="outline" className={getBracketBadgeClass(selectedFecha.bracket_key)}>
+                      {getBracketLabel(selectedFecha.bracket_key)}
                     </Badge>
                   )}
                 </div>

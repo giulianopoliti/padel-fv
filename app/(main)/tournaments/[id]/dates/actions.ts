@@ -3,17 +3,18 @@
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { checkTournamentPermissions } from "@/utils/tournament-permissions"
+import {
+  type FechaBracketKey,
+  type FechaRoundType,
+  resolveFechaBracketKeyForTournament,
+} from "@/lib/services/fecha-bracket-policy"
 
 // Helper: Convert date to ensure correct storage for Argentina timezone
 const adjustDateForArgentina = (dateString: string): string => {
   // dateString comes as YYYY-MM-DD from HTML date input
   // We need to ensure it's stored as the correct date in Argentina timezone
-
-  // Create a date object interpreted in Argentina timezone (GMT-3)
-  // by appending time and timezone info
   const argentinaDate = new Date(dateString + 'T12:00:00-03:00')
 
-  // Convert back to YYYY-MM-DD format
   const year = argentinaDate.getFullYear()
   const month = String(argentinaDate.getMonth() + 1).padStart(2, '0')
   const day = String(argentinaDate.getDate()).padStart(2, '0')
@@ -28,7 +29,9 @@ export interface CreateFechaData {
   description?: string
   start_date?: string
   end_date?: string
-  round_type: 'ZONE' | '32VOS' | '16VOS' | '8VOS' | '4TOS' | 'SEMIFINAL' | 'FINAL'
+  round_type: FechaRoundType
+  bracket_key?: FechaBracketKey
+  max_matches_per_couple?: number
 }
 
 export interface ActionResult<T = any> {
@@ -46,7 +49,9 @@ export interface TournamentFecha {
   description?: string
   start_date?: string
   end_date?: string
-  round_type: 'ZONE' | '32VOS' | '16VOS' | '8VOS' | '4TOS' | 'SEMIFINAL' | 'FINAL'
+  round_type: FechaRoundType
+  bracket_key: FechaBracketKey
+  max_matches_per_couple?: number | null
   status: string
   created_at: string
   updated_at: string
@@ -67,7 +72,7 @@ export async function createTournamentFecha(
 ): Promise<ActionResult<any>> {
   try {
     const supabase = await createClient()
-    
+
     // Verify user authentication
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -116,6 +121,31 @@ export async function createTournamentFecha(
       }
     }
 
+    const { data: tournament, error: tournamentError } = await supabase
+      .from('tournaments')
+      .select('status, type, format_config')
+      .eq('id', fechaData.tournament_id)
+      .single()
+
+    if (tournamentError || !tournament) {
+      return {
+        success: false,
+        error: 'No se pudo validar la configuración del torneo para crear la fecha.'
+      }
+    }
+
+    const bracketScopeResolution = resolveFechaBracketKeyForTournament(tournament, {
+      roundType: fechaData.round_type,
+      requestedBracketKey: fechaData.bracket_key,
+    })
+
+    if (!bracketScopeResolution.ok) {
+      return {
+        success: false,
+        error: bracketScopeResolution.error || 'Configuración de copa inválida para esta fecha.'
+      }
+    }
+
     // Prepare fecha data for insertion with timezone adjustment
     const fechaToInsert = {
       tournament_id: fechaData.tournament_id,
@@ -125,6 +155,8 @@ export async function createTournamentFecha(
       start_date: fechaData.start_date ? adjustDateForArgentina(fechaData.start_date) : null,
       end_date: fechaData.end_date ? adjustDateForArgentina(fechaData.end_date) : null,
       round_type: fechaData.round_type,
+      bracket_key: bracketScopeResolution.bracketKey,
+      max_matches_per_couple: fechaData.max_matches_per_couple ?? null,
       status: 'NOT_STARTED'
     }
 
@@ -139,48 +171,27 @@ export async function createTournamentFecha(
       throw insertError
     }
 
-    // 🆕 NUEVA LÓGICA: Transición automática a ZONE_PHASE para torneos largos
+    // Transition to ZONE_PHASE automatically for long tournaments when first ZONE fecha is created
     if (newFecha && fechaData.round_type === 'ZONE') {
-      console.log(`[createTournamentFecha] 🔄 ZONE fecha created, checking tournament transition...`)
+      console.log(`[createTournamentFecha] ZONE fecha created, checking tournament transition...`)
 
       try {
-        // Obtener información del torneo
-        const { data: tournament, error: tournamentError } = await supabase
-          .from('tournaments')
-          .select('status, type')
-          .eq('id', fechaData.tournament_id)
-          .single()
+        if (tournament.type === 'LONG' && tournament.status === 'NOT_STARTED') {
+          console.log(`[createTournamentFecha] Transitioning LONG tournament to ZONE_PHASE...`)
 
-        if (tournamentError) {
-          console.warn('[createTournamentFecha] Error fetching tournament info:', tournamentError)
-        } else if (tournament) {
-          console.log(`[createTournamentFecha] Tournament info:`, {
-            type: tournament.type,
-            status: tournament.status
-          })
+          const { error: statusUpdateError } = await supabase
+            .from('tournaments')
+            .update({ status: 'ZONE_PHASE' })
+            .eq('id', fechaData.tournament_id)
 
-          // Solo cambiar estado para torneos largos en NOT_STARTED
-          if (tournament.type === 'LONG' && tournament.status === 'NOT_STARTED') {
-            console.log(`[createTournamentFecha] 🎯 Transitioning LONG tournament to ZONE_PHASE...`)
-
-            const { error: statusUpdateError } = await supabase
-              .from('tournaments')
-              .update({ status: 'ZONE_PHASE' })
-              .eq('id', fechaData.tournament_id)
-
-            if (statusUpdateError) {
-              console.warn('[createTournamentFecha] ⚠️ Error updating tournament status to ZONE_PHASE:', statusUpdateError)
-              // No fallar la creación de fecha por esto
-            } else {
-              console.log(`[createTournamentFecha] ✅ Tournament ${fechaData.tournament_id} successfully transitioned to ZONE_PHASE`)
-            }
+          if (statusUpdateError) {
+            console.warn('[createTournamentFecha] Error updating tournament status to ZONE_PHASE:', statusUpdateError)
           } else {
-            console.log(`[createTournamentFecha] ⏸️ Skipping transition: type=${tournament.type}, status=${tournament.status}`)
+            console.log(`[createTournamentFecha] Tournament ${fechaData.tournament_id} transitioned to ZONE_PHASE`)
           }
         }
       } catch (transitionError) {
-        console.error('[createTournamentFecha] ❌ Error in tournament status transition:', transitionError)
-        // No fallar la creación de fecha por errores de transición
+        console.error('[createTournamentFecha] Error in tournament status transition:', transitionError)
       }
     }
 
@@ -210,7 +221,8 @@ export async function createTournamentFecha(
  */
 export async function getFechasByRoundType(
   tournamentId: string,
-  roundType: 'ZONE' | '32VOS' | '16VOS' | '8VOS' | '4TOS' | 'SEMIFINAL' | 'FINAL'
+  roundType: FechaRoundType,
+  bracketKey?: FechaBracketKey
 ): Promise<ActionResult<TournamentFecha[]>> {
   try {
     const supabase = await createClient()
@@ -225,12 +237,18 @@ export async function getFechasByRoundType(
     }
 
     // Query fechas by tournament and round type
-    const { data: fechas, error: queryError } = await supabase
+    let query = supabase
       .from('tournament_fechas')
       .select('*')
       .eq('tournament_id', tournamentId)
       .eq('round_type', roundType)
       .order('fecha_number', { ascending: true })
+
+    if (bracketKey) {
+      query = query.eq('bracket_key', bracketKey)
+    }
+
+    const { data: fechas, error: queryError } = await query
 
     if (queryError) {
       throw queryError
@@ -256,7 +274,8 @@ export async function getFechasByRoundType(
  */
 export async function getTimeSlotsForRound(
   tournamentId: string,
-  roundType: 'ZONE' | '32VOS' | '16VOS' | '8VOS' | '4TOS' | 'SEMIFINAL' | 'FINAL'
+  roundType: FechaRoundType,
+  bracketKey?: FechaBracketKey
 ): Promise<ActionResult<any[]>> {
   try {
     const supabase = await createClient()
@@ -271,11 +290,17 @@ export async function getTimeSlotsForRound(
     }
 
     // First get fechas of the specified round type
-    const { data: fechas, error: fechasError } = await supabase
+    let fechasQuery = supabase
       .from('tournament_fechas')
       .select('id')
       .eq('tournament_id', tournamentId)
       .eq('round_type', roundType)
+
+    if (bracketKey) {
+      fechasQuery = fechasQuery.eq('bracket_key', bracketKey)
+    }
+
+    const { data: fechas, error: fechasError } = await fechasQuery
 
     if (fechasError) {
       throw fechasError
@@ -299,11 +324,11 @@ export async function getTimeSlotsForRound(
           id,
           tournament_id,
           round_type,
+          bracket_key,
           name
         )
       `)
       .in('fecha_id', fechaIds)
-      .eq('slot_type', 'TIME_RANGE')
       .order('date', { ascending: true })
       .order('start_time', { ascending: true })
 
@@ -320,8 +345,6 @@ export async function getTimeSlotsForRound(
       end_time: slot.end_time,
       court_name: slot.court_name,
       max_matches: slot.max_matches,
-      slot_type: slot.slot_type || 'TIME_RANGE',
-      is_system: Boolean(slot.is_system),
       fecha: slot.fecha
     }))
 

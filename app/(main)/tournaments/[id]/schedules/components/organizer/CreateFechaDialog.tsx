@@ -23,34 +23,41 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Calendar, Loader2, AlertCircle } from 'lucide-react'
 import { TournamentFecha } from '../../types'
 import { createTournamentFecha } from '../../../schedule-management/actions'
 import type { CreateFechaData } from '../../../schedule-management/types'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from 'sonner'
+import { resolveFechaBracketKeyForTournament } from '@/lib/services/fecha-bracket-policy'
 
+type RoundType = 'ZONE' | '32VOS' | '16VOS' | '8VOS' | '4TOS' | 'SEMIFINAL' | 'FINAL'
+type BracketKey = 'MAIN' | 'GOLD' | 'SILVER'
 
-// Definir tipos base fuera del componente para evitar problemas de ciclo
-const baseCreateFechaSchema = z.object({
+interface RoundSelectionOption {
+  value: string
+  roundType: RoundType
+  bracketKey: BracketKey
+  label: string
+}
+
+const createFechaSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   description: z.string().optional(),
   start_date: z.string().optional(),
   end_date: z.string().optional(),
-  round_type: z.enum(['ZONE', '32VOS', '16VOS', '8VOS', '4TOS', 'SEMIFINAL', 'FINAL']).default('ZONE'),
-  max_matches_per_couple: z.number().min(1).max(10).default(3),
+  round_selection: z.string().min(1, 'Selecciona una ronda'),
 }).refine((data) => {
   if (data.start_date && data.end_date) {
     return new Date(data.start_date) <= new Date(data.end_date)
   }
   return true
 }, {
-  message: "La fecha de fin debe ser posterior a la fecha de inicio",
-  path: ["end_date"],
+  message: 'La fecha de fin debe ser posterior a la fecha de inicio',
+  path: ['end_date'],
 })
 
-type CreateFechaFormData = z.infer<typeof baseCreateFechaSchema>
+type CreateFechaFormData = z.infer<typeof createFechaSchema>
 
 interface CreateFechaDialogProps {
   tournamentId: string
@@ -58,6 +65,16 @@ interface CreateFechaDialogProps {
   onClose: () => void
   onFechaCreated: (fecha: TournamentFecha) => void
   nextFechaNumber: number
+}
+
+const ROUND_LABELS: Record<RoundType, string> = {
+  ZONE: 'Qually (Clasificatoria)',
+  '32VOS': '32vos de Final',
+  '16VOS': '16vos de Final',
+  '8VOS': '8vos de Final',
+  '4TOS': 'Cuartos de Final',
+  SEMIFINAL: 'Semifinal',
+  FINAL: 'Final',
 }
 
 export default function CreateFechaDialog({
@@ -69,50 +86,92 @@ export default function CreateFechaDialog({
 }: CreateFechaDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // Estado para rondas disponibles
-  const [availableRounds, setAvailableRounds] = useState<string[]>(['ZONE']) // Siempre incluir ZONE
+  const [availableRounds, setAvailableRounds] = useState<RoundType[]>(['ZONE'])
   const [roundsLoading, setRoundsLoading] = useState(false)
+  const [isGoldSilverLong, setIsGoldSilverLong] = useState(false)
 
-  // Función simple para obtener solo las rondas del bracket
+  const roundSelectionOptions = useMemo<RoundSelectionOption[]>(() => {
+    const options: RoundSelectionOption[] = []
+
+    for (const round of availableRounds) {
+      if (round === 'ZONE') {
+        options.push({
+          value: 'ZONE:MAIN',
+          roundType: 'ZONE',
+          bracketKey: 'MAIN',
+          label: ROUND_LABELS.ZONE,
+        })
+        continue
+      }
+
+      if (isGoldSilverLong) {
+        options.push(
+          {
+            value: `${round}:GOLD`,
+            roundType: round,
+            bracketKey: 'GOLD',
+            label: `${ROUND_LABELS[round]} (Copa de Oro)`,
+          },
+          {
+            value: `${round}:SILVER`,
+            roundType: round,
+            bracketKey: 'SILVER',
+            label: `${ROUND_LABELS[round]} (Copa de Plata)`,
+          }
+        )
+      } else {
+        options.push({
+          value: `${round}:MAIN`,
+          roundType: round,
+          bracketKey: 'MAIN',
+          label: ROUND_LABELS[round],
+        })
+      }
+    }
+
+    return options
+  }, [availableRounds, isGoldSilverLong])
+
+  const form = useForm<CreateFechaFormData>({
+    resolver: zodResolver(createFechaSchema),
+    defaultValues: {
+      name: '',
+      description: '',
+      start_date: '',
+      end_date: '',
+      round_selection: 'ZONE:MAIN',
+    },
+  })
+
   useEffect(() => {
     const fetchAvailableRounds = async () => {
       setRoundsLoading(true)
       try {
         const supabase = createClientComponentClient()
-
-        // Solo obtener las rondas únicas de los matches
-        const { data: matches, error } = await supabase
+        const { data: matches, error: fetchError } = await supabase
           .from('matches')
           .select('round')
           .eq('tournament_id', tournamentId)
           .not('round', 'is', null)
 
-        if (error) {
-          console.error('Error fetching rounds:', error)
+        if (fetchError) {
+          console.error('Error fetching rounds:', fetchError)
           return
         }
 
-        const bracketRounds = new Set<string>()
-        matches?.forEach(match => {
+        const bracketRounds = new Set<RoundType>()
+        matches?.forEach((match) => {
           if (match.round) {
-            bracketRounds.add(match.round)
+            bracketRounds.add(match.round as RoundType)
           }
         })
 
-        // Siempre incluir ZONE (para clasificatorias/qualify) + rondas del bracket
-        const allRounds = new Set(['ZONE', ...Array.from(bracketRounds)])
-
-        // Ordenar por jerarquía
-        const orderedRounds = ['ZONE', '32VOS', '16VOS', '8VOS', '4TOS', 'SEMIFINAL', 'FINAL']
-        const sortedRounds = Array.from(allRounds).sort((a, b) => {
-          return orderedRounds.indexOf(a) - orderedRounds.indexOf(b)
-        })
-
+        const allRounds = new Set<RoundType>(['ZONE', ...Array.from(bracketRounds)])
+        const orderedRounds: RoundType[] = ['ZONE', '32VOS', '16VOS', '8VOS', '4TOS', 'SEMIFINAL', 'FINAL']
+        const sortedRounds = Array.from(allRounds).sort((a, b) => orderedRounds.indexOf(a) - orderedRounds.indexOf(b))
         setAvailableRounds(sortedRounds)
-
-      } catch (error) {
-        console.error('Error fetching available rounds:', error)
+      } catch (fetchError) {
+        console.error('Error fetching available rounds:', fetchError)
       } finally {
         setRoundsLoading(false)
       }
@@ -123,47 +182,59 @@ export default function CreateFechaDialog({
     }
   }, [tournamentId])
 
-  // Crear esquema dinámico basado en rondas disponibles
-  const dynamicCreateFechaSchema = useMemo(() => {
-    const availableRoundValues = availableRounds.length > 0
-      ? availableRounds as Array<'ZONE' | '32VOS' | '16VOS' | '8VOS' | '4TOS' | 'SEMIFINAL' | 'FINAL'>
-      : ['ZONE'] as const // fallback si no hay rondas
+  useEffect(() => {
+    const fetchTournamentFormat = async () => {
+      try {
+        const supabase = createClientComponentClient()
+        const { data: tournament } = await supabase
+          .from('tournaments')
+          .select('type, format_config')
+          .eq('id', tournamentId)
+          .single()
 
-    return z.object({
-      name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
-      description: z.string().optional(),
-      start_date: z.string().optional(),
-      end_date: z.string().optional(),
-      round_type: z.enum(availableRoundValues as [string, ...string[]]).default(availableRoundValues[0] || 'ZONE'),
-      max_matches_per_couple: z.number().min(1).max(10).default(3),
-    }).refine((data) => {
-      if (data.start_date && data.end_date) {
-        return new Date(data.start_date) <= new Date(data.end_date)
+        if (!tournament) {
+          setIsGoldSilverLong(false)
+          return
+        }
+
+        const checkResult = resolveFechaBracketKeyForTournament(tournament as any, {
+          roundType: 'SEMIFINAL',
+          requestedBracketKey: 'GOLD',
+        })
+
+        setIsGoldSilverLong(tournament.type === 'LONG' && checkResult.ok)
+      } catch (fetchError) {
+        console.error('Error fetching tournament format:', fetchError)
+        setIsGoldSilverLong(false)
       }
-      return true
-    }, {
-      message: "La fecha de fin debe ser posterior a la fecha de inicio",
-      path: ["end_date"],
-    })
-  }, [availableRounds])
+    }
 
-  const form = useForm<CreateFechaFormData>({
-    resolver: zodResolver(dynamicCreateFechaSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-      start_date: '',
-      end_date: '',
-      round_type: availableRounds[0] || 'ZONE',
-      max_matches_per_couple: 3,
-    },
-  })
+    if (tournamentId) {
+      fetchTournamentFormat()
+    }
+  }, [tournamentId])
+
+  useEffect(() => {
+    const currentValue = form.getValues('round_selection')
+    const exists = roundSelectionOptions.some((option) => option.value === currentValue)
+    if (!exists && roundSelectionOptions.length > 0) {
+      form.setValue('round_selection', roundSelectionOptions[0].value, { shouldValidate: true })
+    }
+  }, [form, roundSelectionOptions])
 
   const onSubmit = async (data: CreateFechaFormData) => {
     setIsSubmitting(true)
     setError(null)
 
     try {
+      const selectedOption = roundSelectionOptions.find(option => option.value === data.round_selection)
+      if (!selectedOption) {
+        const message = 'Selecciona una ronda válida antes de crear la fecha.'
+        setError(message)
+        toast.error(message)
+        return
+      }
+
       const fechaData: CreateFechaData = {
         tournament_id: tournamentId,
         fecha_number: nextFechaNumber,
@@ -171,24 +242,32 @@ export default function CreateFechaDialog({
         description: data.description || undefined,
         start_date: data.start_date || undefined,
         end_date: data.end_date || undefined,
-        round_type: data.round_type,
-        max_matches_per_couple: data.max_matches_per_couple,
+        round_type: selectedOption.roundType,
+        bracket_key: selectedOption.bracketKey,
       }
 
       const result = await createTournamentFecha(fechaData)
-
       if (result.success && result.data) {
         onFechaCreated(result.data as TournamentFecha)
         toast.success(`Fecha ${nextFechaNumber} creada exitosamente`)
-        form.reset()
+        form.reset({
+          name: '',
+          description: '',
+          start_date: '',
+          end_date: '',
+          round_selection: roundSelectionOptions[0]?.value || 'ZONE:MAIN',
+        })
         onClose()
-      } else {
-        throw new Error(result.error || 'Error desconocido al crear la fecha')
+        return
       }
 
-    } catch (error: any) {
-      console.error('Error creating fecha:', error)
-      setError(error.message || 'Error al crear la fecha. Intenta nuevamente.')
+      const message = result.error || 'No se pudo crear la fecha'
+      setError(message)
+      toast.error(message)
+    } catch (submitError: any) {
+      console.error('Error creating fecha:', submitError)
+      setError('Error inesperado al crear la fecha. Intenta nuevamente.')
+      toast.error('Error inesperado al crear la fecha.')
     } finally {
       setIsSubmitting(false)
     }
@@ -196,16 +275,21 @@ export default function CreateFechaDialog({
 
   const handleClose = () => {
     if (!isSubmitting) {
-      form.reset()
+      form.reset({
+        name: '',
+        description: '',
+        start_date: '',
+        end_date: '',
+        round_selection: roundSelectionOptions[0]?.value || 'ZONE:MAIN',
+      })
       setError(null)
       onClose()
     }
   }
 
-
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-blue-600" />
@@ -218,7 +302,6 @@ export default function CreateFechaDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Error Display */}
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -226,7 +309,6 @@ export default function CreateFechaDialog({
               </Alert>
             )}
 
-            {/* Name */}
             <FormField
               control={form.control}
               name="name"
@@ -245,7 +327,6 @@ export default function CreateFechaDialog({
               )}
             />
 
-            {/* Description */}
             <FormField
               control={form.control}
               name="description"
@@ -265,7 +346,6 @@ export default function CreateFechaDialog({
               )}
             />
 
-            {/* Date Range */}
             <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
@@ -274,11 +354,7 @@ export default function CreateFechaDialog({
                   <FormItem>
                     <FormLabel>Fecha Inicio</FormLabel>
                     <FormControl>
-                      <Input
-                        type="date"
-                        disabled={isSubmitting}
-                        {...field}
-                      />
+                      <Input type="date" disabled={isSubmitting} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -292,11 +368,7 @@ export default function CreateFechaDialog({
                   <FormItem>
                     <FormLabel>Fecha Fin</FormLabel>
                     <FormControl>
-                      <Input
-                        type="date"
-                        disabled={isSubmitting}
-                        {...field}
-                      />
+                      <Input type="date" disabled={isSubmitting} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -304,35 +376,12 @@ export default function CreateFechaDialog({
               />
             </div>
 
-            {/* Max Matches per Couple */}
             <FormField
               control={form.control}
-              name="max_matches_per_couple"
+              name="round_selection"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Máximo partidos por pareja</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={10}
-                      disabled={isSubmitting}
-                      {...field}
-                      onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Round Type - Dinámico basado en bracket */}
-            <FormField
-              control={form.control}
-              name="round_type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tipo de Ronda</FormLabel>
+                  <FormLabel>Ronda</FormLabel>
                   <FormControl>
                     <select
                       value={field.value}
@@ -342,44 +391,27 @@ export default function CreateFechaDialog({
                     >
                       {roundsLoading ? (
                         <option value="">Cargando rondas disponibles...</option>
-                      ) : availableRounds.length > 0 ? (
-                        availableRounds.map((round) => {
-                          const labels: Record<string, string> = {
-                            'ZONE': 'QUALLY (Clasificatoria)',
-                            '32VOS': '32vos de Final',
-                            '16VOS': '16vos de Final',
-                            '8VOS': '8vos de Final',
-                            '4TOS': 'Cuartos de Final',
-                            'SEMIFINAL': 'Semifinal',
-                            'FINAL': 'Final'
-                          }
-                          return (
-                            <option key={round} value={round}>
-                              {labels[round] || round}
-                            </option>
-                          )
-                        })
+                      ) : roundSelectionOptions.length > 0 ? (
+                        roundSelectionOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))
                       ) : (
-                        <option value="ZONE">QUALLY (Clasificatoria) - Por defecto</option>
+                        <option value="ZONE:MAIN">Qually (Clasificatoria)</option>
                       )}
                     </select>
                   </FormControl>
                   <FormMessage />
-                  {availableRounds.length === 0 && !roundsLoading && (
+                  {isGoldSilverLong && (
                     <p className="text-sm text-muted-foreground">
-                      No se encontraron rondas en el bracket. Se usará "Zona" por defecto.
-                    </p>
-                  )}
-                  {availableRounds.length > 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      Rondas disponibles basadas en el bracket del torneo: {availableRounds.join(', ')}
+                      Para rondas de llave, selecciona la copa dentro de la misma opción.
                     </p>
                   )}
                 </FormItem>
               )}
             />
 
-            {/* Action Buttons */}
             <div className="flex justify-end gap-3 pt-4">
               <Button
                 type="button"
@@ -389,10 +421,7 @@ export default function CreateFechaDialog({
               >
                 Cancelar
               </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-              >
+              <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />

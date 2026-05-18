@@ -121,6 +121,8 @@ interface UseBracketDataConfig {
   refetchInterval?: number
   /** Si debe hacer fetch inicial */
   enabled?: boolean
+  /** Llave a visualizar (MAIN | GOLD | SILVER | ALL) */
+  bracketKey?: string
 }
 
 /**
@@ -188,7 +190,8 @@ export function useBracketData(
     config: customConfig,
     enableRealtime = true,
     refetchInterval,
-    enabled = true
+    enabled = true,
+    bracketKey
   } = options
 
   // Configuración final
@@ -201,12 +204,14 @@ export function useBracketData(
   // Cliente de Supabase
   const supabase = createClientComponentClient<Database>()
 
+  const bracketKeyQuery = bracketKey ? `?bracket_key=${encodeURIComponent(bracketKey)}` : ''
+
   // SWR keys para cache management
   const swrKeys = useMemo(() => ({
-    matches: enabled ? `/api/tournaments/${tournamentId}/matches` : null,
-    seeds: enabled ? `/api/tournaments/${tournamentId}/seeds` : null,
+    matches: enabled ? `/api/tournaments/${tournamentId}/matches${bracketKeyQuery}` : null,
+    seeds: enabled ? `/api/tournaments/${tournamentId}/seeds${bracketKeyQuery}` : null,
     zones: enabled ? `/api/tournaments/${tournamentId}/zones-ready` : null
-  }), [tournamentId, enabled])
+  }), [tournamentId, enabled, bracketKeyQuery])
 
   // Fetcher function que SWR usará
   const fetcher = useCallback(async (url: string) => {

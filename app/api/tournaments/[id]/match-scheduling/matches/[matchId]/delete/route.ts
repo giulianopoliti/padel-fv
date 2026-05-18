@@ -38,7 +38,7 @@ export async function DELETE(
     }
 
     // Verify user has permissions (CLUB owner or ORGANIZADOR with access to this tournament)
-    const permissionResult = await checkTournamentPermissions(user.id, tournamentId, supabase)
+    const permissionResult = await checkTournamentPermissions(user.id, tournamentId)
     if (!permissionResult.hasPermission) {
       return NextResponse.json(
         { success: false, error: permissionResult.reason || 'No tienes permisos para eliminar partidos en este torneo' },

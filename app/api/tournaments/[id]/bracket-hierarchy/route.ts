@@ -12,14 +12,8 @@ interface BracketHierarchyNode {
   // Información de placeholders
   couple1_placeholder_label?: string | null
   couple1_is_placeholder?: boolean
-  couple1_placeholder_zone_id?: string | null
-  couple1_placeholder_position?: number | null
-  couple1_placeholder_zone_name?: string | null
   couple2_placeholder_label?: string | null
   couple2_is_placeholder?: boolean
-  couple2_placeholder_zone_id?: string | null
-  couple2_placeholder_position?: number | null
-  couple2_placeholder_zone_name?: string | null
   children?: BracketHierarchyNode[]
 }
 
@@ -33,10 +27,13 @@ interface BracketHierarchyResponse {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse<BracketHierarchyResponse>> {
+  let tournamentId = ''
   try {
-    const tournamentId = params.id
+    const resolved = await params
+    tournamentId = resolved.id
+    const bracketKey = request.nextUrl.searchParams.get('bracket_key')
 
     // Crear cliente de Supabase
     const supabase = await createClient()
@@ -59,7 +56,7 @@ export async function GET(
     }
 
     // Obtener todos los matches de eliminación con relaciones jerárquicas
-    const { data: hierarchyData, error: hierarchyError } = await supabase
+    let hierarchyQuery = supabase
       .from('match_hierarchy')
       .select(`
         parent_match_id,
@@ -88,6 +85,12 @@ export async function GET(
       `)
       .eq('tournament_id', tournamentId)
 
+    if (bracketKey && bracketKey !== 'ALL') {
+      hierarchyQuery = hierarchyQuery.eq('bracket_key', bracketKey)
+    }
+
+    const { data: hierarchyData, error: hierarchyError } = await hierarchyQuery
+
     if (hierarchyError) {
       return NextResponse.json({
         success: false,
@@ -99,7 +102,7 @@ export async function GET(
     }
 
     // Obtener todos los matches de eliminación del torneo con información de seeds
-    const { data: allMatches, error: matchesError } = await supabase
+    let matchesQuery = supabase
       .from('matches')
       .select(`
         id, 
@@ -112,38 +115,22 @@ export async function GET(
         tournament_couple_seed1_id,
         tournament_couple_seed2_id,
         seed1:tournament_couple_seed1_id (
-          id,
-          couple_id,
-          seed,
-          bracket_position,
           placeholder_label,
-          placeholder_zone_id,
-          placeholder_position,
-          is_placeholder,
-          created_as_placeholder,
-          placeholder_zone:placeholder_zone_id (
-            id,
-            name
-          )
+          is_placeholder
         ),
         seed2:tournament_couple_seed2_id (
-          id,
-          couple_id,
-          seed,
-          bracket_position,
           placeholder_label,
-          placeholder_zone_id,
-          placeholder_position,
-          is_placeholder,
-          created_as_placeholder,
-          placeholder_zone:placeholder_zone_id (
-            id,
-            name
-          )
+          is_placeholder
         )
       `)
       .eq('tournament_id', tournamentId)
       .eq('type', 'ELIMINATION')
+
+    if (bracketKey && bracketKey !== 'ALL') {
+      matchesQuery = matchesQuery.eq('bracket_key', bracketKey)
+    }
+
+    const { data: allMatches, error: matchesError } = await matchesQuery
       .order('round')
       .order('order_in_round')
 
@@ -171,7 +158,7 @@ export async function GET(
     console.error('Bracket hierarchy error:', error)
     return NextResponse.json({
       success: false,
-      tournamentId: params.id,
+      tournamentId,
       hierarchy: [],
       totalMatches: 0,
       error: 'Internal server error'
@@ -197,19 +184,9 @@ function buildHierarchyTree(matches: any[], hierarchyData: any[]): BracketHierar
       // Información de placeholders para pareja 1
       couple1_placeholder_label: match.seed1?.placeholder_label || null,
       couple1_is_placeholder: match.seed1?.is_placeholder || false,
-      couple1_placeholder_zone_id: match.seed1?.placeholder_zone_id || null,
-      couple1_placeholder_position: match.seed1?.placeholder_position || null,
-      couple1_placeholder_zone_name: Array.isArray(match.seed1?.placeholder_zone)
-        ? match.seed1?.placeholder_zone[0]?.name || null
-        : match.seed1?.placeholder_zone?.name || null,
       // Información de placeholders para pareja 2
       couple2_placeholder_label: match.seed2?.placeholder_label || null,
       couple2_is_placeholder: match.seed2?.is_placeholder || false,
-      couple2_placeholder_zone_id: match.seed2?.placeholder_zone_id || null,
-      couple2_placeholder_position: match.seed2?.placeholder_position || null,
-      couple2_placeholder_zone_name: Array.isArray(match.seed2?.placeholder_zone)
-        ? match.seed2?.placeholder_zone[0]?.name || null
-        : match.seed2?.placeholder_zone?.name || null,
       children: []
     })
   })

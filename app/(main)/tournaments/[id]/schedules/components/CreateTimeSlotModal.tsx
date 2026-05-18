@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Calendar, Clock, MapPin, Hash } from 'lucide-react'
+import { Loader2, Calendar, Clock } from 'lucide-react'
 import { createTimeSlot } from '../actions'
 import { CreateTimeSlotData } from '../types'
 
@@ -34,13 +34,8 @@ export default function CreateTimeSlotModal({
     max_matches: 1,
     description: ''
   })
-  
-  // Debug logging
-  console.log('[CreateTimeSlotModal] Received fechaId:', fechaId)
 
-  // Update formData when fechaId changes
   useEffect(() => {
-    console.log('[CreateTimeSlotModal] fechaId changed, updating formData.fecha_id from', formData.fecha_id, 'to', fechaId)
     setFormData(prev => ({ ...prev, fecha_id: fechaId }))
   }, [fechaId])
 
@@ -50,11 +45,12 @@ export default function CreateTimeSlotModal({
 
     startTransition(async () => {
       try {
-        console.log('[CreateTimeSlotModal] About to call createTimeSlot with formData:', formData)
-        const result = await createTimeSlot(formData)
-        
+        const result = await createTimeSlot({
+          ...formData,
+          max_matches: 1,
+        })
+
         if (result.success) {
-          // Reset form
           setFormData({
             fecha_id: fechaId,
             date: '',
@@ -68,9 +64,9 @@ export default function CreateTimeSlotModal({
         } else {
           setError(result.error || 'Error al crear el horario')
         }
-      } catch (err) {
+      } catch (submitError) {
         setError('Error inesperado al crear el horario')
-        console.error('Error creating time slot:', err)
+        console.error('Error creating time slot:', submitError)
       }
     })
   }
@@ -93,7 +89,6 @@ export default function CreateTimeSlotModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Date and Court */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="date" className="flex items-center gap-2">
@@ -111,7 +106,6 @@ export default function CreateTimeSlotModal({
             </div>
           </div>
 
-          {/* Start and End Time */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="start_time">Hora Inicio</Label>
@@ -124,7 +118,7 @@ export default function CreateTimeSlotModal({
                 disabled={isPending}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="end_time">Hora Fin</Label>
               <Input
@@ -138,24 +132,6 @@ export default function CreateTimeSlotModal({
             </div>
           </div>
 
-          {/* Max Matches */}
-          <div className="space-y-2">
-            <Label htmlFor="max_matches" className="flex items-center gap-2">
-              <Hash className="h-4 w-4" />
-              Partidos Simultáneos
-            </Label>
-            <Input
-              id="max_matches"
-              type="number"
-              min="1"
-              max="10"
-              value={formData.max_matches}
-              onChange={(e) => setFormData(prev => ({ ...prev, max_matches: parseInt(e.target.value) || 1 }))}
-              disabled={isPending}
-            />
-          </div>
-
-          {/* Description */}
           <div className="space-y-2">
             <Label htmlFor="description">Descripción (opcional)</Label>
             <Textarea
@@ -168,14 +144,12 @@ export default function CreateTimeSlotModal({
             />
           </div>
 
-          {/* Error Display */}
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
-          {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-4">
             <Button
               type="button"
@@ -185,10 +159,7 @@ export default function CreateTimeSlotModal({
             >
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              disabled={isPending}
-            >
+            <Button type="submit" disabled={isPending}>
               {isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

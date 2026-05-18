@@ -3,11 +3,10 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Plus, Clock, Edit, Trash2, Users, AlertTriangle, CalendarX } from 'lucide-react'
+import { Plus, Clock, Edit, Trash2, Users, AlertTriangle } from 'lucide-react'
 import { TournamentFecha } from '../../types'
 import { getScheduleData } from '../../../schedule-management/actions'
 import CreateTimeSlotDialog from './CreateTimeSlotDialog'
@@ -29,17 +28,6 @@ interface TimeSlot {
   description?: string
   max_matches: number
   totalAvailable: number
-  totalUnavailable?: number
-  slot_type?: 'TIME_RANGE' | 'FREE_DATE'
-  is_system?: boolean
-  unavailableCouples?: Array<{
-    couple_id: string
-    couple: {
-      player1: { first_name: string; last_name: string }
-      player2: { first_name: string; last_name: string }
-    }
-    notes?: string
-  }>
 }
 
 export default function TimeSlotManager({
@@ -54,7 +42,6 @@ export default function TimeSlotManager({
   const [editingTimeSlot, setEditingTimeSlot] = useState<TimeSlot | null>(null)
   const [deletingTimeSlot, setDeletingTimeSlot] = useState<TimeSlot | null>(null)
 
-  // Load time slots when fecha changes
   useEffect(() => {
     if (!selectedFecha) {
       setTimeSlots([])
@@ -67,13 +54,12 @@ export default function TimeSlotManager({
 
       try {
         const result = await getScheduleData(tournamentId, selectedFecha.id)
-
         if (result.success && result.data) {
           setTimeSlots(result.data.timeSlots)
         } else {
           setError(result.error || 'Error al cargar horarios')
         }
-      } catch (err) {
+      } catch {
         setError('Error inesperado al cargar horarios')
       } finally {
         setLoading(false)
@@ -83,17 +69,11 @@ export default function TimeSlotManager({
     loadTimeSlots()
   }, [selectedFecha, tournamentId])
 
-  const formatTime = (timeString: string) => {
-    return timeString.slice(0, 5) // "HH:MM"
-  }
+  const formatTime = (timeString: string) => timeString.slice(0, 5)
 
   const formatDate = (dateString: string) => {
-    // Fix timezone issue: when we get "2025-10-15" from DB, we want to display exactly that
-    // Using new Date() directly interprets it as UTC midnight, causing timezone shift
-    // Instead, we parse the date string directly to avoid timezone conversion
     const [year, month, day] = dateString.split('-')
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-
+    const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10))
     return date.toLocaleDateString('es-ES', {
       weekday: 'short',
       day: '2-digit',
@@ -103,7 +83,6 @@ export default function TimeSlotManager({
 
   const handleTimeSlotAction = () => {
     onTimeSlotChanged()
-    // Reload time slots
     if (selectedFecha) {
       const loadTimeSlots = async () => {
         const result = await getScheduleData(tournamentId, selectedFecha.id)
@@ -114,9 +93,6 @@ export default function TimeSlotManager({
       loadTimeSlots()
     }
   }
-
-  const freeDateSlot = timeSlots.find((slot) => slot.slot_type === 'FREE_DATE')
-  const playableTimeSlots = timeSlots.filter((slot) => slot.slot_type !== 'FREE_DATE')
 
   if (!selectedFecha) {
     return (
@@ -179,51 +155,15 @@ export default function TimeSlotManager({
                     {error}
                   </AlertDescription>
                 </Alert>
+              ) : timeSlots.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No hay horarios configurados</p>
+                  <p className="text-sm">Crea el primer horario para esta fecha</p>
+                </div>
               ) : (
                 <div className="space-y-3">
-                  {freeDateSlot && (
-                    <Card className="border-red-200 bg-red-50/50">
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          <CalendarX className="h-5 w-5 text-red-600 mt-0.5" />
-                          <div className="flex-1 space-y-3">
-                            <div>
-                              <h3 className="font-semibold text-red-900">FECHA LIBRE</h3>
-                              <p className="text-sm text-red-700">
-                                {freeDateSlot.totalUnavailable || 0} pareja{(freeDateSlot.totalUnavailable || 0) === 1 ? '' : 's'} no puede{(freeDateSlot.totalUnavailable || 0) === 1 ? '' : 'n'} jugar esta fecha
-                              </p>
-                            </div>
-                            {(freeDateSlot.unavailableCouples || []).length > 0 && (
-                              <div className="space-y-2">
-                                {(freeDateSlot.unavailableCouples || []).map((availability) => (
-                                  <div key={availability.couple_id} className="rounded-md border border-red-100 bg-white p-2 text-sm">
-                                    <div className="font-medium text-slate-900">
-                                      {`${availability.couple.player1.first_name} ${availability.couple.player1.last_name}`.trim()} / {`${availability.couple.player2.first_name} ${availability.couple.player2.last_name}`.trim()}
-                                    </div>
-                                    {availability.notes && (
-                                      <div className="mt-1 text-xs text-slate-600">
-                                        Nota: {availability.notes}
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {playableTimeSlots.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p>No hay horarios configurados</p>
-                      <p className="text-sm">Crea el primer horario para esta fecha</p>
-                    </div>
-                  )}
-
-                  {playableTimeSlots.map((timeSlot) => (
+                  {timeSlots.map((timeSlot) => (
                     <Card
                       key={timeSlot.id}
                       className="hover:bg-slate-50 transition-colors"
@@ -235,9 +175,9 @@ export default function TimeSlotManager({
                               <h3 className="font-medium">
                                 {formatTime(timeSlot.start_time)} - {formatTime(timeSlot.end_time)}
                               </h3>
-                              <Badge variant="outline">
+                              <span className="rounded border px-2 py-0.5 text-xs">
                                 {formatDate(timeSlot.date)}
-                              </Badge>
+                              </span>
                             </div>
                             {timeSlot.court_name && (
                               <p className="text-sm text-muted-foreground">
@@ -268,16 +208,11 @@ export default function TimeSlotManager({
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">
-                              {timeSlot.totalAvailable} parejas disponibles
-                            </span>
-                          </div>
-                          <Badge variant="secondary">
-                            Máx. {timeSlot.max_matches} {timeSlot.max_matches === 1 ? 'partido' : 'partidos'}
-                          </Badge>
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
+                            {timeSlot.totalAvailable} parejas disponibles
+                          </span>
                         </div>
                       </CardContent>
                     </Card>
@@ -289,7 +224,6 @@ export default function TimeSlotManager({
         </CardContent>
       </Card>
 
-      {/* Dialogs */}
       <CreateTimeSlotDialog
         fechaId={selectedFecha.id}
         isOpen={isCreateDialogOpen}

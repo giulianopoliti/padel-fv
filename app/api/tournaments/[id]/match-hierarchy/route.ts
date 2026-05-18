@@ -9,6 +9,7 @@ export async function GET(
     const resolvedParams = await params
     const supabase = await createClient()
     const tournamentId = resolvedParams.id
+    const bracketKey = request.nextUrl.searchParams.get('bracket_key')
 
     // Validar parámetros
     if (!tournamentId) {
@@ -19,7 +20,7 @@ export async function GET(
     }
 
     // Obtener jerarquía de matches
-    const { data: hierarchy, error } = await supabase
+    let hierarchyQuery = supabase
       .from('match_hierarchy')
       .select(`
         parent_match_id,
@@ -29,6 +30,12 @@ export async function GET(
         child_round
       `)
       .eq('tournament_id', tournamentId)
+
+    if (bracketKey && bracketKey !== 'ALL') {
+      hierarchyQuery = hierarchyQuery.eq('bracket_key', bracketKey)
+    }
+
+    const { data: hierarchy, error } = await hierarchyQuery
       .order('parent_round')
       .order('parent_slot')
 

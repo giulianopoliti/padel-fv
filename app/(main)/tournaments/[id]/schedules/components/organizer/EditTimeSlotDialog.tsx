@@ -35,15 +35,14 @@ const editTimeSlotSchema = z.object({
   end_time: z.string().min(1, 'La hora de fin es requerida'),
   court_name: z.string().optional(),
   description: z.string().optional(),
-  max_matches: z.number().min(1, 'Debe haber al menos 1 partido').max(5, 'Máximo 5 partidos simultáneos').default(1),
 }).refine((data) => {
   if (data.start_time && data.end_time) {
     return data.start_time < data.end_time
   }
   return true
 }, {
-  message: "La hora de fin debe ser posterior a la hora de inicio",
-  path: ["end_time"],
+  message: 'La hora de fin debe ser posterior a la hora de inicio',
+  path: ['end_time'],
 })
 
 type EditTimeSlotFormData = z.infer<typeof editTimeSlotSchema>
@@ -83,11 +82,9 @@ export default function EditTimeSlotDialog({
       end_time: timeSlot.end_time,
       court_name: timeSlot.court_name || '',
       description: timeSlot.description || '',
-      max_matches: timeSlot.max_matches,
     },
   })
 
-  // Reset form when timeSlot changes
   useEffect(() => {
     form.reset({
       date: timeSlot.date,
@@ -95,7 +92,6 @@ export default function EditTimeSlotDialog({
       end_time: timeSlot.end_time,
       court_name: timeSlot.court_name || '',
       description: timeSlot.description || '',
-      max_matches: timeSlot.max_matches,
     })
   }, [timeSlot, form])
 
@@ -110,7 +106,7 @@ export default function EditTimeSlotDialog({
         end_time: data.end_time,
         court_name: data.court_name,
         description: data.description,
-        max_matches: data.max_matches,
+        max_matches: 1,
       }
 
       const result = await updateTimeSlot(timeSlot.id, updateData)
@@ -122,10 +118,9 @@ export default function EditTimeSlotDialog({
       } else {
         throw new Error(result.error || 'Error desconocido al actualizar el horario')
       }
-
-    } catch (error: any) {
-      console.error('Error updating time slot:', error)
-      setError(error.message || 'Error al actualizar el horario. Intenta nuevamente.')
+    } catch (submitError: any) {
+      console.error('Error updating time slot:', submitError)
+      setError(submitError.message || 'Error al actualizar el horario. Intenta nuevamente.')
     } finally {
       setIsSubmitting(false)
     }
@@ -138,17 +133,14 @@ export default function EditTimeSlotDialog({
     }
   }
 
-  const formatTime = (timeString: string) => {
-    return timeString.slice(0, 5) // "HH:MM"
-  }
+  const formatTime = (timeString: string) => timeString.slice(0, 5)
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-ES', {
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString('es-ES', {
       weekday: 'short',
       day: '2-digit',
       month: '2-digit'
     })
-  }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -165,7 +157,6 @@ export default function EditTimeSlotDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Error Display */}
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -173,7 +164,6 @@ export default function EditTimeSlotDialog({
               </Alert>
             )}
 
-            {/* Current Info */}
             <div className="p-3 bg-slate-50 rounded-lg">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="font-medium text-sm">
@@ -192,7 +182,6 @@ export default function EditTimeSlotDialog({
               )}
             </div>
 
-            {/* Date */}
             <FormField
               control={form.control}
               name="date"
@@ -203,18 +192,13 @@ export default function EditTimeSlotDialog({
                     Fecha del Horario *
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      type="date"
-                      disabled={isSubmitting}
-                      {...field}
-                    />
+                    <Input type="date" disabled={isSubmitting} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* Time Range */}
             <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
@@ -223,11 +207,7 @@ export default function EditTimeSlotDialog({
                   <FormItem>
                     <FormLabel>Hora Inicio *</FormLabel>
                     <FormControl>
-                      <Input
-                        type="time"
-                        disabled={isSubmitting}
-                        {...field}
-                      />
+                      <Input type="time" disabled={isSubmitting} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -241,11 +221,7 @@ export default function EditTimeSlotDialog({
                   <FormItem>
                     <FormLabel>Hora Fin *</FormLabel>
                     <FormControl>
-                      <Input
-                        type="time"
-                        disabled={isSubmitting}
-                        {...field}
-                      />
+                      <Input type="time" disabled={isSubmitting} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -253,7 +229,6 @@ export default function EditTimeSlotDialog({
               />
             </div>
 
-            {/* Court Name */}
             <FormField
               control={form.control}
               name="court_name"
@@ -275,35 +250,6 @@ export default function EditTimeSlotDialog({
               )}
             />
 
-            {/* Max Matches */}
-            <FormField
-              control={form.control}
-              name="max_matches"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Partidos Simultáneos</FormLabel>
-                  <FormControl>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={5}
-                        disabled={isSubmitting}
-                        className="w-20"
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        partidos al mismo tiempo
-                      </span>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Description */}
             <FormField
               control={form.control}
               name="description"
@@ -323,7 +269,6 @@ export default function EditTimeSlotDialog({
               )}
             />
 
-            {/* Warning for changes */}
             {timeSlot.totalAvailable && timeSlot.totalAvailable > 0 && (
               <Alert className="border-yellow-200 bg-yellow-50">
                 <AlertCircle className="h-4 w-4 text-yellow-600" />
@@ -334,7 +279,6 @@ export default function EditTimeSlotDialog({
               </Alert>
             )}
 
-            {/* Action Buttons */}
             <div className="flex justify-end gap-3 pt-4">
               <Button
                 type="button"
@@ -344,10 +288,7 @@ export default function EditTimeSlotDialog({
               >
                 Cancelar
               </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-              >
+              <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />

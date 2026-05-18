@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { checkTournamentPermissions } from "@/utils/tournament-permissions"
 import { updateZonePositionsForTournament } from "@/lib/services/ranking"
+import { getFechaBracketLabel } from "@/lib/services/fecha-bracket-policy"
 
 // Types for match scheduling
 export interface SchedulingData {
@@ -25,8 +26,6 @@ export interface CoupleWithData {
   matches_in_fecha: number
   has_played_in_this_date: boolean // true if has finished match in this fecha
   match_status: 'DRAFT' | 'PENDING' | 'FINISHED' | null // status of match in this fecha (null if no match)
-  free_date_blocked: boolean
-  free_date_notes: string | null
 }
 
 export interface TimeSlot {
@@ -36,8 +35,6 @@ export interface TimeSlot {
   court_name: string | null
   date: string
   max_matches: number
-  slot_type: 'TIME_RANGE' | 'FREE_DATE'
-  is_system: boolean
 }
 
 export interface AvailabilityItem {
@@ -114,51 +111,6 @@ const haveCouplesPlayedTogether = async (
   }
 }
 
-const getFreeDateBlocksForCouples = async (
-  supabase: any,
-  fechaId: string,
-  coupleIds: string[]
-): Promise<Map<string, string | null>> => {
-  if (coupleIds.length === 0) {
-    return new Map()
-  }
-
-  const { data, error } = await supabase
-    .from('couple_time_availability')
-    .select(`
-      couple_id,
-      notes,
-      tournament_time_slots!inner (
-        fecha_id,
-        slot_type
-      )
-    `)
-    .in('couple_id', coupleIds)
-    .eq('is_available', false)
-    .eq('tournament_time_slots.fecha_id', fechaId)
-    .eq('tournament_time_slots.slot_type', 'FREE_DATE')
-
-  if (error) {
-    throw error
-  }
-
-  return new Map((data || []).map((item: any) => [item.couple_id, item.notes || null]))
-}
-
-const getFreeDateWarningForCouples = async (
-  supabase: any,
-  fechaId: string,
-  coupleIds: string[]
-): Promise<string | null> => {
-  const freeDateBlocks = await getFreeDateBlocksForCouples(supabase, fechaId, coupleIds)
-
-  if (freeDateBlocks.size > 0) {
-    return 'Una o ambas parejas marcaron FECHA LIBRE en esta fecha'
-  }
-
-  return null
-}
-
 // Helper function to get match with tournament and zone information
 const getMatchWithTournamentInfo = async (matchId: string, supabase: any) => {
   const { data: matchData, error } = await supabase
@@ -184,6 +136,11 @@ const getMatchWithTournamentInfo = async (matchId: string, supabase: any) => {
   }
 
   return matchData
+}
+
+const unwrapRelation = <T>(value: T | T[] | null | undefined): T | null => {
+  if (!value) return null
+  return Array.isArray(value) ? (value[0] ?? null) : value
 }
 
 // 1. Get Match Scheduling Data
@@ -237,10 +194,9 @@ export async function getMatchSchedulingData(
     // Get time slots for this fecha
     const { data: timeSlotsData, error: timeSlotsError } = await supabase
       .from('tournament_time_slots')
-      .select('id, start_time, end_time, court_name, date, max_matches, slot_type, is_system')
+      .select('id, start_time, end_time, court_name, date, max_matches')
       .eq('fecha_id', fechaId)
       .eq('is_available', true)
-      .eq('slot_type', 'TIME_RANGE')
       .order('date', { ascending: true })
       .order('start_time', { ascending: true })
 
@@ -256,7 +212,7 @@ export async function getMatchSchedulingData(
         time_slot_id,
         is_available,
         notes,
-        tournament_time_slots!inner (fecha_id, slot_type)
+        tournament_time_slots!inner (fecha_id)
       `)
       .eq('tournament_time_slots.fecha_id', fechaId)
 
@@ -327,12 +283,12 @@ export async function getMatchSchedulingData(
     const finishedMatchesCounts = new Map<string, number>()
     const couplesWithMatches = new Set<string>()
     const coupleMatchStatus = new Map<string, 'DRAFT' | 'PENDING' | 'FINISHED'>() // Track match status for visual indication
-    const freeDateBlocks = new Map<string, string | null>()
 
     // First, process ALL matches (including DRAFT) to track couples with matches
     if (allMatchesForCoupleFiltering) {
       for (const fm of allMatchesForCoupleFiltering) {
-        const match = fm.matches
+        const match = unwrapRelation<any>(fm.matches)
+        if (!match) continue
         // Add couples to "has match" set - includes DRAFT, PENDING, FINISHED matches
         if (match.couple1_id) {
           couplesWithMatches.add(match.couple1_id)
@@ -362,7 +318,8 @@ export async function getMatchSchedulingData(
     // Then, process only non-DRAFT matches for statistics
     if (existingMatchesData) {
       for (const fm of existingMatchesData) {
-        const match = fm.matches
+        const match = unwrapRelation<any>(fm.matches)
+        if (!match) continue
         // Only count finished matches for statistics
         if (match.status === 'FINISHED' || match.status === 'COMPLETED') {
           if (match.couple1_id) {
@@ -375,39 +332,31 @@ export async function getMatchSchedulingData(
       }
     }
 
-    for (const item of availabilityData || []) {
-      if (
-        item.is_available === false &&
-        (item.tournament_time_slots as any)?.slot_type === 'FREE_DATE'
-      ) {
-        freeDateBlocks.set(item.couple_id, item.notes || null)
-      }
-    }
-
     // Transform couples data
     const couples: CoupleWithData[] = (couplesData || []).map(couple => {
       const zonePosition = couple.zone_positions?.[0]
+      const player1 = unwrapRelation<any>(couple.player1)
+      const player2 = unwrapRelation<any>(couple.player2)
+      const zone = unwrapRelation<any>(zonePosition?.zones)
 
       return {
         id: couple.id,
         player1: {
-          name: couple.player1?.first_name || '',
-          last_name: couple.player1?.last_name || ''
+          name: player1?.first_name || '',
+          last_name: player1?.last_name || ''
         },
         player2: {
-          name: couple.player2?.first_name || '',
-          last_name: couple.player2?.last_name || ''
+          name: player2?.first_name || '',
+          last_name: player2?.last_name || ''
         },
         zone_position: zonePosition ? {
-          zone_name: zonePosition.zones?.name || '',
+          zone_name: zone?.name || '',
           position: zonePosition.position || 0,
           points: zonePosition.points || 0
         } : null,
         matches_in_fecha: finishedMatchesCounts.get(couple.id) || 0,
         has_played_in_this_date: couplesWithMatches.has(couple.id), // Now checks for ANY match, not just finished
-        match_status: coupleMatchStatus.get(couple.id) || null, // DRAFT, PENDING, or null
-        free_date_blocked: freeDateBlocks.has(couple.id),
-        free_date_notes: freeDateBlocks.get(couple.id) || null
+        match_status: coupleMatchStatus.get(couple.id) || null // DRAFT, PENDING, or null
       }
     })
 
@@ -418,40 +367,40 @@ export async function getMatchSchedulingData(
       end_time: slot.end_time,
       court_name: slot.court_name,
       date: slot.date,
-      max_matches: slot.max_matches,
-      slot_type: slot.slot_type || 'TIME_RANGE',
-      is_system: Boolean(slot.is_system)
+      max_matches: slot.max_matches
     }))
 
     // Transform availability
-    const availability: AvailabilityItem[] = (availabilityData || [])
-      .filter(item => (item.tournament_time_slots as any)?.slot_type !== 'FREE_DATE')
-      .map(item => ({
-        couple_id: item.couple_id,
-        time_slot_id: item.time_slot_id,
-        is_available: item.is_available,
-        notes: item.notes
-      }))
+    const availability: AvailabilityItem[] = (availabilityData || []).map(item => ({
+      couple_id: item.couple_id,
+      time_slot_id: item.time_slot_id,
+      is_available: item.is_available,
+      notes: item.notes
+    }))
 
     // Transform existing matches with scheduling information
-    const existingMatches: ExistingMatch[] = (existingMatchesData || []).map(item => ({
-      id: item.matches.id,
-      couple1_id: item.matches.couple1_id,
-      couple2_id: item.matches.couple2_id,
+    const existingMatches: ExistingMatch[] = (existingMatchesData || []).flatMap(item => {
+      const match = unwrapRelation<any>(item.matches)
+      if (!match) return []
+      return [{
+      id: match.id,
+      couple1_id: match.couple1_id,
+      couple2_id: match.couple2_id,
       time_slot_id: item.scheduled_time_slot_id,
-      status: item.matches.status,
+      status: match.status,
       // Include specific scheduling data
       scheduled_date: item.scheduled_date,
       scheduled_start_time: item.scheduled_start_time,
       scheduled_end_time: item.scheduled_end_time,
       court_assignment: item.court_assignment,
       // Include couple names data
-      couple1: item.matches.couple1,
-      couple2: item.matches.couple2,
+      couple1: unwrapRelation<any>(match.couple1),
+      couple2: unwrapRelation<any>(match.couple2),
       // Include club data
-      club_id: item.matches.club_id,
-      club: item.matches.club
-    }))
+      club_id: match.club_id,
+      club: unwrapRelation<any>(match.club)
+      }]
+    })
 
     return {
       success: true,
@@ -559,7 +508,8 @@ export async function createMatch(
 
     // Check if either couple has a finished match
     const hasFinishedMatch = allFechaMatches?.some(fm => {
-      const match = fm.matches
+      const match = unwrapRelation<any>(fm.matches)
+      if (!match) return false
       const isFinished = match.status === 'FINISHED' || match.status === 'COMPLETED'
       const involvesCouple1 = match.couple1_id === couple1Id || match.couple2_id === couple1Id
       const involvesCouple2 = match.couple1_id === couple2Id || match.couple2_id === couple2Id
@@ -574,12 +524,6 @@ export async function createMatch(
       }
     }
 
-    const freeDateWarning = await getFreeDateWarningForCouples(
-      supabase,
-      fechaId,
-      [couple1Id, couple2Id]
-    )
-
     // Get time slot data for scheduling information (if timeSlotId provided)
     let timeSlot = null
     let warningMessage = ''
@@ -587,7 +531,7 @@ export async function createMatch(
     if (timeSlotId) {
       const { data: timeSlotData } = await supabase
         .from('tournament_time_slots')
-        .select('start_time, end_time, court_name, max_matches, date, slot_type, is_system')
+        .select('start_time, end_time, court_name, max_matches, date')
         .eq('id', timeSlotId)
         .single()
 
@@ -595,13 +539,6 @@ export async function createMatch(
         return {
           success: false,
           error: 'Horario no encontrado'
-        }
-      }
-
-      if (timeSlotData.slot_type === 'FREE_DATE' || timeSlotData.is_system) {
-        return {
-          success: false,
-          error: 'FECHA LIBRE no es un horario programable'
         }
       }
 
@@ -619,10 +556,6 @@ export async function createMatch(
       if (matchCount >= maxMatches) {
         warningMessage = ` (Advertencia: Este horario ya tiene ${matchCount} partidos, máximo recomendado: ${maxMatches})`
       }
-    }
-
-    if (freeDateWarning) {
-      warningMessage = `${warningMessage} (Advertencia: ${freeDateWarning})`
     }
 
     // Determine schedule details - use custom if provided, otherwise time slot defaults, otherwise null
@@ -888,7 +821,8 @@ export async function updateMatchResult(
     // 🚀 NEW: Automatically recalculate zone positions
     try {
       console.log(`🔄 Recalculating zone positions after match result update`)
-      console.log(`   Tournament: ${existingMatch.tournaments.name} (${existingMatch.tournaments.type})`)
+      const tournamentInfo = unwrapRelation<any>(existingMatch.tournaments)
+      console.log(`   Tournament: ${tournamentInfo?.name || 'N/A'} (${tournamentInfo?.type || 'N/A'})`)
       console.log(`   Match: ${matchId}`)
       console.log(`   Result: ${result_couple1}-${result_couple2}`)
       
@@ -1018,7 +952,7 @@ export async function revertMatchStatistics(
     }
 
     // Verify user has permissions
-    const permissionResult = await checkTournamentPermissions(user.id, existingMatch.tournament_id, supabase)
+    const permissionResult = await checkTournamentPermissions(user.id, existingMatch.tournament_id)
     if (!permissionResult.hasPermission) {
       return {
         success: false,
@@ -1143,7 +1077,7 @@ export async function modifyMatchResult(
     }
 
     // Verify user has permissions
-    const permissionResult = await checkTournamentPermissions(user.id, existingMatch.tournament_id, supabase)
+    const permissionResult = await checkTournamentPermissions(user.id, existingMatch.tournament_id)
     if (!permissionResult.hasPermission) {
       return {
         success: false,
@@ -1230,9 +1164,9 @@ export async function modifyMatchSchedule(
       .from('matches')
       .select(`
         id,
+        type,
+        bracket_key,
         round,
-        couple1_id,
-        couple2_id,
         tournament_id,
         tournaments!inner (
           id,
@@ -1251,7 +1185,7 @@ export async function modifyMatchSchedule(
     }
 
     // Verify user has permissions
-    const permissionResult = await checkTournamentPermissions(user.id, matchData.tournament_id, supabase)
+    const permissionResult = await checkTournamentPermissions(user.id, matchData.tournament_id)
     if (!permissionResult.hasPermission) {
       return {
         success: false,
@@ -1268,23 +1202,79 @@ export async function modifyMatchSchedule(
       .maybeSingle()
 
     // Preserve existing fecha_id, or use null if match doesn't have one
-    const fechaId = existingFechaMatch?.fecha_id || null
+    let fechaId = existingFechaMatch?.fecha_id || null
 
     // ⚠️ Validation: Warn if ZONE match has no fecha_id assigned
     if (matchData.round === 'ZONE' && !fechaId) {
       console.warn(`⚠️  Partido de ZONE ${matchId} no tiene fecha_id asignada. No aparecerá en Match Scheduling filtrado por fecha.`)
     }
 
-    if (fechaId) {
-      const coupleIds = [matchData.couple1_id, matchData.couple2_id].filter(Boolean) as string[]
-      const freeDateWarning = await getFreeDateWarningForCouples(
-        supabase,
-        fechaId,
-        coupleIds
-      )
+    const isEliminationMatch = matchData.type === 'ELIMINATION'
+    const matchBracketKey = (matchData.bracket_key || 'MAIN') as 'MAIN' | 'GOLD' | 'SILVER'
 
-      if (freeDateWarning) {
-        console.warn(`[modifyMatchSchedule] ${freeDateWarning}. Match ${matchId}`)
+    if (isEliminationMatch && !fechaId) {
+      if (!matchData.round) {
+        return {
+          success: false,
+          error: 'No se pudo resolver la ronda del partido para asignarlo a una fecha.'
+        }
+      }
+
+      const { data: candidateFechas, error: candidateFechasError } = await supabase
+        .from('tournament_fechas')
+        .select('id, name, bracket_key')
+        .eq('tournament_id', matchData.tournament_id)
+        .eq('round_type', matchData.round)
+        .eq('bracket_key', matchBracketKey)
+        .order('fecha_number', { ascending: true })
+
+      if (candidateFechasError) {
+        throw candidateFechasError
+      }
+
+      if (!candidateFechas || candidateFechas.length === 0) {
+        return {
+          success: false,
+          error: `No existe una fecha para ${matchData.round} en ${getFechaBracketLabel(matchBracketKey)}. Creala en Fechas y Horarios para poder programar este partido.`
+        }
+      }
+
+      if (candidateFechas.length > 1) {
+        return {
+          success: false,
+          error: `Hay más de una fecha para ${matchData.round} en ${getFechaBracketLabel(matchBracketKey)}. Dejá una sola para poder programar automáticamente este partido.`
+        }
+      }
+
+      fechaId = candidateFechas[0].id
+    }
+
+    if (isEliminationMatch && fechaId) {
+      const { data: linkedFecha, error: linkedFechaError } = await supabase
+        .from('tournament_fechas')
+        .select('id, round_type, bracket_key')
+        .eq('id', fechaId)
+        .single()
+
+      if (linkedFechaError || !linkedFecha) {
+        return {
+          success: false,
+          error: 'No se pudo validar la fecha vinculada al partido.'
+        }
+      }
+
+      if (linkedFecha.round_type === 'ZONE') {
+        return {
+          success: false,
+          error: 'No podés programar un partido de llave en una fecha de zonas.'
+        }
+      }
+
+      if ((linkedFecha.bracket_key || 'MAIN') !== matchBracketKey) {
+        return {
+          success: false,
+          error: `No se puede programar un partido de ${getFechaBracketLabel(matchBracketKey)} en una fecha de ${getFechaBracketLabel(linkedFecha.bracket_key || 'MAIN')}.`
+        }
       }
     }
 
@@ -1443,18 +1433,22 @@ export async function getDraftMatches(
     }
 
     // Transform data
-    const draftMatches: DraftMatch[] = (draftMatchesData || []).map(item => ({
-      id: item.matches.id,
-      couple1_id: item.matches.couple1_id,
-      couple2_id: item.matches.couple2_id,
-      status: item.matches.status,
+    const draftMatches: DraftMatch[] = (draftMatchesData || []).flatMap(item => {
+      const match = unwrapRelation<any>(item.matches)
+      if (!match) return []
+      return [{
+      id: match.id,
+      couple1_id: match.couple1_id,
+      couple2_id: match.couple2_id,
+      status: match.status,
       scheduled_date: item.scheduled_date,
       scheduled_start_time: item.scheduled_start_time,
       scheduled_end_time: item.scheduled_end_time,
       court_assignment: item.court_assignment,
-      couple1: item.matches.couple1,
-      couple2: item.matches.couple2
-    }))
+      couple1: unwrapRelation<any>(match.couple1),
+      couple2: unwrapRelation<any>(match.couple2)
+      }]
+    })
 
     return {
       success: true,

@@ -16,7 +16,8 @@ export async function GET(
       }, { status: 400 })
     }
 
-    const matches = await getMatchesByTournamentId(tournamentId)
+    const bracketKey = request.nextUrl.searchParams.get('bracket_key')
+    const matches = await getMatchesByTournamentId(tournamentId, { bracketKey })
     
     return NextResponse.json(createApiResponse({
       success: true,

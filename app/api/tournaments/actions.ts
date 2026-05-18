@@ -773,7 +773,10 @@ export async function getTournamentById(tournamentId: string) {
   return createApiResponse(plainTournament);
 }
 
-export async function getMatchesByTournamentId(tournamentId: string) {
+export async function getMatchesByTournamentId(
+  tournamentId: string,
+  options: { bracketKey?: string | null } = {}
+) {
   const supabase = await createClient();
   const { data, error } = await supabase.from('matches')
     .select(`
@@ -854,6 +857,12 @@ export async function getMatchesByTournamentId(tournamentId: string) {
 
   // Procesar matches para incluir nombres de jugadores y datos de scheduling
   if (data) {
+    const bracketKey = options.bracketKey
+    const sourceMatches =
+      bracketKey && bracketKey !== 'ALL'
+        ? data.filter((match: any) => match.type !== 'ELIMINATION' || match.bracket_key === bracketKey)
+        : data
+
     //console.log('🔍 [getMatchesByTournamentId] Total matches fetched:', data.length);
     /*console.log('🔍 [getMatchesByTournamentId] Sample match with fecha_matches:', {
       matchId: data[0]?.id,
@@ -864,7 +873,7 @@ export async function getMatchesByTournamentId(tournamentId: string) {
     }
   );*/
 
-    return data.map((match, index) => {
+    return sourceMatches.map((match, index) => {
       // Helper para obtener nombres
       const getPlayerName = (player: any) => {
         if (!player?.first_name || !player?.last_name) return '';

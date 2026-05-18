@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Calendar, Clock, Users, Settings, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 import { TournamentFecha } from '../../schedules/types'
+import { getBracketLabel } from '../../schedules/utils'
 
 interface FechaCardProps {
   fecha: TournamentFecha
@@ -50,9 +51,12 @@ export default function FechaCard({ fecha, tournamentId, onUpdate }: FechaCardPr
             <Badge variant={statusBadge.variant}>
               {statusBadge.label}
             </Badge>
-            {fecha.is_qualifying && (
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
-                Clasificatoria
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+              {fecha.round_type === 'ZONE' ? 'Clasificatoria' : 'Eliminatoria'}
+            </Badge>
+            {fecha.round_type !== 'ZONE' && (
+              <Badge variant="outline">
+                {getBracketLabel(fecha.bracket_key)}
               </Badge>
             )}
           </div>
@@ -96,7 +100,7 @@ export default function FechaCard({ fecha, tournamentId, onUpdate }: FechaCardPr
             <div className="text-sm">
               <div className="font-medium">Tipo</div>
               <div className="text-gray-600">
-                {fecha.is_qualifying ? 'Clasificatoria' : 'Eliminatoria'}
+                {fecha.round_type === 'ZONE' ? 'Clasificatoria' : `Eliminatoria (${getBracketLabel(fecha.bracket_key)})`}
               </div>
             </div>
           </div>

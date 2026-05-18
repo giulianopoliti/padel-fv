@@ -10,6 +10,7 @@ import { TournamentFecha } from '../../types'
 import CreateFechaDialog from './CreateFechaDialog'
 import EditFechaDialog from './EditFechaDialog'
 import DeleteFechaAlert from './DeleteFechaAlert'
+import { getBracketLabel } from '../../utils'
 
 interface FechaManagerProps {
   fechas: TournamentFecha[]
@@ -140,11 +141,18 @@ export default function FechaManager({
                           <span className="text-sm text-muted-foreground">
                             {(fecha as any)._count_time_slots?.[0]?.count || 0} horarios
                           </span>
-                          {fecha.round_type === 'ZONE' && (
-                            <Badge variant="outline" className="text-xs">
-                              Clasificatoria
-                            </Badge>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {fecha.round_type === 'ZONE' && (
+                              <Badge variant="outline" className="text-xs">
+                                Clasificatoria
+                              </Badge>
+                            )}
+                            {fecha.round_type !== 'ZONE' && (
+                              <Badge variant="outline" className="text-xs">
+                                {getBracketLabel(fecha.bracket_key)}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
 
                         {fecha.description && (

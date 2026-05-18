@@ -16,13 +16,18 @@ const randomUUID = () => {
   })
 }
 import { createClient } from '@/utils/supabase/server'
-import { Database } from '@/database.types'
 import { DefinitivePositionAnalyzer } from './definitive-position-analyzer'
 import { TournamentStrategyFactory } from '@/lib/domain/strategies/strategy-factory'
+import { AdvancementPlanner } from '@/lib/services/advancement-planner.service'
+import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
+import { hasFormatConfigV2, shouldUseLegacyQualifying } from '@/lib/services/tournament-format-policy'
+import type { BracketKey } from '@/types/tournament-format-v2'
+import { DEFAULT_BRACKET_KEY } from '@/lib/services/bracket-key-policy'
 
-type SupabaseClient = ReturnType<typeof createClient>
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
 export interface PlaceholderSeed {
+  bracket_key: BracketKey
   seed: number
   bracket_position: number
   couple_id: string | null
@@ -36,6 +41,7 @@ export interface PlaceholderSeed {
 export interface BracketMatch {
   id: string
   tournament_id: string
+  bracket_key: BracketKey
   couple1_id: string | null
   couple2_id: string | null
   tournament_couple_seed1_id: string | null
@@ -46,6 +52,7 @@ export interface BracketMatch {
   order_in_round: number
   status: string
   type: string
+  winner_id?: string | null
   // ✅ NEW: Add seed numbers for FK mapping
   seed1: number | null
   seed2: number | null
@@ -53,6 +60,7 @@ export interface BracketMatch {
 
 export interface MatchHierarchy {
   tournament_id: string
+  bracket_key: BracketKey
   parent_match_id: string
   child_match_id: string
   parent_round: string
@@ -61,7 +69,7 @@ export interface MatchHierarchy {
 }
 
 export class PlaceholderBracketGenerator {
-  private supabase: SupabaseClient
+  private supabase!: SupabaseClient
   private analyzer: DefinitivePositionAnalyzer
 
   constructor() {
@@ -78,15 +86,19 @@ export class PlaceholderBracketGenerator {
   /**
    * Generates seeding with mix of definitive couples and placeholders
    */
-  async generatePlaceholderSeeding(tournamentId: string): Promise<PlaceholderSeed[]> {
+  async generatePlaceholderSeeding(
+    tournamentId: string,
+    options: { bracketKey?: BracketKey } = {}
+  ): Promise<PlaceholderSeed[]> {
     console.log(`🔍 [BRACKET-GEN-V2] Starting placeholder seeding for tournament: ${tournamentId}`)
 
+    const bracketKey = options.bracketKey || DEFAULT_BRACKET_KEY
     const supabase = await this.ensureSupabaseClient()
 
     // 1. Get tournament information to determine format
     const { data: tournament, error: tournamentError } = await supabase
       .from('tournaments')
-      .select('id, type')
+      .select('id, type, format_type, format_config')
       .eq('id', tournamentId)
       .single()
 
@@ -96,18 +108,30 @@ export class PlaceholderBracketGenerator {
 
     console.log(`🎯 [BRACKET-GEN-V2] Tournament format detected: ${tournament.type}`)
 
-    // 2. Route to appropriate seeding strategy based on tournament type
-    if (tournament.type === 'LONG') {
-      return this.generateLongSeeding(tournamentId)
-    } else {
-      return this.generateAmericanSeeding(tournamentId)
+    const resolvedFormat = TournamentFormatResolver.getResolvedFormat(tournament)
+
+    if (resolvedFormat.effectiveBracketMode === 'NONE') {
+      throw new Error('Este formato define campeon directo desde la tabla. No corresponde generar una llave.')
     }
+
+    if (resolvedFormat.effectiveBracketMode === 'GOLD_SILVER' && bracketKey === 'MAIN') {
+      throw new Error('El formato Oro/Plata requiere generar por llave GOLD o SILVER.')
+    }
+
+    if (resolvedFormat.zoneMode === 'SINGLE_ZONE') {
+      return this.generateLongSeeding(tournamentId, resolvedFormat, tournament, bracketKey)
+    }
+
+    return this.generateAmericanSeeding(tournamentId, bracketKey)
   }
 
   /**
    * Generate seeding for AMERICAN format (original logic)
    */
-  private async generateAmericanSeeding(tournamentId: string): Promise<PlaceholderSeed[]> {
+  private async generateAmericanSeeding(
+    tournamentId: string,
+    bracketKey: BracketKey = DEFAULT_BRACKET_KEY
+  ): Promise<PlaceholderSeed[]> {
     console.log(`🔍 [BRACKET-GEN-V2] Generating AMERICAN format seeding for tournament: ${tournamentId}`)
 
     // 1. Get all zones for this tournament
@@ -167,6 +191,7 @@ export class PlaceholderBracketGenerator {
 
             if (positionData.couple_id) {
               seeds.push({
+                bracket_key: bracketKey,
                 seed: currentSeed,
                 bracket_position: 0, // Will be calculated by serpentine
                 couple_id: positionData.couple_id,
@@ -186,6 +211,7 @@ export class PlaceholderBracketGenerator {
             console.log(`🔄 [BRACKET-GEN-V2] Zone ${zone.name} position ${position}: PLACEHOLDER ${placeholderLabel}`)
 
             seeds.push({
+              bracket_key: bracketKey,
               seed: currentSeed,
               bracket_position: 0, // Will be calculated by serpentine
               couple_id: null,
@@ -218,26 +244,35 @@ export class PlaceholderBracketGenerator {
    * Uses direct database approach for consistency with AMERICAN format
    * Considers qualifying_advancement_settings to limit couples advancing to bracket
    */
-  private async generateLongSeeding(tournamentId: string): Promise<PlaceholderSeed[]> {
+  private async generateLongSeeding(
+    tournamentId: string,
+    resolvedFormat?: any,
+    tournament?: { format_config?: unknown; type?: string | null; format_type?: string | null },
+    bracketKey: BracketKey = DEFAULT_BRACKET_KEY
+  ): Promise<PlaceholderSeed[]> {
     console.log(`🔍 [BRACKET-GEN-V2] Generating LONG format seeding for tournament: ${tournamentId}`)
 
     const supabase = await this.ensureSupabaseClient()
 
-    // 1. Check qualifying advancement configuration
-    const { data: rankingConfig, error: configError } = await supabase
-      .from('tournament_ranking_config')
-      .select('qualifying_advancement_settings')
-      .eq('tournament_id', tournamentId)
-      .eq('is_active', true)
-      .single()
-
     let qualifyingAdvancementEnabled = false
-    let couplesAdvance = null
+    let couplesAdvance: number | null = null
+    const applyLegacyQualifying = shouldUseLegacyQualifying(tournament || {})
+    const hasV2Config = hasFormatConfigV2(tournament || {})
 
-    if (!configError && rankingConfig?.qualifying_advancement_settings) {
-      const settings = rankingConfig.qualifying_advancement_settings
-      qualifyingAdvancementEnabled = settings.enabled === true
-      couplesAdvance = settings.couples_advance
+    if (applyLegacyQualifying) {
+      // 1. Check legacy qualifying advancement configuration
+      const { data: rankingConfig, error: configError } = await supabase
+        .from('tournament_ranking_config')
+        .select('qualifying_advancement_settings')
+        .eq('tournament_id', tournamentId)
+        .eq('is_active', true)
+        .single()
+
+      if (!configError && rankingConfig?.qualifying_advancement_settings) {
+        const settings = rankingConfig.qualifying_advancement_settings
+        qualifyingAdvancementEnabled = settings.enabled === true
+        couplesAdvance = settings.couples_advance
+      }
     }
 
     console.log(`🎯 [BRACKET-GEN-V2] Qualifying advancement: ${qualifyingAdvancementEnabled ? `enabled (${couplesAdvance} couples)` : 'disabled'}`)
@@ -273,10 +308,21 @@ export class PlaceholderBracketGenerator {
 
     console.log(`📊 [BRACKET-GEN-V2] Found ${allZonePositions?.length || 0} total zone positions`)
 
-    // 4. Apply qualifying advancement filter if enabled
-    const zonePositions = qualifyingAdvancementEnabled && couplesAdvance
-      ? (allZonePositions || []).slice(0, couplesAdvance)
-      : allZonePositions
+    // 4. Apply advancement policy (V2 first, legacy fallback)
+    let zonePositions = allZonePositions
+
+    if (hasV2Config && resolvedFormat) {
+      const validation = AdvancementPlanner.validateAdvancementCounts((allZonePositions || []).length, resolvedFormat)
+      if (!validation.isValid) {
+        throw new Error(validation.error)
+      }
+
+      zonePositions = AdvancementPlanner.selectBracketEntries(allZonePositions || [], resolvedFormat, bracketKey, {
+        totalCouples: (allZonePositions || []).length,
+      })
+    } else if (qualifyingAdvancementEnabled && couplesAdvance) {
+      zonePositions = (allZonePositions || []).slice(0, couplesAdvance)
+    }
 
     const totalAdvancing = zonePositions?.length || 0
     console.log(`🎯 [BRACKET-GEN-V2] Couples advancing to bracket: ${totalAdvancing}${qualifyingAdvancementEnabled ? ` (limited from ${allZonePositions?.length || 0})` : ''}`)
@@ -292,6 +338,7 @@ export class PlaceholderBracketGenerator {
         console.log(`✅ [BRACKET-GEN-V2] Position ${positionData.position}: DEFINITIVE couple ${positionData.couple_id}`)
 
         seeds.push({
+          bracket_key: bracketKey,
           seed: currentSeed,
           bracket_position: 0, // Will be calculated by serpentine
           couple_id: positionData.couple_id,
@@ -308,6 +355,7 @@ export class PlaceholderBracketGenerator {
         console.log(`🔄 [BRACKET-GEN-V2] Position ${positionData.position}: PLACEHOLDER ${placeholderLabel}`)
 
         seeds.push({
+          bracket_key: bracketKey,
           seed: currentSeed,
           bracket_position: 0, // Will be calculated by serpentine
           couple_id: null,
@@ -336,7 +384,11 @@ export class PlaceholderBracketGenerator {
   /**
    * Creates bracket matches with placeholder label support and automatic BYE handling
    */
-  async generateBracketMatches(seeds: PlaceholderSeed[], tournamentId: string): Promise<BracketMatch[]> {
+  async generateBracketMatches(
+    seeds: PlaceholderSeed[],
+    tournamentId: string,
+    bracketKey: BracketKey = DEFAULT_BRACKET_KEY
+  ): Promise<BracketMatch[]> {
     console.log(`🎯 [BRACKET-GEN-V2] Generating bracket matches for ${seeds.length} seeds`)
 
     const matches: BracketMatch[] = []
@@ -368,6 +420,7 @@ export class PlaceholderBracketGenerator {
           const match: BracketMatch = {
             id: matchId,
             tournament_id: tournamentId,
+            bracket_key: bracketKey,
             couple1_id: seedData1?.couple_id || null,
             couple2_id: seedData2?.couple_id || null,
             tournament_couple_seed1_id: null, // Will be populated after seeds are inserted
@@ -389,6 +442,7 @@ export class PlaceholderBracketGenerator {
           matches.push({
             id: matchId,
             tournament_id: tournamentId,
+            bracket_key: bracketKey,
             couple1_id: null,
             couple2_id: null,
             tournament_couple_seed1_id: null,
@@ -414,7 +468,11 @@ export class PlaceholderBracketGenerator {
   /**
    * Creates match hierarchy relationships
    */
-  async createMatchHierarchy(matches: BracketMatch[], tournamentId: string): Promise<MatchHierarchy[]> {
+  async createMatchHierarchy(
+    matches: BracketMatch[],
+    tournamentId: string,
+    bracketKey: BracketKey = DEFAULT_BRACKET_KEY
+  ): Promise<MatchHierarchy[]> {
     console.log(`🔗 [BRACKET-GEN-V2] Creating match hierarchy`)
 
     const hierarchy: MatchHierarchy[] = []
@@ -452,6 +510,7 @@ export class PlaceholderBracketGenerator {
         if (child1) {
           hierarchy.push({
             tournament_id: tournamentId,
+            bracket_key: bracketKey,
             parent_match_id: parentMatch.id,
             child_match_id: child1.id,
             parent_round: parentRound,
@@ -463,6 +522,7 @@ export class PlaceholderBracketGenerator {
         if (child2) {
           hierarchy.push({
             tournament_id: tournamentId,
+            bracket_key: bracketKey,
             parent_match_id: parentMatch.id,
             child_match_id: child2.id,
             parent_round: parentRound,
@@ -623,8 +683,8 @@ export class PlaceholderBracketGenerator {
    * BYE = exactly one of tournament_couple_seed1_id OR tournament_couple_seed2_id is null
    */
   private isByeBySeedReference(match: BracketMatch): boolean {
-    const hasOnlySeed1 = match.tournament_couple_seed1_id && !match.tournament_couple_seed2_id
-    const hasOnlySeed2 = !match.tournament_couple_seed1_id && match.tournament_couple_seed2_id
+    const hasOnlySeed1 = Boolean(match.tournament_couple_seed1_id && !match.tournament_couple_seed2_id)
+    const hasOnlySeed2 = Boolean(!match.tournament_couple_seed1_id && match.tournament_couple_seed2_id)
     
     return hasOnlySeed1 || hasOnlySeed2
   }

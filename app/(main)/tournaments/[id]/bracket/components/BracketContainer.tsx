@@ -62,6 +62,7 @@ export default function BracketContainer({
             tournamentId={tournamentId}
             tournamentStatus={tournament.status}
             tournamentType={tournament.type || 'LONG'}
+            tournamentFormatConfig={tournament.format_config}
           />
         </div>
       </div>
@@ -90,7 +91,7 @@ export default function BracketContainer({
     <div>
       {/* Banner de puntos (solo cuando el torneo está finalizado y hay puntos pendientes) */}
       {isOwner && finalization.canShowPointsCalculation && (
-        <div className="px-4 lg:px-6 pt-4">
+        <div className="px-4 lg:px-6 pt-3">
           <PointsCalculationBanner
             tournamentId={tournamentId}
             winnerId={finalization.winner_id}
@@ -101,14 +102,15 @@ export default function BracketContainer({
 
       {/* Header con toggle */}
       <div className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="px-4 lg:px-6 py-4">
+        <div className="px-4 lg:px-6 py-3">
           <div className="max-w-none lg:max-w-7xl lg:mx-auto">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                 <Button
                   variant={viewMode === 'bracket' ? 'default' : 'outline'}
                   onClick={() => setViewMode('bracket')}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2"
+                  className="flex w-full items-center justify-center gap-2 sm:w-auto"
+                  size="sm"
                 >
                   <Trophy className="h-4 w-4" />
                   <span className="hidden sm:inline">Vista Llave</span>
@@ -117,7 +119,8 @@ export default function BracketContainer({
                 <Button
                   variant={viewMode === 'schedule' ? 'default' : 'outline'}
                   onClick={() => setViewMode('schedule')}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2"
+                  className="flex w-full items-center justify-center gap-2 sm:w-auto"
+                  size="sm"
                 >
                   <Calendar className="h-4 w-4" />
                   <span className="hidden sm:inline">Vista Horarios</span>
@@ -145,7 +148,7 @@ export default function BracketContainer({
       </div>
 
       {/* Content */}
-      <div className="px-4 lg:px-6 py-4 lg:py-6">
+      <div className="px-4 lg:px-6 py-3 lg:py-4">
         <div className="max-w-none lg:max-w-7xl lg:mx-auto">
           {viewMode === 'bracket' ? (
             <LongBracketView

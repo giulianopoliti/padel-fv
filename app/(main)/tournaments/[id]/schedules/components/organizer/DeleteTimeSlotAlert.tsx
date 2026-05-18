@@ -25,7 +25,6 @@ interface TimeSlot {
   end_time: string
   court_name?: string
   description?: string
-  max_matches: number
   totalAvailable?: number
 }
 
@@ -175,14 +174,11 @@ export default function DeleteTimeSlotAlert({
                   </p>
                 )}
 
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center text-sm">
                   <div className="flex items-center gap-1 text-muted-foreground">
                     <Users className="h-4 w-4" />
                     <span>{availabilityCount || timeSlot.totalAvailable || 0} parejas disponibles</span>
                   </div>
-                  <Badge variant="secondary">
-                    Máx. {timeSlot.max_matches} {timeSlot.max_matches === 1 ? 'partido' : 'partidos'}
-                  </Badge>
                 </div>
               </div>
 

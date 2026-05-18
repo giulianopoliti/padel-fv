@@ -1,10 +1,14 @@
 "use client"
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Loader2, AlertCircle, Zap, Trophy } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { NewMatchCard } from './NewMatchCard'
+import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
+import type { BracketKey } from '@/types/tournament-format-v2'
+import { getBracketLabelByKey } from '@/lib/services/bracket-key-policy'
 
 // Types
 interface BracketMatch {
@@ -41,6 +45,7 @@ interface ReadOnlyBracketVisualizationProps {
   tournamentId: string
   tournamentStatus?: string
   tournamentType?: string
+  tournamentFormatConfig?: unknown
 }
 
 // Utilidades
@@ -55,7 +60,11 @@ const ROUND_TRANSLATIONS = {
 }
 
 // Hook para obtener datos de partidos con puntos
-function useMatchesWithPoints(tournamentId: string, initialTournamentType: 'AMERICAN' | 'LONG' = 'AMERICAN') {
+function useMatchesWithPoints(
+  tournamentId: string,
+  bracketKey: BracketKey,
+  initialTournamentType: 'AMERICAN' | 'LONG' = 'AMERICAN'
+) {
   const [matches, setMatches] = useState<BracketMatch[]>([])
   const [hierarchy, setHierarchy] = useState<MatchHierarchy[]>([])
   const [pointsData, setPointsData] = useState<Record<string, MatchPoints>>({})
@@ -64,17 +73,36 @@ function useMatchesWithPoints(tournamentId: string, initialTournamentType: 'AMER
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [hasPoints, setHasPoints] = useState(false)
+  const requestSequenceRef = useRef(0)
 
   useEffect(() => {
+    const requestId = ++requestSequenceRef.current
+    const abortController = new AbortController()
+    const signal = abortController.signal
+
+    const safelyApply = (callback: () => void) => {
+      if (requestSequenceRef.current !== requestId || signal.aborted) return
+      callback()
+    }
+
     const fetchData = async () => {
       try {
-        setLoading(true)
+        safelyApply(() => {
+          setLoading(true)
+          setError(null)
+          setMatches([])
+          setHierarchy([])
+          setPointsData({})
+          setSetsData({})
+          setHasPoints(false)
+        })
 
         // Fetch paralelo de matches, hierarchy, y tournament info
+        const bracketKeyQuery = `?bracket_key=${encodeURIComponent(bracketKey)}`
         const [matchesRes, hierarchyRes, tournamentRes] = await Promise.all([
-          fetch(`/api/tournaments/${tournamentId}/matches`),
-          fetch(`/api/tournaments/${tournamentId}/match-hierarchy`).catch(() => null),
-          fetch(`/api/tournaments/${tournamentId}`).catch(() => null)
+          fetch(`/api/tournaments/${tournamentId}/matches${bracketKeyQuery}`, { signal }),
+          fetch(`/api/tournaments/${tournamentId}/match-hierarchy${bracketKeyQuery}`, { signal }).catch(() => null),
+          fetch(`/api/tournaments/${tournamentId}`, { signal }).catch(() => null)
         ])
 
         // Procesar matches
@@ -83,12 +111,12 @@ function useMatchesWithPoints(tournamentId: string, initialTournamentType: 'AMER
         const bracketMatches = matchesData.matches?.filter((m: BracketMatch) =>
           m.round !== 'ZONE' && ROUND_ORDER.includes(m.round)
         ) || []
-        setMatches(bracketMatches)
+        safelyApply(() => setMatches(bracketMatches))
 
         // Procesar hierarchy (opcional)
         if (hierarchyRes?.ok) {
           const hierarchyData = await hierarchyRes.json()
-          setHierarchy(hierarchyData.hierarchy || [])
+          safelyApply(() => setHierarchy(hierarchyData.hierarchy || []))
         }
 
         // Detectar tipo de torneo (el endpoint /api/tournaments/[id] retorna matches, no datos del torneo,
@@ -97,32 +125,34 @@ function useMatchesWithPoints(tournamentId: string, initialTournamentType: 'AMER
           const tournamentData = await tournamentRes.json()
           const detectedType = tournamentData.type || tournamentData.tournament_type
           if (detectedType) {
-            setTournamentType(detectedType as 'AMERICAN' | 'LONG')
+            safelyApply(() => setTournamentType(detectedType as 'AMERICAN' | 'LONG'))
           }
         }
 
         // Intentar obtener puntos (sin fallar si no existen)
         try {
-          const pointsRes = await fetch(`/api/tournaments/${tournamentId}/match-points`)
+          const pointsRes = await fetch(`/api/tournaments/${tournamentId}/match-points`, { signal })
           if (pointsRes.ok) {
             const pointsData = await pointsRes.json()
             if (pointsData.points && Object.keys(pointsData.points).length > 0) {
-              setPointsData(pointsData.points)
-              setHasPoints(true)
+              safelyApply(() => {
+                setPointsData(pointsData.points)
+                setHasPoints(true)
+              })
             }
           }
         } catch (pointsError) {
           console.log('No points data available (legacy tournament)')
-          setHasPoints(false)
+          safelyApply(() => setHasPoints(false))
         }
 
         // Intentar obtener sets (para torneos LONG)
         try {
-          const setsRes = await fetch(`/api/tournaments/${tournamentId}/set-matches`)
+          const setsRes = await fetch(`/api/tournaments/${tournamentId}/set-matches`, { signal })
           if (setsRes.ok) {
             const setsData = await setsRes.json()
             if (setsData.sets) {
-              setSetsData(setsData.sets)
+              safelyApply(() => setSetsData(setsData.sets))
             }
           }
         } catch (setsError) {
@@ -130,17 +160,22 @@ function useMatchesWithPoints(tournamentId: string, initialTournamentType: 'AMER
         }
 
       } catch (err) {
+        if (signal.aborted) return
         console.error('Error fetching bracket data:', err)
-        setError(err instanceof Error ? err.message : 'Error loading bracket')
+        safelyApply(() => setError(err instanceof Error ? err.message : 'Error loading bracket'))
       } finally {
-        setLoading(false)
+        safelyApply(() => setLoading(false))
       }
     }
 
     if (tournamentId) {
       fetchData()
     }
-  }, [tournamentId])
+
+    return () => {
+      abortController.abort()
+    }
+  }, [tournamentId, bracketKey])
 
   return { matches, hierarchy, pointsData, setsData, tournamentType, hasPoints, loading, error }
 }
@@ -156,10 +191,32 @@ interface SetMatch {
 export default function ReadOnlyBracketVisualization({
   tournamentId,
   tournamentStatus = "UNKNOWN",
-  tournamentType: tournamentTypeProp
+  tournamentType: tournamentTypeProp,
+  tournamentFormatConfig
 }: ReadOnlyBracketVisualizationProps) {
+  const resolvedFormat = useMemo(() => {
+    return TournamentFormatResolver.getResolvedFormat({
+      type: tournamentTypeProp || 'LONG',
+      format_config: tournamentFormatConfig
+    })
+  }, [tournamentFormatConfig, tournamentTypeProp])
+  const isGoldSilverFormat = resolvedFormat.effectiveBracketMode === 'GOLD_SILVER'
+  const [activeBracketKey, setActiveBracketKey] = useState<BracketKey>(
+    () => (isGoldSilverFormat ? 'GOLD' : 'MAIN')
+  )
+
+  useEffect(() => {
+    if (isGoldSilverFormat && activeBracketKey === 'MAIN') {
+      setActiveBracketKey('GOLD')
+    }
+    if (!isGoldSilverFormat && activeBracketKey !== 'MAIN') {
+      setActiveBracketKey('MAIN')
+    }
+  }, [isGoldSilverFormat, activeBracketKey])
+
   const { matches, hierarchy, pointsData, setsData, tournamentType, hasPoints, loading, error } = useMatchesWithPoints(
     tournamentId,
+    activeBracketKey,
     (tournamentTypeProp as 'AMERICAN' | 'LONG') || 'AMERICAN'
   )
 
@@ -230,19 +287,82 @@ export default function ReadOnlyBracketVisualization({
 
   if (!matches.length) {
     return (
-      <div className="text-center py-16">
-        <Trophy className="h-16 w-16 text-slate-300 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-slate-700 mb-2">No hay bracket disponible</h3>
-        <p className="text-slate-500">Este torneo no tiene partidos eliminatorios generados.</p>
+      <div className="space-y-6">
+        {isGoldSilverFormat && (
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Visualizando</p>
+                <p className="text-base font-semibold text-slate-900">{getBracketLabelByKey(activeBracketKey)}</p>
+              </div>
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 p-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={activeBracketKey === 'GOLD' ? 'default' : 'ghost'}
+                  onClick={() => setActiveBracketKey('GOLD')}
+                >
+                  Oro
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={activeBracketKey === 'SILVER' ? 'default' : 'ghost'}
+                  onClick={() => setActiveBracketKey('SILVER')}
+                >
+                  Plata
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="text-center py-16">
+          <Trophy className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-slate-700 mb-2">No hay bracket disponible</h3>
+          <p className="text-slate-500">
+            {isGoldSilverFormat
+              ? `No hay partidos eliminatorios cargados para ${getBracketLabelByKey(activeBracketKey)}.`
+              : 'Este torneo no tiene partidos eliminatorios generados.'}
+          </p>
+        </div>
       </div>
     )
   }
 
-  const isPointsCalculated = tournamentStatus === 'FINISHED_POINTS_CALCULATED'
   const { rounds, matchesByRound } = bracketLayout
 
   return (
     <div className="space-y-6">
+      {isGoldSilverFormat && (
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-slate-600">Visualizando</p>
+              <p className="text-base font-semibold text-slate-900">{getBracketLabelByKey(activeBracketKey)}</p>
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 p-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={activeBracketKey === 'GOLD' ? 'default' : 'ghost'}
+                onClick={() => setActiveBracketKey('GOLD')}
+              >
+                Oro
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={activeBracketKey === 'SILVER' ? 'default' : 'ghost'}
+                onClick={() => setActiveBracketKey('SILVER')}
+              >
+                Plata
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Layout responsivo del bracket - SIN DOBLE SCROLL */}
       <div className="w-full">
         {/* Mobile: Stack vertical de rondas */}

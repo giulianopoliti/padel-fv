@@ -13,13 +13,13 @@ import {
   AlertCircle,
   CheckCircle2,
   Plus,
-  Info,
-  CalendarX
+  Info
 } from 'lucide-react'
 import { TournamentFecha } from '../../schedules/types'
 import { UserPermissions } from '@/hooks/use-tournament-permissions'
 import { getScheduleData } from '../../schedules/actions'
 import { Button } from '@/components/ui/button'
+import { getBracketLabel } from '../../schedules/utils'
 
 interface SelectedFechaContentProps {
   selectedFecha: TournamentFecha | undefined
@@ -84,9 +84,18 @@ export default function SelectedFechaContent({
     )
   }
 
-  const allTimeSlots = scheduleData?.timeSlots || []
-  const freeDateSlot = allTimeSlots.find((slot: any) => slot.slot_type === 'FREE_DATE')
-  const timeSlots = allTimeSlots.filter((slot: any) => slot.slot_type !== 'FREE_DATE')
+  const timeSlots = scheduleData?.timeSlots || []
+  const isZoneRound = selectedFecha.round_type === 'ZONE'
+  const fechaStatusLabel =
+    selectedFecha.status === 'IN_PROGRESS'
+      ? 'En juego'
+      : selectedFecha.status === 'COMPLETED'
+        ? 'Completada'
+        : selectedFecha.status === 'CANCELED'
+          ? 'Cancelada'
+          : selectedFecha.status === 'SCHEDULING'
+            ? 'En planificación'
+            : 'Pendiente'
   const totalCouples = scheduleData ? new Set(
     timeSlots.flatMap((slot: any) =>
       slot.availableCouples?.map((a: any) => a.couple_id) || []
@@ -104,10 +113,10 @@ export default function SelectedFechaContent({
                 {selectedFecha.name}
               </h1>
               <Badge
-                variant={selectedFecha.is_qualifying ? "default" : "secondary"}
+                variant={isZoneRound ? "default" : "secondary"}
                 className="text-xs"
               >
-                {selectedFecha.is_qualifying ? 'Clasificatoria' : 'Eliminatoria'}
+                {isZoneRound ? 'Clasificatoria' : `Eliminatoria (${getBracketLabel(selectedFecha.bracket_key)})`}
               </Badge>
               <Badge variant="outline" className="text-xs">
                 Fecha #{selectedFecha.fecha_number}
@@ -235,16 +244,6 @@ export default function SelectedFechaContent({
                           <Badge variant="secondary">{totalCouples}</Badge>
                         </div>
                       )}
-
-                      <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <CalendarX className="h-4 w-4 text-red-600" />
-                          <span className="text-sm font-medium text-red-900">
-                            FECHA LIBRE marcada
-                          </span>
-                        </div>
-                        <Badge variant="secondary">{freeDateSlot?.totalUnavailable || 0}</Badge>
-                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -262,8 +261,8 @@ export default function SelectedFechaContent({
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Tipo de fase:</span>
-                      <Badge variant={selectedFecha.is_qualifying ? "default" : "secondary"}>
-                        {selectedFecha.is_qualifying ? 'Clasificatoria' : 'Eliminatoria'}
+                      <Badge variant={isZoneRound ? "default" : "secondary"}>
+                        {isZoneRound ? 'Clasificatoria' : `Eliminatoria (${getBracketLabel(selectedFecha.bracket_key)})`}
                       </Badge>
                     </div>
 
@@ -274,8 +273,8 @@ export default function SelectedFechaContent({
 
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Estado:</span>
-                      <Badge variant={selectedFecha.status === 'ACTIVE' ? "default" : "secondary"}>
-                        {selectedFecha.status || 'DRAFT'}
+                      <Badge variant={selectedFecha.status === 'IN_PROGRESS' ? "default" : "secondary"}>
+                        {fechaStatusLabel}
                       </Badge>
                     </div>
 

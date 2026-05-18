@@ -6,10 +6,9 @@ import { checkTournamentPermissions } from '@/utils/tournament-permissions';
 
 import { MatchValidationService } from '@/lib/services/match-validation.service';
 import { CoupleAvailabilityService } from '@/lib/services/couple-availability.service';
-import { PlaceholderBracketGenerator } from '@/lib/services/bracket-generator-v2';
 import { CorrectedDefinitiveAnalyzer } from '@/lib/services/corrected-definitive-analyzer'
 import { SingleZoneDefinitiveAnalyzer } from '@/lib/services/single-zone-definitive-analyzer';
-import { updateDefinitivePositionsService } from '@/lib/services/definitive-positions-service';
+import { generatePlaceholderBracket } from '@/lib/services/bracket-generation-orchestrator';
 // import { Database } from "../../../../database.types"; // File not found
 
 // -----------------------------------------------------------------------------
@@ -2835,266 +2834,28 @@ export async function generatePlaceholderBracketAction(tournamentId: string) {
 
     console.log(`[generatePlaceholderBracketAction] Starting placeholder bracket generation for tournament ${tournamentId}`)
 
-    // 1. Validar usuario autenticado y permisos
     const {
       data: { user },
       error: userErr,
     } = await supabase.auth.getUser()
+
     if (userErr || !user) {
-      return { success: false, message: "Usuario no autenticado" }
+      return { success: false, message: 'Usuario no autenticado', code: 'UNAUTHORIZED' as const }
     }
 
-    // 2. Verificar permisos (CLUB + ORGANIZADOR + ADMIN)
     const permissions = await checkTournamentPermissions(user.id, tournamentId)
     if (!permissions.hasPermission) {
-      return { success: false, message: "No tienes permisos para gestionar este torneo" }
+      return { success: false, message: 'No tienes permisos para gestionar este torneo', code: 'FORBIDDEN' as const }
     }
 
-    // 3. Obtener status del torneo
-    const { data: tournRow, error: tournErr } = await supabase
-      .from("tournaments")
-      .select("status, bracket_status")
-      .eq("id", tournamentId)
-      .single()
-
-    if (tournErr || !tournRow) {
-      return { success: false, message: "Torneo no encontrado" }
-    }
-
-    const { status, bracket_status } = tournRow
-
-    // 4. Verificar que el torneo esté en ZONE_PHASE
-    if (status !== 'ZONE_PHASE') {
-      return {
-        success: false,
-        message: `El torneo debe estar en fase de zonas. Estado actual: ${status}`
-      }
-    }
-
-    // 5. Validar condición previa: todos los partidos de zona CREADOS
-    console.log(`[generatePlaceholderBracketAction] Validating zone matches are created...`)
-    await validateAllZoneMatchesCreated(tournamentId)
-
-    // 6. 🎯 NUEVO FLUJO: Transicionar a BRACKET_PHASE PRIMERO
-    console.log(`[generatePlaceholderBracketAction] Transitioning to BRACKET_PHASE before analysis...`)
-    await supabase
-      .from('tournaments')
-      .update({
-        status: 'BRACKET_PHASE',
-        bracket_status: 'BRACKET_GENERATED',
-        bracket_generated_at: new Date().toISOString()
-      })
-      .eq('id', tournamentId)
-
-    // 7. Ejecutar algoritmo de posiciones definitivas (ahora en BRACKET_PHASE)
-    console.log(`[generatePlaceholderBracketAction] Analyzing definitive positions...`)
-    const definitiveResult = await updateDefinitivePositionsService(tournamentId)
-
-    if (!definitiveResult.success) {
-      throw new Error(`Error analyzing definitive positions: ${definitiveResult.error}`)
-    }
-
-    // 8. Usar PlaceholderBracketGenerator
-    console.log(`[generatePlaceholderBracketAction] Generating placeholder bracket...`)
-    const generator = new PlaceholderBracketGenerator()
-
-    // 9. Generar seeding híbrido
-    const seeds = await generator.generatePlaceholderSeeding(tournamentId)
-    console.log(`[generatePlaceholderBracketAction] Generated ${seeds.length} seeds (${seeds.filter(s => !s.is_placeholder).length} definitive, ${seeds.filter(s => s.is_placeholder).length} placeholders)`)
-
-    // 10. Generar matches con placeholders
-    const matches = await generator.generateBracketMatches(seeds, tournamentId)
-    console.log(`[generatePlaceholderBracketAction] Generated ${matches.length} matches`)
-
-    // 11. Crear jerarquía de matches
-    const hierarchy = await generator.createMatchHierarchy(matches, tournamentId)
-    console.log(`[generatePlaceholderBracketAction] Created hierarchy with ${hierarchy.length} relationships`)
-
-    // 12. Guardar en base de datos PRIMERO (para poblar FKs)
-    console.log(`[generatePlaceholderBracketAction] Saving to database...`)
-    await savePlaceholderBracketToDatabase(tournamentId, seeds, matches, hierarchy)
-
-    // 13. Leer matches desde BD con FKs pobladas para BYE processing
-    console.log(`[generatePlaceholderBracketAction] Reading matches with populated FKs for BYE processing...`)
-    
-    const { data: savedMatches, error: matchesError } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('tournament_id', tournamentId)
-      .eq('type', 'ELIMINATION')
-      .order('round, order_in_round')
-    
-    if (matchesError || !savedMatches) {
-      throw new Error(`Error reading saved matches: ${matchesError?.message || 'No matches found'}`)
-    }
-    
-    console.log(`[generatePlaceholderBracketAction] Read ${savedMatches.length} matches from database`)
-    
-    // 13. Process BYEs with FKs pobladas
-    console.log(`[generatePlaceholderBracketAction] Processing BYEs with populated FKs...`)
-    await generator.processBracketByes(savedMatches, hierarchy)
-    
-    // 14. Actualizar matches en BD con cambios de BYE processing  
-    console.log(`[generatePlaceholderBracketAction] Updating processed matches in database...`)
-    for (const match of savedMatches) {
-      const { error: updateError } = await supabase
-        .from('matches')
-        .update({
-          status: match.status,
-          winner_id: match.winner_id,
-          tournament_couple_seed1_id: match.tournament_couple_seed1_id,
-          tournament_couple_seed2_id: match.tournament_couple_seed2_id,
-          couple1_id: match.couple1_id,
-          couple2_id: match.couple2_id
-        })
-        .eq('id', match.id)
-      
-      if (updateError) {
-        console.error(`Error updating match ${match.id}:`, updateError)
-      }
-    }
-    
-    console.log(`[generatePlaceholderBracketAction] BYE processing completed`)
-    
-    console.log(`[generatePlaceholderBracketAction] ✅ Placeholder bracket generation completed successfully!`)
-    
-    return {
-      success: true,
-      message: 'Bracket con placeholders generado exitosamente',
-      data: {
-        totalSeeds: seeds.length,
-        definitiveSeeds: seeds.filter(s => !s.is_placeholder).length,
-        placeholderSeeds: seeds.filter(s => s.is_placeholder).length,
-        totalMatches: matches.length,
-        byeMatches: matches.filter((m: any) => m.status === 'BYE').length,
-        definitiveAnalysis: definitiveResult
-      }
-    }
+    return await generatePlaceholderBracket(tournamentId)
   } catch (error: any) {
-    console.error('[generatePlaceholderBracketAction] Error:', error)
+    console.error('[generatePlaceholderBracketAction] Unexpected facade error:', error)
     return {
       success: false,
-      message: error.message,
-      error: error
+      message: error?.message || 'Failed to generate placeholder bracket',
+      code: 'BRACKET_GENERATION_FAILED' as const
     }
-  }
-}
-
-/**
- * Valida que todos los partidos de zona estén creados
- * Condición previa para generar brackets con placeholders
- */
-async function validateAllZoneMatchesCreated(tournamentId: string) {
-  const supabase = await createClient()
-  
-  const { data: zones, error: zonesError } = await supabase
-    .from('zones')
-    .select('id, name')
-    .eq('tournament_id', tournamentId)
-  
-  if (zonesError) throw new Error(`Error al obtener zonas: ${zonesError.message}`)
-  
-  for (const zone of zones || []) {
-    // Contar parejas en la zona
-    const { count: coupleCount, error: coupleError } = await supabase
-      .from('zone_positions')
-      .select('*', { count: 'exact' })
-      .eq('zone_id', zone.id)
-    
-    if (coupleError) throw new Error(`Error al contar parejas en zona ${zone.name}: ${coupleError.message}`)
-    
-    // Contar partidos creados
-    const { count: matchCount, error: matchError } = await supabase
-      .from('matches')
-      .select('*', { count: 'exact' })
-      .eq('zone_id', zone.id)
-    
-    if (matchError) throw new Error(`Error al contar partidos en zona ${zone.name}: ${matchError.message}`)
-    
-    // Validar según lógica de American 2
-    const expectedMatches = coupleCount === 4 ? 4 : 3 // 2 partidos por pareja
-    
-    if ((matchCount || 0) < expectedMatches) {
-      throw new Error(
-        `Zona ${zone.name}: faltan ${expectedMatches - (matchCount || 0)} partidos por crear. ` +
-        `Creados: ${matchCount || 0}, Esperados: ${expectedMatches}`
-      )
-    }
-  }
-}
-
-/**
- * Guarda bracket con placeholders en base de datos
- */
-async function savePlaceholderBracketToDatabase(
-  tournamentId: string,
-  seeds: any[],
-  matches: any[],
-  hierarchy: any[]
-) {
-  const supabase = await createClient()
-  
-  // 1. Limpiar datos existentes si los hay
-  await supabase.from('tournament_couple_seeds').delete().eq('tournament_id', tournamentId)
-  await supabase.from('matches').delete().eq('tournament_id', tournamentId).eq('phase', 'BRACKET_PHASE')
-  await supabase.from('match_hierarchy').delete().eq('tournament_id', tournamentId)
-  
-  // 2. Insertar seeds con placeholders
-  const seedsData = seeds.map(seed => ({
-    tournament_id: tournamentId,
-    seed: seed.seed,
-    bracket_position: seed.bracket_position,
-    couple_id: seed.couple_id,
-    // zone_id column doesn't exist - only placeholder_zone_id
-    is_placeholder: seed.is_placeholder || false,
-    placeholder_zone_id: seed.placeholder_zone_id,
-    placeholder_position: seed.placeholder_position,
-    placeholder_label: seed.placeholder_label,
-    created_as_placeholder: seed.created_as_placeholder || false
-  }))
-  
-  // ✅ NEW: Use RETURNING to capture generated IDs
-  const { data: insertedSeeds, error: seedsError } = await supabase
-    .from('tournament_couple_seeds')
-    .insert(seedsData)
-    .select('id, seed')
-  
-  if (seedsError) throw new Error(`Error al insertar seeds: ${seedsError.message}`)
-  
-  // ✅ NEW: Create mapping from seed number to UUID
-  const seedIdMapping = new Map<number, string>()
-  if (insertedSeeds) {
-    insertedSeeds.forEach(seedRow => {
-      seedIdMapping.set(seedRow.seed, seedRow.id)
-    })
-  }
-  
-  console.log(`🔗 [PLACEHOLDER-DB] Created seed ID mapping:`, Object.fromEntries(seedIdMapping))
-  
-  // 3. ✅ MODIFIED: Insertar matches con FKs poblados
-  const matchesData = matches.map(match => ({
-    id: match.id,
-    tournament_id: tournamentId,
-    couple1_id: match.couple1_id,
-    couple2_id: match.couple2_id,
-    placeholder_couple1_label: match.placeholder_couple1_label,
-    placeholder_couple2_label: match.placeholder_couple2_label,
-    round: match.round,
-    order_in_round: match.order_in_round,
-    status: match.status,
-    type: match.type,
-    // ✅ NEW: Map seed numbers to tournament_couple_seed UUIDs
-    tournament_couple_seed1_id: match.seed1 ? seedIdMapping.get(match.seed1) || null : null,
-    tournament_couple_seed2_id: match.seed2 ? seedIdMapping.get(match.seed2) || null : null
-  }))
-  
-  const { error: matchesError } = await supabase.from('matches').insert(matchesData)
-  if (matchesError) throw new Error(`Error al insertar matches: ${matchesError.message}`)
-  
-  // 4. Insertar jerarquía
-  if (hierarchy.length > 0) {
-    const { error: hierarchyError } = await supabase.from('match_hierarchy').insert(hierarchy)
-    if (hierarchyError) throw new Error(`Error al insertar jerarquía: ${hierarchyError.message}`)
   }
 }
 

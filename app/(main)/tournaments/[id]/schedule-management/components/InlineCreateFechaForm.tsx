@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,6 +13,8 @@ import { TournamentFecha } from '../../schedules/types'
 import { createTournamentFecha, CreateFechaData } from '../../dates/actions'
 import { toast } from 'sonner'
 import RoundSelector, { RoundType } from './RoundSelector'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { resolveFechaBracketKeyForTournament } from '@/lib/services/fecha-bracket-policy'
 
 interface InlineCreateFechaFormProps {
   tournamentId: string
@@ -29,13 +31,51 @@ export default function InlineCreateFechaForm({
 }: InlineCreateFechaFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isGoldSilverLong, setIsGoldSilverLong] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     start_date: '',
     end_date: '',
     round_type: 'ZONE' as RoundType,
+    bracket_key: 'MAIN' as 'MAIN' | 'GOLD' | 'SILVER',
   })
+
+  useEffect(() => {
+    const fetchTournamentFormat = async () => {
+      try {
+        const supabase = createClientComponentClient()
+        const { data: tournament } = await supabase
+          .from('tournaments')
+          .select('type, format_config')
+          .eq('id', tournamentId)
+          .single()
+
+        if (!tournament) {
+          setIsGoldSilverLong(false)
+          return
+        }
+
+        const checkResult = resolveFechaBracketKeyForTournament(tournament as any, {
+          roundType: 'SEMIFINAL',
+          requestedBracketKey: 'GOLD',
+        })
+
+        setIsGoldSilverLong(tournament.type === 'LONG' && checkResult.ok)
+      } catch (fetchError) {
+        console.error('Error fetching tournament format:', fetchError)
+        setIsGoldSilverLong(false)
+      }
+    }
+
+    fetchTournamentFormat()
+  }, [tournamentId])
+
+  useEffect(() => {
+    if (formData.round_type === 'ZONE' && formData.bracket_key !== 'MAIN') {
+      setFormData(prev => ({ ...prev, bracket_key: 'MAIN' }))
+    }
+  }, [formData.round_type, formData.bracket_key])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,6 +91,7 @@ export default function InlineCreateFechaForm({
         start_date: formData.start_date || undefined,
         end_date: formData.end_date || undefined,
         round_type: formData.round_type,
+        bracket_key: formData.bracket_key,
       }
 
       const result = await createTournamentFecha(fechaData)
@@ -183,6 +224,29 @@ export default function InlineCreateFechaForm({
             disabled={loading}
             required={true}
           />
+
+          {formData.round_type !== 'ZONE' && isGoldSilverLong && (
+            <div className="space-y-2">
+              <Label htmlFor="inline-bracket-key" className="text-xs font-medium">
+                Copa de la Llave
+              </Label>
+              <select
+                id="inline-bracket-key"
+                value={formData.bracket_key}
+                onChange={(e) =>
+                  setFormData(prev => ({
+                    ...prev,
+                    bracket_key: e.target.value as 'MAIN' | 'GOLD' | 'SILVER'
+                  }))
+                }
+                disabled={loading}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="GOLD">Copa de Oro</option>
+                <option value="SILVER">Copa de Plata</option>
+              </select>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-2">

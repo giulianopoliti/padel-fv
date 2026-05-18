@@ -29,6 +29,7 @@ import { TournamentFecha } from '../../types'
 import { updateTournamentFecha } from '../../../schedule-management/actions'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from 'sonner'
+import { resolveFechaBracketKeyForTournament } from '@/lib/services/fecha-bracket-policy'
 
 // Esquema base para EditFecha
 const baseEditFechaSchema = z.object({
@@ -37,6 +38,7 @@ const baseEditFechaSchema = z.object({
   start_date: z.string().optional(),
   end_date: z.string().optional(),
   round_type: z.enum(['ZONE', '32VOS', '16VOS', '8VOS', '4TOS', 'SEMIFINAL', 'FINAL']).default('ZONE'),
+  bracket_key: z.enum(['MAIN', 'GOLD', 'SILVER']).default('MAIN'),
   max_matches_per_couple: z.number().min(1).max(10).default(3),
   status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED']).default('NOT_STARTED'),
 }).refine((data) => {
@@ -70,6 +72,7 @@ export default function EditFechaDialog({
   // Estado para rondas disponibles
   const [availableRounds, setAvailableRounds] = useState<string[]>(['ZONE']) // Siempre incluir ZONE
   const [roundsLoading, setRoundsLoading] = useState(false)
+  const [isGoldSilverLong, setIsGoldSilverLong] = useState(false)
 
   // Función simple para obtener solo las rondas del bracket
   useEffect(() => {
@@ -132,6 +135,7 @@ export default function EditFechaDialog({
       start_date: z.string().optional(),
       end_date: z.string().optional(),
       round_type: z.enum(availableRoundValues as [string, ...string[]]).default(availableRoundValues[0] || 'ZONE'),
+      bracket_key: z.enum(['MAIN', 'GOLD', 'SILVER']).default('MAIN'),
       max_matches_per_couple: z.number().min(1).max(10).default(3),
       status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED']).default('NOT_STARTED'),
     }).refine((data) => {
@@ -153,6 +157,7 @@ export default function EditFechaDialog({
       start_date: fecha.start_date ? fecha.start_date.split('T')[0] : '',
       end_date: fecha.end_date ? fecha.end_date.split('T')[0] : '',
       round_type: fecha.round_type || 'ZONE',
+      bracket_key: fecha.bracket_key || 'MAIN',
       max_matches_per_couple: fecha.max_matches_per_couple || 3,
       status: fecha.status as any || 'NOT_STARTED',
     },
@@ -166,10 +171,49 @@ export default function EditFechaDialog({
       start_date: fecha.start_date ? fecha.start_date.split('T')[0] : '',
       end_date: fecha.end_date ? fecha.end_date.split('T')[0] : '',
       round_type: fecha.round_type || 'ZONE',
+      bracket_key: fecha.bracket_key || 'MAIN',
       max_matches_per_couple: fecha.max_matches_per_couple || 3,
       status: fecha.status as any || 'NOT_STARTED',
     })
   }, [fecha, form])
+
+  const selectedRoundType = form.watch('round_type')
+
+  useEffect(() => {
+    const fetchTournamentFormat = async () => {
+      try {
+        const supabase = createClientComponentClient()
+        const { data: tournament } = await supabase
+          .from('tournaments')
+          .select('type, format_config')
+          .eq('id', fecha.tournament_id)
+          .single()
+
+        if (!tournament) {
+          setIsGoldSilverLong(false)
+          return
+        }
+
+        const checkResult = resolveFechaBracketKeyForTournament(tournament as any, {
+          roundType: 'SEMIFINAL',
+          requestedBracketKey: 'GOLD',
+        })
+
+        setIsGoldSilverLong(tournament.type === 'LONG' && checkResult.ok)
+      } catch (error) {
+        console.error('Error fetching tournament format:', error)
+        setIsGoldSilverLong(false)
+      }
+    }
+
+    fetchTournamentFormat()
+  }, [fecha.tournament_id])
+
+  useEffect(() => {
+    if (selectedRoundType === 'ZONE' && form.getValues('bracket_key') !== 'MAIN') {
+      form.setValue('bracket_key', 'MAIN')
+    }
+  }, [selectedRoundType, form])
 
   const onSubmit = async (data: EditFechaFormData) => {
     setIsSubmitting(true)
@@ -182,6 +226,7 @@ export default function EditFechaDialog({
         start_date: data.start_date || undefined,
         end_date: data.end_date || undefined,
         round_type: data.round_type,
+        bracket_key: data.bracket_key,
         max_matches_per_couple: data.max_matches_per_couple,
         status: data.status,
       }
@@ -451,6 +496,33 @@ export default function EditFechaDialog({
                 </FormItem>
               )}
             />
+
+            {selectedRoundType !== 'ZONE' && isGoldSilverLong && (
+              <FormField
+                control={form.control}
+                name="bracket_key"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Copa de la Llave</FormLabel>
+                    <FormControl>
+                      <select
+                        value={field.value}
+                        onChange={field.onChange}
+                        disabled={isSubmitting}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="GOLD">Copa de Oro</option>
+                        <option value="SILVER">Copa de Plata</option>
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                    <p className="text-sm text-muted-foreground">
+                      Esta fecha quedará vinculada únicamente a la copa seleccionada.
+                    </p>
+                  </FormItem>
+                )}
+              />
+            )}
 
             {/* Action Buttons */}
             <div className="flex justify-end gap-3 pt-4">

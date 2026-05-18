@@ -44,6 +44,8 @@ export interface TournamentFecha {
   status: 'NOT_STARTED' | 'SCHEDULING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED'
   max_matches_per_couple?: number
   round_type: 'ZONE' | '32VOS' | '16VOS' | '8VOS' | '4TOS' | 'SEMIFINAL' | 'FINAL'
+  bracket_key: 'MAIN' | 'GOLD' | 'SILVER'
+  bracket_label?: string | null
   created_at?: string
 }
 
@@ -57,17 +59,13 @@ export interface TimeSlot {
   court_name?: string
   max_matches: number
   is_available: boolean
-  slot_type: 'TIME_RANGE' | 'FREE_DATE'
-  is_system: boolean
   description?: string
   created_at: string
 }
 
 export interface TimeSlotWithAvailability extends TimeSlot {
   availableCouples: CoupleAvailability[]
-  unavailableCouples: CoupleAvailability[]
   totalAvailable: number
-  totalUnavailable: number
 }
 
 // Couple and availability types
@@ -110,13 +108,6 @@ export interface UpdateAvailabilityData {
   notes?: string
 }
 
-export interface UpdateFreeDateAvailabilityData {
-  couple_id: string
-  fecha_id: string
-  is_free_date: boolean
-  notes?: string | null
-}
-
 // API Response types
 export interface ScheduleData {
   tournament: TournamentBasic
@@ -128,6 +119,12 @@ export interface ScheduleData {
 export interface PlayerScheduleData {
   tournament: TournamentBasic
   fecha: TournamentFecha
+  bracket_assignment?: {
+    key: 'GOLD' | 'SILVER'
+    label: 'Copa de Oro' | 'Copa de Plata'
+  } | null
+  can_edit_availability?: boolean
+  availability_restriction_reason?: string | null
   timeSlots: (TimeSlot & {
     my_availability?: {
       couple_id: string
@@ -138,13 +135,6 @@ export interface PlayerScheduleData {
       is_available: boolean
     }[]
   })[]
-  freeDateSlot?: TimeSlot & {
-    my_availability?: {
-      couple_id: string
-      is_available: boolean
-      notes?: string | null
-    }
-  }
   coupleInfo: {
     id: string
     player1_name: string

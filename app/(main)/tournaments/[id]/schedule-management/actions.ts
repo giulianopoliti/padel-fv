@@ -4,6 +4,11 @@ import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { createTournamentFecha, type CreateFechaData } from '../dates/actions'
 import { createTimeSlot, getScheduleData, type CreateTimeSlotData } from '../schedules/actions'
+import {
+  type FechaBracketKey,
+  type FechaRoundType,
+  resolveFechaBracketKeyForTournament,
+} from '@/lib/services/fecha-bracket-policy'
 
 // Helper: Convert date to ensure correct storage for Argentina timezone
 const adjustDateForArgentina = (dateString: string): string => {
@@ -182,16 +187,94 @@ export async function updateTournamentFecha(fechaId: string, updateData: {
   description?: string
   start_date?: string
   end_date?: string
-  is_qualifying?: boolean
   status?: string
   max_matches_per_couple?: number
-  round_type?: string
+  round_type?: FechaRoundType
+  bracket_key?: FechaBracketKey
 }) {
   try {
     const supabase = await createClient()
 
+    const { data: existingFecha, error: existingFechaError } = await supabase
+      .from('tournament_fechas')
+      .select('id, tournament_id, round_type, bracket_key')
+      .eq('id', fechaId)
+      .single()
+
+    if (existingFechaError || !existingFecha) {
+      return {
+        success: false,
+        error: 'Fecha no encontrada'
+      }
+    }
+
+    const { data: tournament, error: tournamentError } = await supabase
+      .from('tournaments')
+      .select('id, type, format_config')
+      .eq('id', existingFecha.tournament_id)
+      .single()
+
+    if (tournamentError || !tournament) {
+      return {
+        success: false,
+        error: 'No se pudo validar la configuración del torneo para actualizar la fecha.'
+      }
+    }
+
+    const nextRoundType = (updateData.round_type || existingFecha.round_type) as FechaRoundType
+    const nextBracketKeyRequest = updateData.bracket_key || existingFecha.bracket_key
+
+    const bracketScopeResolution = resolveFechaBracketKeyForTournament(tournament, {
+      roundType: nextRoundType,
+      requestedBracketKey: nextBracketKeyRequest,
+    })
+
+    if (!bracketScopeResolution.ok) {
+      return {
+        success: false,
+        error: bracketScopeResolution.error || 'Configuración de copa inválida para esta fecha.'
+      }
+    }
+
+    const { data: linkedMatches, error: linkedMatchesError } = await supabase
+      .from('fecha_matches')
+      .select(`
+        match_id,
+        matches!inner (
+          id,
+          type,
+          bracket_key
+        )
+      `)
+      .eq('fecha_id', fechaId)
+
+    if (linkedMatchesError) {
+      return {
+        success: false,
+        error: 'No se pudo validar la compatibilidad de partidos vinculados a la fecha.'
+      }
+    }
+
+    const incompatibleMatch = (linkedMatches || []).find((row: any) => {
+      if (row.matches?.type !== 'ELIMINATION') return false
+      const matchBracketKey = row.matches?.bracket_key || 'MAIN'
+      return matchBracketKey !== bracketScopeResolution.bracketKey
+    })
+
+    if (incompatibleMatch) {
+      return {
+        success: false,
+        error: `No se puede cambiar la copa de esta fecha porque ya tiene partidos de otra llave vinculados.`
+      }
+    }
+
     // Prepare update data with timezone adjustment
-    const adjustedUpdateData = { ...updateData }
+    const adjustedUpdateData: Record<string, any> = {
+      ...updateData,
+      round_type: nextRoundType,
+      bracket_key: bracketScopeResolution.bracketKey,
+    }
+
     if (updateData.start_date) {
       adjustedUpdateData.start_date = adjustDateForArgentina(updateData.start_date)
     }
@@ -241,7 +324,6 @@ export async function cloneTimeSlots(sourceFechaId: string, targetFechaId: strin
       .from('tournament_time_slots')
       .select('date, start_time, end_time, max_matches, court_name, description')
       .eq('fecha_id', sourceFechaId)
-      .eq('slot_type', 'TIME_RANGE')
 
     if (sourceError || !sourceTimeSlots) {
       return {
@@ -260,9 +342,7 @@ export async function cloneTimeSlots(sourceFechaId: string, targetFechaId: strin
     // Create new time slots for target fecha
     const newTimeSlots = sourceTimeSlots.map(slot => ({
       ...slot,
-      fecha_id: targetFechaId,
-      slot_type: 'TIME_RANGE',
-      is_system: false
+      fecha_id: targetFechaId
     }))
 
     const { error: insertError } = await supabase

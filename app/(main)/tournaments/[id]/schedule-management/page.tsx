@@ -48,6 +48,11 @@ export default async function ScheduleManagementPage({ params, searchParams }: S
     redirect('/tournaments')
   }
 
+  const clubName =
+    (Array.isArray((tournament as any).clubes)
+      ? (tournament as any).clubes[0]?.name
+      : (tournament as any).clubes?.name) || 'Sin club'
+
   // Verify it's a long tournament (dates and schedules only apply to long tournaments)
   if (tournament.type !== 'LONG') {
     redirect(`/tournaments/${resolvedParams.id}`)
@@ -85,7 +90,7 @@ export default async function ScheduleManagementPage({ params, searchParams }: S
     <ScheduleManagementContainer
       tournamentId={resolvedParams.id}
       tournamentName={tournament.name}
-      clubName={tournament.clubes?.name || 'Sin club'}
+      clubName={clubName}
       fechas={fechas || []}
       initialSelectedFechaId={validatedFechaId}
     />

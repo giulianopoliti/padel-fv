@@ -71,6 +71,18 @@ export const formatDateTime = (date: string, startTime: string, endTime: string)
   return `${formatDate(date)} | ${formatTimeRange(startTime, endTime)}`
 }
 
+export const getBracketLabel = (bracketKey?: string | null): string => {
+  if (bracketKey === 'GOLD') return 'Copa de Oro'
+  if (bracketKey === 'SILVER') return 'Copa de Plata'
+  return 'Principal'
+}
+
+export const getBracketBadgeClass = (bracketKey?: string | null): string => {
+  if (bracketKey === 'GOLD') return 'bg-amber-100 text-amber-800 border-amber-300'
+  if (bracketKey === 'SILVER') return 'bg-slate-100 text-slate-800 border-slate-300'
+  return 'bg-blue-100 text-blue-800 border-blue-300'
+}
+
 // Time calculation utilities
 export const calculateDuration = (startTime: string, endTime: string): number => {
   const start = new Date(`1970-01-01T${startTime}`)
@@ -134,13 +146,15 @@ export const validateTimeSlot = (timeSlot: Partial<TimeSlot>, existingSlots: Tim
 
   // Overlap validation with existing slots
   if (timeSlot.date && timeSlot.start_time && timeSlot.end_time && timeSlot.court_name) {
+    const startTime = timeSlot.start_time
+    const endTime = timeSlot.end_time
     const overlapping = existingSlots.find(existing => 
       existing.date === timeSlot.date &&
       existing.court_name === timeSlot.court_name &&
       existing.id !== timeSlot.id && // Exclude self when editing
       timeRangesOverlap(
         { start: existing.start_time, end: existing.end_time },
-        { start: timeSlot.start_time, end: timeSlot.end_time }
+        { start: startTime, end: endTime }
       )
     )
     

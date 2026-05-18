@@ -32,7 +32,6 @@ export async function GET(
       `)
       .eq('fecha_id', fechaId)
       .eq('is_available', true)
-      .eq('slot_type', 'TIME_RANGE')
       .order('date', { ascending: true })
       .order('start_time', { ascending: true })
 
@@ -116,9 +115,7 @@ export async function POST(
         end_time,
         court_name,
         max_matches: max_matches || 1,
-        is_available: true,
-        slot_type: 'TIME_RANGE',
-        is_system: false
+        is_available: true
       })
       .select()
       .single()
@@ -147,19 +144,6 @@ export async function PATCH(
   try {
     const body = await request.json()
     const { couple_id, time_slot_id, is_available } = body
-
-    const { data: timeSlot } = await supabase
-      .from('tournament_time_slots')
-      .select('slot_type')
-      .eq('id', time_slot_id)
-      .single()
-
-    if (timeSlot?.slot_type === 'FREE_DATE') {
-      return NextResponse.json(
-        { error: 'Usa la accion especifica para FECHA LIBRE' },
-        { status: 400 }
-      )
-    }
 
     // Upsert couple availability
     const { data, error } = await supabase

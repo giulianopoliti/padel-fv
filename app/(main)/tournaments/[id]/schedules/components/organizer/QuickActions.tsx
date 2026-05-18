@@ -13,6 +13,7 @@ import {
   CheckCircle2
 } from 'lucide-react'
 import { TournamentFecha } from '../../types'
+import { getBracketLabel } from '../../utils'
 
 interface QuickActionsProps {
   selectedFecha: TournamentFecha | undefined
@@ -100,9 +101,9 @@ export default function QuickActions({
           </div>
 
           <Badge className={getStatusColor(selectedFecha.status)}>
-            {selectedFecha.status === 'ACTIVE' ? 'Activa' :
+            {selectedFecha.status === 'IN_PROGRESS' ? 'Activa' :
              selectedFecha.status === 'COMPLETED' ? 'Completada' :
-             selectedFecha.status === 'CANCELLED' ? 'Cancelada' : 'Pendiente'}
+             selectedFecha.status === 'CANCELED' ? 'Cancelada' : 'Pendiente'}
           </Badge>
 
           {selectedFecha.start_date && (
@@ -122,6 +123,9 @@ export default function QuickActions({
 
           {selectedFecha.round_type === 'ZONE' && (
             <Badge variant="outline">Fecha Clasificatoria</Badge>
+          )}
+          {selectedFecha.round_type !== 'ZONE' && (
+            <Badge variant="outline">{getBracketLabel(selectedFecha.bracket_key)}</Badge>
           )}
         </div>
 

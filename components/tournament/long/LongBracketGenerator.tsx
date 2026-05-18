@@ -62,7 +62,7 @@ export function LongBracketGenerator({
 
     setGenerating(true)
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/generate-long-bracket`, {
+      const response = await fetch(`/api/tournaments/${tournamentId}/generate-placeholder-bracket`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -74,7 +74,7 @@ export function LongBracketGenerator({
       if (result.success) {
         toast({
           title: '¡Llave Generada!',
-          description: `Llave generada exitosamente para ${result.seeding?.totalCouples} parejas`,
+          description: `Llave generada exitosamente para ${result.data?.totalSeeds || result.seeding?.totalCouples || 0} parejas`,
         })
 
         // Callback to parent component
@@ -158,7 +158,7 @@ export function LongBracketGenerator({
           Generar Llave del Torneo
         </CardTitle>
         <CardDescription>
-          El formato largo requiere que todas las parejas completen exactamente 3 partidos de zona antes de generar la llave de eliminación.
+          Podés generar la llave antes de terminar zonas, siempre que cada zona tenga creados los partidos mínimos requeridos por el formato activo.
         </CardDescription>
       </CardHeader>
 
@@ -210,7 +210,7 @@ export function LongBracketGenerator({
               <Alert className="border-green-200 bg-green-50">
                 <CheckCircle className="h-4 w-4 text-green-600" />
                 <AlertDescription className="text-green-800">
-                  ✅ Todas las parejas completaron 3 partidos de zona. ¡Listo para generar llave!
+                  ✅ Se cumplieron los requisitos de generación. ¡Listo para generar llave!
                 </AlertDescription>
               </Alert>
             ) : (
@@ -229,7 +229,7 @@ export function LongBracketGenerator({
                         </div>
                         {validation.details.averageMatches && (
                           <div>
-                            Promedio de partidos por pareja: {validation.details.averageMatches.toFixed(1)} / 3
+                            Promedio de partidos por pareja: {validation.details.averageMatches.toFixed(1)}
                           </div>
                         )}
                       </div>
@@ -251,9 +251,9 @@ export function LongBracketGenerator({
                       <div key={index} className="flex justify-between items-center text-xs bg-background rounded px-2 py-1">
                         <span>Pareja {couple.couple_id}</span>
                         <span className="text-orange-600">
-                          {couple.matches_played}/3 partidos
+                          {couple.matches_played} partidos
                           <span className="text-muted-foreground ml-1">
-                            ({couple.matches_needed} necesarios)
+                            ({couple.matches_needed} faltantes)
                           </span>
                         </span>
                       </div>
@@ -299,7 +299,7 @@ export function LongBracketGenerator({
           ) : (
             <div>• Todas las parejas avanzarán a la llave de eliminación</div>
           )}
-          <div>• Todas las posiciones actuales de zona se marcarán como finales para la generación de la llave</div>
+          <div>• Las posiciones definitivas avanzan directo y las no definitivas se crean como placeholders</div>
         </div>
       </CardContent>
     </Card>

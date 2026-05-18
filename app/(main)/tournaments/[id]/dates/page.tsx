@@ -44,6 +44,11 @@ export default async function DatesPage({ params }: DatesPageProps) {
     redirect('/tournaments')
   }
 
+  const clubName =
+    (Array.isArray((tournament as any).clubes)
+      ? (tournament as any).clubes[0]?.name
+      : (tournament as any).clubes?.name) || 'Sin club'
+
   // Verify it's a long tournament
   if (tournament.type !== 'LONG') {
     redirect(`/tournaments/${resolvedParams.id}`)
@@ -60,7 +65,7 @@ export default async function DatesPage({ params }: DatesPageProps) {
     <DatesContainer
       tournamentId={resolvedParams.id}
       tournamentName={tournament.name}
-      clubName={tournament.clubes?.name || 'Sin club'}
+      clubName={clubName}
       fechas={fechas || []}
     />
   )
