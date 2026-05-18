@@ -12,6 +12,7 @@ interface MatchSchedulingState {
   draggedCouple: CoupleWithData | null
   loading: boolean
   error: string | null
+  warning: string | null
 }
 
 interface MatchFormData {
@@ -36,39 +37,40 @@ export const useMatchScheduling = (
     createdMatches: initialData.existingMatches,
     draggedCouple: null,
     loading: false,
-    error: null
+    error: null,
+    warning: null
   })
+
+  const getFreeDateWarningMessage = useCallback((selectedCouples: CoupleWithData[]) => {
+    const hasFreeDateBlockedCouple = selectedCouples.some(couple => couple.free_date_blocked)
+
+    if (!hasFreeDateBlockedCouple) {
+      return null
+    }
+
+    return 'Advertencia: una o ambas parejas marcaron FECHA LIBRE. Igual puedes crear el partido.'
+  }, [])
 
   // Handle couple selection (drag from matrix)
   const handleCoupleSelect = useCallback((couple: CoupleWithData) => {
-    if (couple.free_date_blocked) {
-      setState(prev => ({
-        ...prev,
-        error: 'Esta pareja marco FECHA LIBRE y no puede ser seleccionada'
-      }))
-      return
-    }
-
     setState(prev => {
       const isAlreadySelected = prev.selectedCouples.find(c => c.id === couple.id)
-      
+      let selectedCouples = prev.selectedCouples
+
       if (isAlreadySelected) {
-        // Remove if already selected
-        return {
-          ...prev,
-          selectedCouples: prev.selectedCouples.filter(c => c.id !== couple.id)
-        }
+        selectedCouples = prev.selectedCouples.filter(c => c.id !== couple.id)
       } else if (prev.selectedCouples.length < 2) {
-        // Add if under limit
-        return {
-          ...prev,
-          selectedCouples: [...prev.selectedCouples, couple]
-        }
+        selectedCouples = [...prev.selectedCouples, couple]
       }
-      
-      return prev
+
+      return {
+        ...prev,
+        selectedCouples,
+        error: null,
+        warning: getFreeDateWarningMessage(selectedCouples)
+      }
     })
-  }, [])
+  }, [getFreeDateWarningMessage])
 
   // Handle drag start
   const handleDragStart = useCallback((couple: CoupleWithData) => {
@@ -111,9 +113,10 @@ export const useMatchScheduling = (
   const handleCoupleRemove = useCallback((coupleId: string) => {
     setState(prev => ({
       ...prev,
-      selectedCouples: prev.selectedCouples.filter(c => c.id !== coupleId)
+      selectedCouples: prev.selectedCouples.filter(c => c.id !== coupleId),
+      warning: getFreeDateWarningMessage(prev.selectedCouples.filter(c => c.id !== coupleId))
     }))
-  }, [])
+  }, [getFreeDateWarningMessage])
 
   // Validate match creation for conflicts
   const validateMatchCreation = useCallback((couple1Id: string, couple2Id: string, fecha: string) => {
@@ -157,14 +160,6 @@ export const useMatchScheduling = (
 
     const [couple1, couple2] = state.selectedCouples
 
-    if (couple1.free_date_blocked || couple2.free_date_blocked) {
-      setState(prev => ({
-        ...prev,
-        error: 'Una o ambas parejas marcaron FECHA LIBRE'
-      }))
-      return false
-    }
-    
     // Validate for conflicts
     const validation = validateMatchCreation(couple1.id, couple2.id, formData.fecha)
     if (!validation.valid) {
@@ -178,7 +173,8 @@ export const useMatchScheduling = (
     setState(prev => ({
       ...prev,
       loading: true,
-      error: null
+      error: null,
+      warning: getFreeDateWarningMessage(prev.selectedCouples)
     }))
 
     try {
@@ -251,7 +247,8 @@ export const useMatchScheduling = (
           selectedCouples: [],
           createdMatches: [...prev.createdMatches, newMatch],
           loading: false,
-          error: null // Clear any previous errors
+          error: null,
+          warning: null
         }))
         
         // Trigger server-side revalidation as fallback
@@ -265,7 +262,8 @@ export const useMatchScheduling = (
           ...prev,
           selectedCouples: [],
           loading: false,
-          error: null
+          error: null,
+          warning: null
         }))
         
         onMatchCreated()
@@ -287,7 +285,7 @@ export const useMatchScheduling = (
       }))
       return false
     }
-  }, [state.selectedCouples, state.timeSlots, fechaId, onMatchCreated])
+  }, [state.selectedCouples, state.timeSlots, fechaId, onMatchCreated, getFreeDateWarningMessage, validateMatchCreation])
 
   // Update match result with optimistic UI update
   const handleUpdateMatchResult = useCallback(async (matchId: string, sets: SetResult[], winnerId: string, resultCouple1: string, resultCouple2: string) => {
@@ -543,7 +541,8 @@ export const useMatchScheduling = (
         // Merge server matches with local-only matches (preserves instant updates)
         createdMatches: [...newData.existingMatches, ...localOnlyMatches],
         selectedCouples: [], // Clear selections on data update
-        error: null
+        error: null,
+        warning: null
       }
     })
   }, [])

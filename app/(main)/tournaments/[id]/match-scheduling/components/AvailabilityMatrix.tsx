@@ -32,11 +32,6 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
   onDragEnd
 }) => {
   const handleDragStart = (couple: CoupleWithData, e: React.DragEvent) => {
-    if (couple.free_date_blocked) {
-      e.preventDefault()
-      return
-    }
-
     e.dataTransfer.setData('text/plain', couple.id)
     e.dataTransfer.effectAllowed = 'move'
     onDragStart(couple)
@@ -47,10 +42,6 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
   }
 
   const handleCoupleClick = (couple: CoupleWithData) => {
-    if (couple.free_date_blocked) {
-      return
-    }
-
     onCoupleSelect(couple)
   }
 
@@ -184,10 +175,10 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                     className={`
                       border-b border-gray-100 hover:bg-blue-50/50
                       transition-colors duration-200
-                      ${couple.free_date_blocked ? 'cursor-not-allowed opacity-70' : 'cursor-grab active:cursor-grabbing'}
+                      ${couple.free_date_blocked ? 'cursor-grab active:cursor-grabbing opacity-80' : 'cursor-grab active:cursor-grabbing'}
                       ${draggedCouple?.id === couple.id ? 'opacity-50 bg-blue-100' : rowBgColor}
                     `}
-                    draggable={!couple.free_date_blocked}
+                    draggable
                     onDragStart={(e) => {
                       e.stopPropagation()
                       handleDragStart(couple, e)

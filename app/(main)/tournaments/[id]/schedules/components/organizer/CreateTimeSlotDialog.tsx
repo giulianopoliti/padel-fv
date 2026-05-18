@@ -23,10 +23,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Clock, Loader2, AlertCircle, Calendar, MapPin } from 'lucide-react'
+import { AlertCircle, Calendar, Clock, Loader2, MapPin } from 'lucide-react'
+import { toast } from 'sonner'
 import { createTimeSlot } from '../../../schedule-management/actions'
 import type { CreateTimeSlotData } from '../../types'
-import { toast } from 'sonner'
 
 const createTimeSlotSchema = z.object({
   date: z.string().min(1, 'La fecha es requerida'),
@@ -34,15 +34,20 @@ const createTimeSlotSchema = z.object({
   end_time: z.string().min(1, 'La hora de fin es requerida'),
   court_name: z.string().optional(),
   description: z.string().optional(),
-  max_matches: z.number().min(1, 'Debe haber al menos 1 partido').max(5, 'Máximo 5 partidos simultáneos').default(1),
+  max_matches: z
+    .number()
+    .min(1, 'Debe haber al menos 1 partido')
+    .max(5, 'Máximo 5 partidos simultáneos')
+    .default(1),
 }).refine((data) => {
   if (data.start_time && data.end_time) {
     return data.start_time < data.end_time
   }
+
   return true
 }, {
-  message: "La hora de fin debe ser posterior a la hora de inicio",
-  path: ["end_time"],
+  message: 'La hora de fin debe ser posterior a la hora de inicio',
+  path: ['end_time'],
 })
 
 type CreateTimeSlotFormData = z.infer<typeof createTimeSlotSchema>
@@ -58,7 +63,7 @@ export default function CreateTimeSlotDialog({
   fechaId,
   isOpen,
   onClose,
-  onTimeSlotCreated
+  onTimeSlotCreated,
 }: CreateTimeSlotDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -97,13 +102,13 @@ export default function CreateTimeSlotDialog({
         toast.success('Horario creado exitosamente')
         form.reset()
         onClose()
-      } else {
-        throw new Error(result.error || 'Error desconocido al crear el horario')
+        return
       }
 
-    } catch (error: any) {
-      console.error('Error creating time slot:', error)
-      setError(error.message || 'Error al crear el horario. Intenta nuevamente.')
+      throw new Error(result.error || 'Error desconocido al crear el horario')
+    } catch (submitError: any) {
+      console.error('Error creating time slot:', submitError)
+      setError(submitError.message || 'Error al crear el horario. Intenta nuevamente.')
     } finally {
       setIsSubmitting(false)
     }
@@ -119,20 +124,19 @@ export default function CreateTimeSlotDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-blue-600" />
-            Crear Nuevo Horario
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader className="space-y-1">
+          <DialogTitle className="flex items-center gap-2 text-lg">
+            <Clock className="h-4 w-4 text-blue-600" />
+            Crear nuevo horario
           </DialogTitle>
-          <DialogDescription>
-            Configura un nuevo horario para que las parejas puedan marcar su disponibilidad.
+          <DialogDescription className="text-sm">
+            Mantenemos la misma configuración, pero en un formulario más compacto.
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Error Display */}
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -140,42 +144,56 @@ export default function CreateTimeSlotDialog({
               </Alert>
             )}
 
-            {/* Date */}
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Fecha del Horario *
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      type="date"
-                      disabled={isSubmitting}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
+              <FormField
+                control={form.control}
+                name="date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2 text-sm">
+                      <Calendar className="h-4 w-4" />
+                      Fecha *
+                    </FormLabel>
+                    <FormControl>
+                      <Input type="date" disabled={isSubmitting} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            {/* Time Range */}
+              <FormField
+                control={form.control}
+                name="max_matches"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Simultáneos</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={5}
+                        disabled={isSubmitting}
+                        {...field}
+                        onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 1)}
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">1 a 5 partidos</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
                 name="start_time"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Hora Inicio *</FormLabel>
+                    <FormLabel className="text-sm">Hora inicio *</FormLabel>
                     <FormControl>
-                      <Input
-                        type="time"
-                        disabled={isSubmitting}
-                        {...field}
-                      />
+                      <Input type="time" disabled={isSubmitting} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -187,13 +205,9 @@ export default function CreateTimeSlotDialog({
                 name="end_time"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Hora Fin *</FormLabel>
+                    <FormLabel className="text-sm">Hora fin *</FormLabel>
                     <FormControl>
-                      <Input
-                        type="time"
-                        disabled={isSubmitting}
-                        {...field}
-                      />
+                      <Input type="time" disabled={isSubmitting} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -201,19 +215,18 @@ export default function CreateTimeSlotDialog({
               />
             </div>
 
-            {/* Court Name */}
             <FormField
               control={form.control}
               name="court_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="flex items-center gap-2">
+                  <FormLabel className="flex items-center gap-2 text-sm">
                     <MapPin className="h-4 w-4" />
-                    Nombre de Cancha (opcional)
+                    Cancha
                   </FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="ej: Cancha 1, Cancha Principal..."
+                      placeholder="Ej: Cancha 1 o Principal"
                       disabled={isSubmitting}
                       {...field}
                     />
@@ -223,46 +236,18 @@ export default function CreateTimeSlotDialog({
               )}
             />
 
-            {/* Max Matches */}
-            <FormField
-              control={form.control}
-              name="max_matches"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Partidos Simultáneos</FormLabel>
-                  <FormControl>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={5}
-                        disabled={isSubmitting}
-                        className="w-20"
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        partidos al mismo tiempo
-                      </span>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Description */}
             <FormField
               control={form.control}
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Descripción (opcional)</FormLabel>
+                  <FormLabel className="text-sm">Descripción</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="ej: Horario de mañana, canchas exteriores..."
+                      placeholder="Ej: horario de mañana o canchas exteriores"
                       disabled={isSubmitting}
                       rows={2}
+                      className="resize-none"
                       {...field}
                     />
                   </FormControl>
@@ -271,23 +256,16 @@ export default function CreateTimeSlotDialog({
               )}
             />
 
-            {/* Info Box */}
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-start gap-2">
-                <Clock className="h-4 w-4 text-blue-600 mt-0.5" />
-                <div className="text-sm text-blue-800">
-                  <p className="font-medium mb-1">¿Cómo funciona?</p>
-                  <ul className="text-xs space-y-1">
-                    <li>• Las parejas inscritas podrán marcar su disponibilidad</li>
-                    <li>• Solo las parejas disponibles podrán jugar en este horario</li>
-                    <li>• Puedes programar múltiples partidos simultáneos</li>
-                  </ul>
-                </div>
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+              <div className="flex items-start gap-2 text-xs text-blue-800">
+                <Clock className="mt-0.5 h-4 w-4 text-blue-600" />
+                <p>
+                  Las parejas podrán marcar disponibilidad para este horario y podés habilitar entre 1 y 5 partidos simultáneos.
+                </p>
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3 pt-4">
+            <div className="flex justify-end gap-2 pt-2">
               <Button
                 type="button"
                 variant="outline"
@@ -296,17 +274,14 @@ export default function CreateTimeSlotDialog({
               >
                 Cancelar
               </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-              >
+              <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Creando...
                   </>
                 ) : (
-                  'Crear Horario'
+                  'Crear horario'
                 )}
               </Button>
             </div>

@@ -145,18 +145,15 @@ const getFreeDateBlocksForCouples = async (
   return new Map((data || []).map((item: any) => [item.couple_id, item.notes || null]))
 }
 
-const validateCouplesNotFreeDateBlocked = async (
+const getFreeDateWarningForCouples = async (
   supabase: any,
   fechaId: string,
   coupleIds: string[]
-): Promise<ActionResult | null> => {
+): Promise<string | null> => {
   const freeDateBlocks = await getFreeDateBlocksForCouples(supabase, fechaId, coupleIds)
 
   if (freeDateBlocks.size > 0) {
-    return {
-      success: false,
-      error: 'Una o ambas parejas marcaron FECHA LIBRE y no pueden ser programadas en esta fecha'
-    }
+    return 'Una o ambas parejas marcaron FECHA LIBRE en esta fecha'
   }
 
   return null
@@ -577,15 +574,11 @@ export async function createMatch(
       }
     }
 
-    const freeDateValidation = await validateCouplesNotFreeDateBlocked(
+    const freeDateWarning = await getFreeDateWarningForCouples(
       supabase,
       fechaId,
       [couple1Id, couple2Id]
     )
-
-    if (freeDateValidation) {
-      return freeDateValidation
-    }
 
     // Get time slot data for scheduling information (if timeSlotId provided)
     let timeSlot = null
@@ -626,6 +619,10 @@ export async function createMatch(
       if (matchCount >= maxMatches) {
         warningMessage = ` (Advertencia: Este horario ya tiene ${matchCount} partidos, máximo recomendado: ${maxMatches})`
       }
+    }
+
+    if (freeDateWarning) {
+      warningMessage = `${warningMessage} (Advertencia: ${freeDateWarning})`
     }
 
     // Determine schedule details - use custom if provided, otherwise time slot defaults, otherwise null
@@ -1280,14 +1277,14 @@ export async function modifyMatchSchedule(
 
     if (fechaId) {
       const coupleIds = [matchData.couple1_id, matchData.couple2_id].filter(Boolean) as string[]
-      const freeDateValidation = await validateCouplesNotFreeDateBlocked(
+      const freeDateWarning = await getFreeDateWarningForCouples(
         supabase,
         fechaId,
         coupleIds
       )
 
-      if (freeDateValidation) {
-        return freeDateValidation
+      if (freeDateWarning) {
+        console.warn(`[modifyMatchSchedule] ${freeDateWarning}. Match ${matchId}`)
       }
     }
 

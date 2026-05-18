@@ -30,6 +30,7 @@ interface MatchCreationPanelProps {
   timeSlots: SchedulingData['timeSlots']
   loading?: boolean
   error: string | null
+  warning?: string | null
   showMatchesList?: boolean
   onCoupleRemove: (coupleId: string) => void
   onMatchCreate: (formData: {
@@ -57,6 +58,7 @@ const MatchCreationPanel: React.FC<MatchCreationPanelProps> = ({
   timeSlots,
   loading,
   error,
+  warning,
   showMatchesList = false,
   onCoupleRemove,
   onMatchCreate,
@@ -212,6 +214,13 @@ const MatchCreationPanel: React.FC<MatchCreationPanelProps> = ({
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
               <p className="text-red-700 text-sm">{typeof error === 'string' ? error : JSON.stringify(error)}</p>
+            </div>
+          )}
+
+          {warning && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+              <p className="text-amber-700 text-sm">{warning}</p>
             </div>
           )}
 

@@ -129,7 +129,7 @@ const MatchSchedulingContainer: React.FC<MatchSchedulingContainerProps> = ({
   // Statistics - with null check
   const stats = schedulingData ? {
     totalCouples: schedulingData.couples.length,
-    availableCouples: schedulingData.couples.filter(c => !c.has_played_in_this_date && !c.free_date_blocked).length,
+    availableCouples: schedulingData.couples.filter(c => !c.has_played_in_this_date).length,
     playedCouples: schedulingData.couples.filter(c => c.has_played_in_this_date).length,
     freeDateBlocked: schedulingData.couples.filter(c => c.free_date_blocked).length,
     totalTimeSlots: schedulingData.timeSlots.length,

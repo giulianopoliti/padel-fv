@@ -36,6 +36,7 @@ const SchedulingMatrixV0: React.FC<SchedulingMatrixV0Props> = ({
     createdMatches,
     draggedCouple,
     error,
+    warning,
     actions
   } = useMatchScheduling(schedulingData, fechaId, onMatchCreated)
 
@@ -86,6 +87,7 @@ const SchedulingMatrixV0: React.FC<SchedulingMatrixV0Props> = ({
               createdMatches={[]}
               timeSlots={timeSlots}
               error={error}
+              warning={warning}
               onCoupleRemove={actions.handleCoupleRemove}
               onMatchCreate={actions.handleCreateMatch}
               onMatchDelete={actions.handleDeleteMatch}
