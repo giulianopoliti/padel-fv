@@ -97,7 +97,7 @@ export default function PlayerFvUpcomingTournamentsSection({
               key={tournament.id}
               className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 transition-colors hover:bg-white/[0.07] sm:p-5"
             >
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:justify-between">
                 <div className="min-w-0 flex-1 space-y-4">
                   <div className="flex items-center gap-2">
                     <Badge className="bg-court-500 text-brand-900 hover:bg-court-500">
@@ -142,7 +142,7 @@ export default function PlayerFvUpcomingTournamentsSection({
                   </div>
                 </div>
 
-                <div className="flex w-full flex-col gap-2 lg:w-52">
+                <div className="flex w-full flex-col justify-end gap-2 lg:w-52">
                   {canRegister ? (
                     <PublicRegistrationLauncher
                       tournamentId={tournament.id}

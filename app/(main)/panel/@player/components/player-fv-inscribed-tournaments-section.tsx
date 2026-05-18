@@ -76,7 +76,7 @@ export default function PlayerFvInscribedTournamentsSection({
               key={tournament.id}
               className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 transition-colors hover:bg-white/[0.07] sm:p-5"
             >
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:justify-between">
                 <div className="min-w-0 flex-1 space-y-4">
                   {tournamentType ? (
                     <div className="flex items-center gap-2">
@@ -117,7 +117,7 @@ export default function PlayerFvInscribedTournamentsSection({
                   </div>
                 </div>
 
-                <div className="flex w-full flex-col gap-2 lg:w-48">
+                <div className="flex w-full flex-col justify-end gap-2 lg:w-48">
                   <Button asChild variant="outline" className="h-10 border-white/20 bg-white/5 text-sm font-semibold text-white hover:bg-white/10">
                     <Link href={`/tournaments/${tournament.id}`}>
                       Ver torneo

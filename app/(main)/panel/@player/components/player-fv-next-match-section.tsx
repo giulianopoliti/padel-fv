@@ -58,7 +58,7 @@ export default function PlayerFvNextMatchSection({ nextMatches }: PlayerFvNextMa
                   : "border-white/10 bg-white/5 hover:bg-white/[0.07]",
               ].join(" ")}
             >
-              <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-stretch lg:justify-between">
                 <div className="min-w-0 flex-1 space-y-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge className="bg-court-500 text-brand-900 hover:bg-court-500">
@@ -103,7 +103,7 @@ export default function PlayerFvNextMatchSection({ nextMatches }: PlayerFvNextMa
                   </div>
                 </div>
 
-                <div className="flex w-full flex-col gap-2 lg:w-48">
+                <div className="flex w-full flex-col justify-end gap-2 lg:w-48">
                   <Button asChild className="h-10 bg-court-500 text-sm font-semibold text-brand-900 hover:bg-court-400">
                     <Link href={`/tournaments/${match.tournament_id}`}>
                       Ver torneo
