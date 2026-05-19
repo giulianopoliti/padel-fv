@@ -3,6 +3,7 @@ import { getTournamentsOptimized, getCategories, getClubsForFilter } from "@/app
 import TournamentsLayout from "../components/tournaments-layout"
 import PaginationWrapper from "../components/pagination-wrapper"
 import { PublicTournamentCards } from "@/components/tournaments/public-tournament-cards"
+import { getTenantBranding } from "@/config/tenant"
 
 export const dynamic = "force-dynamic"
 
@@ -23,6 +24,7 @@ export default async function UpcomingTournamentsPage({ searchParams }: PageProp
   const clubFilter = params.club
   const searchTerm = params.search
   const type = params.type === "AMERICAN" ? "AMERICAN" : "LONG"
+  const branding = getTenantBranding()
 
   const [tournamentsData, categories, clubs] = await Promise.all([
     getTournamentsOptimized({
@@ -45,7 +47,7 @@ export default async function UpcomingTournamentsPage({ searchParams }: PageProp
   return (
     <TournamentsLayout
       title="Proximos torneos"
-      description="Las proximas fechas del circuito Padel FV, ordenadas para que veas rapido categoria, horario, club e inscripcion."
+      description={`Las proximas fechas de ${branding.siteName}, ordenadas para que veas rapido categoria, horario, club e inscripcion.`}
       currentType={type}
       categories={categories}
       clubs={clubs}
@@ -57,7 +59,7 @@ export default async function UpcomingTournamentsPage({ searchParams }: PageProp
           emptyDescription={
             categoryFilter || clubFilter || searchTerm
               ? "No encontramos torneos con esos filtros. Proba cambiando la categoria, el club o la busqueda."
-              : "No hay torneos cargados para este formato en este momento."
+              : `No hay torneos cargados para este formato en ${branding.siteName} en este momento.`
           }
         />
 

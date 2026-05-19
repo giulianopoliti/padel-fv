@@ -3,6 +3,7 @@ import { getTournamentsOptimized, getCategories, getClubsForFilter } from "@/app
 import TournamentsLayout from "../components/tournaments-layout"
 import PaginationWrapper from "../components/pagination-wrapper"
 import { PublicTournamentCards } from "@/components/tournaments/public-tournament-cards"
+import { getTenantBranding } from "@/config/tenant"
 
 export const dynamic = "force-dynamic"
 
@@ -23,6 +24,7 @@ export default async function PastTournamentsPage({ searchParams }: PageProps) {
   const clubFilter = params.club
   const searchTerm = params.search
   const type = params.type === "AMERICAN" ? "AMERICAN" : "LONG"
+  const branding = getTenantBranding()
 
   const [tournamentsData, categories, clubs] = await Promise.all([
     getTournamentsOptimized({
@@ -45,7 +47,7 @@ export default async function PastTournamentsPage({ searchParams }: PageProps) {
   return (
     <TournamentsLayout
       title="Torneos finalizados"
-      description="Historial del circuito Padel FV con la misma lectura simple y clara del resto del sitio."
+      description={`Historial de ${branding.siteName} con la misma lectura simple y clara del resto del sitio.`}
       currentType={type}
       categories={categories}
       clubs={clubs}
@@ -57,7 +59,7 @@ export default async function PastTournamentsPage({ searchParams }: PageProps) {
           emptyDescription={
             categoryFilter || clubFilter || searchTerm
               ? "No encontramos torneos finalizados con esos filtros."
-              : "Todavia no hay torneos finalizados para este formato."
+              : `Todavia no hay torneos finalizados para este formato en ${branding.siteName}.`
           }
         />
 

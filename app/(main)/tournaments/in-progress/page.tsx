@@ -3,6 +3,7 @@ import { getTournamentsOptimized, getCategories, getClubsForFilter } from "@/app
 import TournamentsLayout from "../components/tournaments-layout"
 import PaginationWrapper from "../components/pagination-wrapper"
 import { PublicTournamentCards } from "@/components/tournaments/public-tournament-cards"
+import { getTenantBranding } from "@/config/tenant"
 
 export const dynamic = "force-dynamic"
 
@@ -23,6 +24,7 @@ export default async function InProgressTournamentsPage({ searchParams }: PagePr
   const clubFilter = params.club
   const searchTerm = params.search
   const type = params.type === "AMERICAN" ? "AMERICAN" : "LONG"
+  const branding = getTenantBranding()
 
   const [tournamentsData, categories, clubs] = await Promise.all([
     getTournamentsOptimized({
@@ -45,7 +47,7 @@ export default async function InProgressTournamentsPage({ searchParams }: PagePr
   return (
     <TournamentsLayout
       title="Torneos activos"
-      description="Seguimiento simple de los torneos que ya estan en juego dentro del circuito Padel FV."
+      description={`Seguimiento simple de los torneos que ya estan en juego dentro de ${branding.siteName}.`}
       currentType={type}
       categories={categories}
       clubs={clubs}
@@ -57,7 +59,7 @@ export default async function InProgressTournamentsPage({ searchParams }: PagePr
           emptyDescription={
             categoryFilter || clubFilter || searchTerm
               ? "No encontramos torneos activos con esos filtros."
-              : "No hay torneos activos para este formato en este momento."
+              : `No hay torneos activos para este formato en ${branding.siteName} en este momento.`
           }
         />
 
