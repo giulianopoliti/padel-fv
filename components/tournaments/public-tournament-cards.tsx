@@ -157,11 +157,11 @@ export function PublicTournamentCards({
     : "text-xl font-black tracking-tight text-white sm:text-2xl"
   const bodyTextClassName = isElite ? "text-sm font-semibold uppercase tracking-[0.03em] text-white/72" : "text-sm text-slate-300"
   const infoBoxClassName = isElite
-    ? "flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 sm:px-4"
+    ? "flex items-start gap-3 rounded-2xl border border-white/16 bg-[rgba(10,19,34,0.78)] px-4 py-3 sm:px-5"
     : "flex items-start gap-3 rounded-2xl bg-white/5 px-3 py-3 sm:px-4"
   const infoIconClassName = isElite ? "mt-0.5 h-4 w-4 text-[var(--tpe-lime)]" : "mt-0.5 h-4 w-4 text-court-300"
-  const infoLabelClassName = isElite ? "font-black uppercase tracking-[0.12em] text-[var(--tpe-cyan)]" : "font-semibold text-white"
-  const infoValueClassName = isElite ? "font-semibold text-white/82" : ""
+  const infoLabelClassName = isElite ? "text-[11px] font-black uppercase tracking-[0.14em] text-white/70" : "font-semibold text-white"
+  const infoValueClassName = isElite ? "font-semibold text-white" : ""
   const pricePillClassName = isElite
     ? "inline-flex items-center gap-2 rounded-full bg-[var(--tpe-lime)] px-3 py-1 text-sm font-black uppercase tracking-[0.12em] text-[var(--tpe-night)]"
     : "inline-flex items-center gap-2 rounded-full bg-court-500 px-3 py-1 text-sm font-semibold text-brand-900"
@@ -188,11 +188,16 @@ export function PublicTournamentCards({
     <div className="flex flex-col gap-4">
       {tournaments.map((tournament) => {
         const priceLabel = formatPrice(tournament.price)
+        const timeLabel = tournament.startDate
+          ? hasExplicitTime(tournament.startDate)
+            ? `${formatTime(tournament.startDate)} hs`
+            : "A confirmar"
+          : "A confirmar"
 
         return (
           <Card key={tournament.id} className={cardClassName}>
             <CardContent className="p-4 sm:p-6">
-              <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-stretch lg:justify-between">
                 <div className="min-w-0 flex-1 space-y-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge className={primaryBadgeClassName}>
@@ -219,42 +224,32 @@ export function PublicTournamentCards({
                     </p>
                   </div>
 
-                  <div className={`grid gap-3 text-sm ${isElite ? "text-white/82" : "text-slate-200"} sm:grid-cols-2`}>
+                  <div className={`grid gap-3 text-sm ${isElite ? "text-white" : "text-slate-200"} sm:grid-cols-2`}>
                     <div className={infoBoxClassName}>
                       <CalendarDays className={infoIconClassName} />
-                      <div>
+                      <div className="min-w-0">
                         <p className={infoLabelClassName}>Fecha</p>
-                        <p className={infoValueClassName}>{formatSchedule(tournament)}</p>
-                      </div>
-                    </div>
-
-                    <div className={infoBoxClassName}>
-                      <Clock3 className={infoIconClassName} />
-                      <div>
-                        <p className={infoLabelClassName}>Horario</p>
-                        <p className={infoValueClassName}>
-                          {tournament.startDate
-                            ? hasExplicitTime(tournament.startDate)
-                              ? `${formatTime(tournament.startDate)} hs`
-                              : "A confirmar"
-                            : "A confirmar"}
+                        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+                          <p className={infoValueClassName}>{formatSchedule(tournament)}</p>
+                          <p className="inline-flex items-center gap-1 font-semibold text-white">
+                            <Clock3 className="h-3.5 w-3.5 text-[var(--tpe-lime)]" />
+                            {timeLabel}
+                          </p>
+                        </div>
+                        <p className="mt-1 text-xs text-white/65">
+                          {tournament.type === "AMERICAN" ? "Partido unico con horario definido." : "Fecha principal del torneo."}
                         </p>
                       </div>
                     </div>
 
                     <div className={infoBoxClassName}>
                       <MapPin className={infoIconClassName} />
-                      <div>
+                      <div className="min-w-0">
                         <p className={infoLabelClassName}>Club</p>
                         <p className={infoValueClassName}>{tournament.club?.name || "Sede a confirmar"}</p>
-                      </div>
-                    </div>
-
-                    <div className={infoBoxClassName}>
-                      <Trophy className={infoIconClassName} />
-                      <div>
-                        <p className={infoLabelClassName}>Detalle</p>
-                        <p className={infoValueClassName}>{tournament.club?.address || tournament.award || "Informacion disponible al abrir el torneo"}</p>
+                        <p className="mt-1 text-xs text-white/65">
+                          {tournament.club?.address || "Direccion a confirmar"}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -277,7 +272,7 @@ export function PublicTournamentCards({
                   ) : null}
                 </div>
 
-                <div className="flex w-full flex-col gap-3 lg:w-56">
+                <div className="flex w-full flex-col justify-end gap-3 lg:w-56 lg:items-center">
                   {tournament.status === "NOT_STARTED" ? (
                     <PublicRegistrationLauncher
                       tournamentId={tournament.id}
@@ -287,11 +282,11 @@ export function PublicTournamentCards({
                       enableTransferProof={tournament.enableTransferProof || false}
                       transferAlias={tournament.transferAlias || null}
                       transferAmount={tournament.transferAmount || null}
-                      buttonClassName={registrationButtonClassName}
+                      buttonClassName={`${registrationButtonClassName} lg:max-w-[220px]`}
                       fullWidth
                     />
                   ) : null}
-                  <Button asChild variant="outline" className={detailsButtonClassName}>
+                  <Button asChild variant="outline" className={`${detailsButtonClassName} lg:max-w-[220px]`}>
                     <Link href={`/tournaments/${tournament.id}`}>Ver detalles</Link>
                   </Button>
                 </div>
