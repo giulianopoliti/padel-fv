@@ -99,6 +99,28 @@ type ZoneSnapshot = {
   matchCount: number
 }
 
+const LONG_SINGLE_ZONE_BRACKET_MODE_SWITCH_PRESETS = [
+  'LONG_SINGLE_ZONE_BRACKET',
+  'LONG_SINGLE_ZONE_GOLD_SILVER',
+] as const
+
+function canSwitchLongSingleZoneBracketMode(
+  currentPresetId?: string | null,
+  nextPresetId?: string | null
+): boolean {
+  return Boolean(
+    currentPresetId &&
+    nextPresetId &&
+    currentPresetId !== nextPresetId &&
+    LONG_SINGLE_ZONE_BRACKET_MODE_SWITCH_PRESETS.includes(
+      currentPresetId as (typeof LONG_SINGLE_ZONE_BRACKET_MODE_SWITCH_PRESETS)[number]
+    ) &&
+    LONG_SINGLE_ZONE_BRACKET_MODE_SWITCH_PRESETS.includes(
+      nextPresetId as (typeof LONG_SINGLE_ZONE_BRACKET_MODE_SWITCH_PRESETS)[number]
+    )
+  )
+}
+
 async function getZoneSnapshots(
   supabase: Awaited<ReturnType<typeof createClient>>,
   tournamentId: string
@@ -236,6 +258,10 @@ export async function updateTournamentFormatConfig(
     const runtimeSwitchRequested =
       isAmericanTournament &&
       canSwitchAmericanMultiZoneRuntime(currentResolved.presetId, nextResolved.presetId)
+    const longSingleZoneBracketModeSwitchRequested = canSwitchLongSingleZoneBracketMode(
+      currentResolved.presetId,
+      nextResolved.presetId
+    )
 
     if (
       isAmericanTournament &&
@@ -246,6 +272,30 @@ export async function updateTournamentFormatConfig(
         success: false,
         code: 'UNSUPPORTED_RUNTIME_PRESET_TRANSITION',
         error: 'En fase de zonas solo se permite cambiar entre AMERICAN_MULTI_ZONE_2 y AMERICAN_MULTI_ZONE_3.',
+      }
+    }
+
+    if (longSingleZoneBracketModeSwitchRequested) {
+      const hasBracketFlag =
+        tournament.bracket_status === 'BRACKET_GENERATED' ||
+        tournament.bracket_status === 'BRACKET_ACTIVE' ||
+        Boolean(tournament.bracket_generated_at)
+
+      if (hasBracketFlag) {
+        return {
+          success: false,
+          code: 'BRACKET_ALREADY_EXISTS',
+          error: 'No se puede cambiar entre llave unica y Oro/Plata porque la llave ya fue generada.',
+        }
+      }
+
+      const bracketArtifacts = await getPersistedBracketArtifacts(tournamentId)
+      if (bracketArtifacts.exists) {
+        return {
+          success: false,
+          code: 'BRACKET_ARTIFACTS_EXIST',
+          error: 'No se puede cambiar entre llave unica y Oro/Plata porque existen artefactos persistidos de llave.',
+        }
       }
     }
 

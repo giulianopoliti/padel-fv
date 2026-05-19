@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
-import { Search, Settings, Plus } from "lucide-react"
+import { Archive, Calendar, Plus, Search, Settings, Trophy } from "lucide-react"
 import { useUser } from "@/contexts/user-context"
 import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
@@ -57,6 +57,38 @@ export default function TournamentsLayout({
     params.delete("page")
     return `${pathname}?${params.toString()}`
   }
+
+  const buildStatusHref = (statusPath: "upcoming" | "in-progress" | "past") => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("page")
+    const queryString = params.toString()
+    return `/tournaments/${statusPath}${queryString ? `?${queryString}` : ""}`
+  }
+
+  const isActiveStatus = (statusPath: "upcoming" | "in-progress" | "past") => {
+    return pathname.includes(`/tournaments/${statusPath}`)
+  }
+
+  const statusTabs = [
+    {
+      href: buildStatusHref("upcoming"),
+      label: "Proximos",
+      icon: Calendar,
+      active: isActiveStatus("upcoming"),
+    },
+    {
+      href: buildStatusHref("in-progress"),
+      label: "Activos",
+      icon: Trophy,
+      active: isActiveStatus("in-progress"),
+    },
+    {
+      href: buildStatusHref("past"),
+      label: "Pasados",
+      icon: Archive,
+      active: isActiveStatus("past"),
+    },
+  ]
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#223765_0%,#243b6c_45%,#1f335d_100%)] text-white">
@@ -125,7 +157,32 @@ export default function TournamentsLayout({
           <TournamentFilters categories={categories} clubs={clubs} />
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-[#1b2d52]/76 p-6 shadow-sm backdrop-blur-sm">{children}</div>
+        <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#1b2d52]/76 shadow-sm backdrop-blur-sm">
+          <div className="border-b border-white/10 bg-white/[0.04] p-2">
+            <div className="grid grid-cols-3 gap-2">
+              {statusTabs.map((tab) => {
+                const Icon = tab.icon
+
+                return (
+                  <Link
+                    key={tab.href}
+                    href={tab.href}
+                    className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-semibold transition-colors ${
+                      tab.active
+                        ? "bg-court-500 text-brand-900 shadow-sm"
+                        : "text-slate-300 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{tab.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="p-6">{children}</div>
+        </div>
       </div>
     </div>
   )

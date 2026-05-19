@@ -16,10 +16,13 @@ const getArg = (name, fallback) => {
 }
 
 const APPLY = argv.has("--apply")
+const SKIP_BACKUP = argv.has("--skip-backup")
 const SOURCE_ENV = getArg("--source-env", DEFAULT_SOURCE_ENV)
 const SOURCE_ORG_ID = getArg("--source-org-id", DEFAULT_SOURCE_ORG_ID)
 const DEST_ORG_ID = getArg("--dest-org-id", DEFAULT_DEST_ORG_ID)
 const DEST_CONTAINER = getArg("--dest-container", DEFAULT_DEST_CONTAINER)
+const DEST_DB_URL = getArg("--dest-db-url", process.env.DEST_DATABASE_URL || "")
+const DEST_KIND = getArg("--dest-kind", DEST_DB_URL ? "remote" : "local")
 
 const chunk = (items, size) => {
   const chunks = []
@@ -69,9 +72,14 @@ const source = createClient(sourceUrl, sourceServiceKey, {
 })
 
 const runDockerPsql = (sql) => {
+  const psqlArgs =
+    DEST_KIND === "remote"
+      ? ["exec", DEST_CONTAINER, "psql", DEST_DB_URL, "-At", "-c", sql]
+      : ["exec", DEST_CONTAINER, "psql", "-U", "postgres", "-d", "postgres", "-At", "-c", sql]
+
   const result = spawnSync(
     "docker",
-    ["exec", DEST_CONTAINER, "psql", "-U", "postgres", "-d", "postgres", "-At", "-c", sql],
+    psqlArgs,
     { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }
   )
   if (result.status !== 0) {
@@ -240,20 +248,32 @@ const executeSql = async (sql) => {
 
     const run = spawnSync(
       "docker",
-      [
-        "exec",
-        DEST_CONTAINER,
-        "psql",
-        "-U",
-        "postgres",
-        "-d",
-        "postgres",
-        "-v",
-        "ON_ERROR_STOP=1",
-        "-q",
-        "-f",
-        containerSqlPath,
-      ],
+      DEST_KIND === "remote"
+        ? [
+            "exec",
+            DEST_CONTAINER,
+            "psql",
+            DEST_DB_URL,
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-q",
+            "-f",
+            containerSqlPath,
+          ]
+        : [
+            "exec",
+            DEST_CONTAINER,
+            "psql",
+            "-U",
+            "postgres",
+            "-d",
+            "postgres",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-q",
+            "-f",
+            containerSqlPath,
+          ],
       { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }
     )
     if (run.status !== 0) {
@@ -336,8 +356,16 @@ const normalizeIdentity = (identity, user) => {
 
 const main = async () => {
   console.log(`[migration] Source org: ${SOURCE_ORG_ID}`)
-  console.log(`[migration] Destination: ${DEST_CONTAINER}, org ${DEST_ORG_ID}`)
+  console.log(
+    `[migration] Destination: ${
+      DEST_KIND === "remote" ? "remote Postgres via DEST_DATABASE_URL" : DEST_CONTAINER
+    }, org ${DEST_ORG_ID}`
+  )
   console.log(`[migration] Mode: ${APPLY ? "APPLY" : "DRY-RUN"}`)
+
+  if (DEST_KIND === "remote" && !DEST_DB_URL) {
+    throw new Error("DEST_DATABASE_URL is required for remote destination")
+  }
 
   const columnsByTable = getDestColumns()
   const [destOrg] = localRows(
@@ -596,28 +624,50 @@ const main = async () => {
     return
   }
 
-  const backupName = `/tmp/pre_fv_migration_${timestamp()}.dump`
-  console.log(`[migration] Creating local backup inside container: ${backupName}`)
-  const backup = spawnSync(
-    "docker",
-    [
-      "exec",
-      DEST_CONTAINER,
-      "pg_dump",
-      "-U",
-      "postgres",
-      "-d",
-      "postgres",
-      "--schema=public",
-      "--schema=auth",
-      "-Fc",
-      "-f",
-      backupName,
-    ],
-    { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }
-  )
-  if (backup.status !== 0) {
-    throw new Error(backup.error?.message || backup.stderr || backup.stdout)
+  let backupName = null
+  if (SKIP_BACKUP) {
+    console.log("[migration] Skipping backup because --skip-backup was provided")
+  } else {
+    backupName = `/tmp/pre_fv_migration_${timestamp()}.dump`
+    console.log(`[migration] Creating backup inside container: ${backupName}`)
+    const backup = spawnSync(
+      "docker",
+      DEST_KIND === "remote"
+        ? [
+            "exec",
+            DEST_CONTAINER,
+            "pg_dump",
+            DEST_DB_URL,
+            "--schema=public",
+            "--schema=auth",
+            "-Fc",
+            "-f",
+            backupName,
+          ]
+        : [
+            "exec",
+            DEST_CONTAINER,
+            "pg_dump",
+            "-U",
+            "postgres",
+            "-d",
+            "postgres",
+            "--schema=public",
+            "--schema=auth",
+            "-Fc",
+            "-f",
+            backupName,
+          ],
+      { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }
+    )
+    if (backup.status !== 0) {
+      throw new Error(
+        `${backup.error?.message || backup.stderr || backup.stdout}\n` +
+          (DEST_KIND === "remote"
+            ? "Remote backup failed. Supabase may be running a newer Postgres version than the local pg_dump client. Create a backup from the Supabase Dashboard or rerun with --skip-backup if you accept proceeding without this script-created dump."
+            : "")
+      )
+    }
   }
 
   const statements = [
@@ -720,7 +770,9 @@ where t.id = source_rows.id
   ]
   console.log("[migration] Local post-write counts:")
   console.log(JSON.stringify(postCounts, null, 2))
-  console.log(`[migration] Backup created in container: ${backupName}`)
+  if (backupName) {
+    console.log(`[migration] Backup created in container: ${backupName}`)
+  }
 }
 
 main().catch((error) => {
