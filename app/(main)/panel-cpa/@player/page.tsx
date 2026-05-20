@@ -8,9 +8,20 @@ import Link from "next/link"
 import { getPlayerDashboardData, getPlayerInscribedTournaments, getPlayerUpcomingTournaments } from "@/app/api/panel/actions"
 import { InscribedTournamentsCard } from "./components/inscribed-tournaments-card"
 import { getCategoryColor } from "@/lib/utils/category-colors"
+import { isTournamentGenderFilter } from "@/lib/tournaments/gender-filtering"
 
-export default async function PlayerDashboard() {
+interface PlayerDashboardPageProps {
+  searchParams?: Promise<{
+    upcomingGender?: string
+  }>
+}
+
+export default async function PlayerDashboard({ searchParams }: PlayerDashboardPageProps) {
   const supabase = await createClient()
+  const params = searchParams ? await searchParams : {}
+  const upcomingGenderFilter = isTournamentGenderFilter(params.upcomingGender)
+    ? params.upcomingGender
+    : undefined
 
   // Use getUser() for secure authentication
   const {
@@ -43,7 +54,10 @@ export default async function PlayerDashboard() {
 
   // Obtener próximos torneos usando Edge Function optimizada
   const { upcomingTournaments } = playerData?.id
-    ? await getPlayerUpcomingTournaments(playerData.id)
+    ? await getPlayerUpcomingTournaments(playerData.id, {
+        genderFilter: upcomingGenderFilter,
+        playerGender: playerData.gender ?? null,
+      })
     : { upcomingTournaments: [] }
 
   // Format date with day of week and time

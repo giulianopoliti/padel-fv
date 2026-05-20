@@ -27,6 +27,8 @@ type TournamentPublicInfoSource = {
   } | null
 }
 
+const TOURNAMENT_DISPLAY_TIME_ZONE = 'America/Argentina/Buenos_Aires'
+
 export interface TournamentPublicInfo {
   id: string
   name: string
@@ -126,6 +128,7 @@ export const mapTournamentToPublicInfo = (
           day: 'numeric',
           month: 'long',
           year: 'numeric',
+          timeZone: TOURNAMENT_DISPLAY_TIME_ZONE,
         })
       : null,
     startTimeLabel:
@@ -134,6 +137,7 @@ export const mapTournamentToPublicInfo = (
             hour: '2-digit',
             minute: '2-digit',
             hour12: false,
+            timeZone: TOURNAMENT_DISPLAY_TIME_ZONE,
           })
         : null,
     clubName,

@@ -1,10 +1,15 @@
+"use client"
+
 import Link from "next/link"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { CalendarDays, ChevronRight, Clock3, MapPin, Ticket, Users } from "lucide-react"
 import type { UpcomingTournament } from "@/app/api/panel/actions"
 import PublicRegistrationLauncher from "@/components/tournament/public-registration-launcher"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Gender } from "@/types"
+import { isTournamentGenderFilter } from "@/lib/tournaments/gender-filtering"
 import { formatDateLabel, formatPrice, formatTimeLabel } from "./panel-formatters"
 
 interface PlayerUpcomingTournamentsSectionProps {
@@ -24,6 +29,37 @@ const statusLabels: Record<string, string> = {
 export default function PlayerUpcomingTournamentsSection({
   tournaments,
 }: PlayerUpcomingTournamentsSectionProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const upcomingGenderParam = searchParams.get("upcomingGender")
+  const selectedGenderFilter: "all" | Gender.MALE | Gender.FEMALE | Gender.MIXED = isTournamentGenderFilter(upcomingGenderParam)
+    ? upcomingGenderParam
+    : "all"
+  const tournamentsHref = (() => {
+    const params = new URLSearchParams()
+
+    if (selectedGenderFilter !== "all") {
+      params.set("gender", selectedGenderFilter)
+    }
+
+    const queryString = params.toString()
+    return queryString ? `/tournaments/upcoming?${queryString}` : "/tournaments/upcoming"
+  })()
+
+  const handleGenderFilterChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+
+    if (value === "all") {
+      params.delete("upcomingGender")
+    } else {
+      params.set("upcomingGender", value)
+    }
+
+    const queryString = params.toString()
+    router.push(queryString ? `${pathname}?${queryString}` : pathname)
+  }
+
   if (tournaments.length === 0) {
     return (
       <div className="tpe-shell rounded-[2rem] p-8 text-center text-white">
@@ -41,21 +77,36 @@ export default function PlayerUpcomingTournamentsSection({
   return (
     <div className="tpe-shell overflow-hidden rounded-[2rem]">
       <div className="tpe-banner border-b-4 border-[var(--tpe-forest)] px-5 py-4 sm:px-8">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--tpe-forest)]">Agenda semanal</p>
             <h2 className="text-2xl font-black uppercase tracking-[-0.03em] sm:text-3xl">Proximos torneos</h2>
           </div>
-          <Button
-            asChild
-            variant="ghost"
-            className="h-auto justify-start rounded-full px-0 text-xs font-black uppercase tracking-[0.16em] text-[var(--tpe-night)] hover:bg-transparent hover:text-[var(--tpe-night-soft)] sm:text-sm"
-          >
-            <Link href="/tournaments/upcoming">
-              Ver todos
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </Link>
-          </Button>
+          <div className="flex flex-col gap-3 sm:w-auto sm:min-w-[240px] sm:items-end">
+            <div className="w-full sm:w-56">
+              <Select value={selectedGenderFilter} onValueChange={handleGenderFilterChange}>
+                <SelectTrigger className="rounded-full border-[var(--tpe-forest)]/20 bg-white/80 text-sm font-semibold text-[var(--tpe-night)]">
+                  <SelectValue placeholder="Genero" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los generos</SelectItem>
+                  <SelectItem value="MALE">Masculino</SelectItem>
+                  <SelectItem value="FEMALE">Femenino</SelectItem>
+                  <SelectItem value="MIXED">Mixto</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              asChild
+              variant="ghost"
+              className="h-auto justify-start rounded-full px-0 text-xs font-black uppercase tracking-[0.16em] text-[var(--tpe-night)] hover:bg-transparent hover:text-[var(--tpe-night-soft)] sm:text-sm"
+            >
+              <Link href={tournamentsHref}>
+                Ver todos
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
 

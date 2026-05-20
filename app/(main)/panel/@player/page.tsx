@@ -19,6 +19,7 @@ import PlayerFvInscribedTournamentsSection from "./components/player-fv-inscribe
 import PlayerFvNextMatchSection from "./components/player-fv-next-match-section"
 import PlayerFvUpcomingTournamentsSection from "./components/player-fv-upcoming-tournaments-section"
 import LegacyPlayerDashboard from "@/app/(main)/panel-cpa/@player/page"
+import { isTournamentGenderFilter } from "@/lib/tournaments/gender-filtering"
 
 export const dynamic = "force-dynamic"
 
@@ -30,9 +31,19 @@ interface PlayerPanelProps {
   upcomingTournaments: UpcomingTournament[]
 }
 
-export default async function PlayerDashboard() {
+interface PlayerDashboardPageProps {
+  searchParams: Promise<{
+    upcomingGender?: string
+  }>
+}
+
+export default async function PlayerDashboard({ searchParams }: PlayerDashboardPageProps) {
   const branding = getTenantBranding()
   const supabase = await createClient()
+  const params = await searchParams
+  const upcomingGenderFilter = isTournamentGenderFilter(params.upcomingGender)
+    ? params.upcomingGender
+    : undefined
 
   const {
     data: { user },
@@ -59,7 +70,10 @@ export default async function PlayerDashboard() {
     : { inscribedTournaments: [] }
 
   const { upcomingTournaments } = playerData?.id
-    ? await getPlayerUpcomingTournaments(playerData.id)
+    ? await getPlayerUpcomingTournaments(playerData.id, {
+        genderFilter: upcomingGenderFilter,
+        playerGender: playerData.gender ?? null,
+      })
     : { upcomingTournaments: [] }
 
   const playerPanelProps: PlayerPanelProps = {
@@ -78,7 +92,7 @@ export default async function PlayerDashboard() {
     return <PadelFvPlayerPanel {...playerPanelProps} />
   }
 
-  return <LegacyPlayerDashboard />
+  return <LegacyPlayerDashboard searchParams={searchParams} />
 }
 
 function PadelElitePlayerPanel({

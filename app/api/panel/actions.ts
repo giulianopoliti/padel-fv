@@ -3,6 +3,10 @@
 import { createClient } from '@/utils/supabase/server'
 import { getTenantUpcomingTournamentSummaries } from '@/lib/services/tenant-home.service'
 import { getTournamentCategoryDisplay } from '@/lib/services/tournament-category-config'
+import {
+  isTournamentGenderFilter,
+  type TournamentGenderFilter,
+} from '@/lib/tournaments/gender-filtering'
 
 export type PlayerNextMatch = {
   match_id: string
@@ -202,10 +206,20 @@ export async function getPlayerInscribedTournaments(playerId: string): Promise<I
   }
 }
 
-export async function getPlayerUpcomingTournaments(playerId: string): Promise<UpcomingTournamentsResult> {
+export async function getPlayerUpcomingTournaments(
+  playerId: string,
+  options: {
+    genderFilter?: TournamentGenderFilter | null
+    playerGender?: string | null
+  } = {},
+): Promise<UpcomingTournamentsResult> {
   try {
     const supabase = await createClient()
-    const tournaments = await getTenantUpcomingTournamentSummaries(8)
+    const explicitGenderFilter = isTournamentGenderFilter(options.genderFilter) ? options.genderFilter : null
+    const tournaments = await getTenantUpcomingTournamentSummaries(8, {
+      genderFilter: explicitGenderFilter,
+      priorityGender: explicitGenderFilter ? null : options.playerGender ?? null,
+    })
 
     if (tournaments.length === 0) {
       return { upcomingTournaments: [] }
@@ -309,6 +323,7 @@ export async function getPlayerDashboardData(userId: string) {
         last_name,
         score,
         category_name,
+        gender,
         profile_image_url,
         clubes (
           name

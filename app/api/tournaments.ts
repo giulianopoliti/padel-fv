@@ -2,6 +2,12 @@ import { createClient } from "@/utils/supabase/server";
 import { Category, Tournament } from "@/types";
 import { getTournamentCategoryDisplay } from "@/lib/services/tournament-category-config";
 import { getTenantOrganization } from "@/lib/services/tenant-organization.service";
+import {
+    getTournamentGenderPriority,
+    isTournamentGenderFilter,
+    prioritizeTournamentsByGender,
+    type TournamentGenderFilter,
+} from "@/lib/tournaments/gender-filtering";
 
 /**
  * Calculate total participants for a set of inscriptions.
@@ -21,6 +27,42 @@ function calculateParticipants(inscriptions: { couple_id: string | null }[]): nu
   }
 
   return individual + couples * 2;
+}
+
+async function getAuthenticatedPlayerGender(
+    supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<TournamentGenderFilter | null> {
+    const {
+        data: { user },
+        error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+        return null;
+    }
+
+    const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+    if (userError || userData?.role !== "PLAYER") {
+        return null;
+    }
+
+    const { data: playerData, error: playerError } = await supabase
+        .from("players")
+        .select("gender")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+    if (playerError) {
+        console.error("Error fetching authenticated player gender:", playerError);
+        return null;
+    }
+
+    return isTournamentGenderFilter(playerData?.gender) ? playerData.gender : null;
 }
 
 export async function getTournaments() {
@@ -358,6 +400,7 @@ export async function getTournamentsOptimized({
         categoryName?: string,
         organizationId?: string,
         clubId?: string,
+        gender?: TournamentGenderFilter,
         type?: "LONG" | "AMERICAN",
         dateFrom?: string,
         dateTo?: string,
@@ -381,6 +424,10 @@ export async function getTournamentsOptimized({
 
         const dbStatuses = statusMap[status];
         const offset = (page - 1) * limit;
+        const explicitGenderFilter = isTournamentGenderFilter(filters.gender) ? filters.gender : null;
+        const playerGender = explicitGenderFilter ? null : await getAuthenticatedPlayerGender(supabase);
+        const shouldPrioritizeByGender =
+            !explicitGenderFilter && Boolean(getTournamentGenderPriority(playerGender));
 
         // Build base query
         let query = supabase
@@ -431,6 +478,10 @@ export async function getTournamentsOptimized({
             query = query.eq("club_id", filters.clubId);
         }
 
+        if (explicitGenderFilter) {
+            query = query.eq("gender", explicitGenderFilter);
+        }
+
         if (filters.type) {
             query = query.eq("type", filters.type);
         }
@@ -450,9 +501,11 @@ export async function getTournamentsOptimized({
 
         // Order and paginate
         const orderDirection = status === 'past' ? { ascending: false } : { ascending: true };
-        query = query
-            .order("start_date", orderDirection)
-            .range(offset, offset + limit - 1);
+        query = query.order("start_date", orderDirection);
+
+        if (!shouldPrioritizeByGender) {
+            query = query.range(offset, offset + limit - 1);
+        }
 
         const { data: tournaments, error, count } = await query;
 
@@ -465,8 +518,16 @@ export async function getTournamentsOptimized({
             return { tournaments: [], totalCount: count || 0, totalPages: 0 };
         }
 
+        const orderedTournaments = shouldPrioritizeByGender
+            ? prioritizeTournamentsByGender(tournaments as any[], playerGender).slice(offset, offset + limit)
+            : tournaments;
+
+        if (orderedTournaments.length === 0) {
+            return { tournaments: [], totalCount: count || 0, totalPages: Math.ceil((count || 0) / limit) };
+        }
+
         // Get inscriptions count for all tournaments in one query
-        const tournamentIds = tournaments.map((t: any) => t.id);
+        const tournamentIds = orderedTournaments.map((t: any) => t.id);
         const { data: allInscriptions, error: inscriptionsError } = await supabase
             .from("inscriptions")
             .select("tournament_id, couple_id")
@@ -477,7 +538,7 @@ export async function getTournamentsOptimized({
         }
 
         // Build final tournament objects with participants count
-        const tournamentsWithParticipants = tournaments.map((rawTournament: any) => {
+        const tournamentsWithParticipants = orderedTournaments.map((rawTournament: any) => {
             const inscriptions = allInscriptions?.filter((i: any) => i.tournament_id === rawTournament.id) || [];
             const currentParticipants = calculateParticipants(inscriptions as { couple_id: string | null }[]);
 

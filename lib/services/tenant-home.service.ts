@@ -2,6 +2,12 @@ import { createClient } from "@/utils/supabase/server"
 import { getTenantOrganization } from "@/lib/services/tenant-organization.service"
 import { getTournamentCategoryDisplay } from "@/lib/services/tournament-category-config"
 import type { PublicTournamentSummary } from "@/types/public-tournament"
+import {
+  getTournamentGenderPriority,
+  isTournamentGenderFilter,
+  prioritizeTournamentsByGender,
+  type TournamentGenderFilter,
+} from "@/lib/tournaments/gender-filtering"
 
 export interface TenantClub {
   id: string
@@ -34,15 +40,26 @@ export interface TenantHomeData {
   ranking: TenantRankingPlayer[]
 }
 
-export async function getTenantUpcomingTournamentSummaries(limit: number = 12): Promise<PublicTournamentSummary[]> {
+interface TenantUpcomingTournamentSummaryOptions {
+  genderFilter?: TournamentGenderFilter | null
+  priorityGender?: string | null
+}
+
+export async function getTenantUpcomingTournamentSummaries(
+  limit: number = 12,
+  options: TenantUpcomingTournamentSummaryOptions = {},
+): Promise<PublicTournamentSummary[]> {
   const supabase = await createClient()
   const organization = await getTenantOrganization()
+  const explicitGenderFilter = isTournamentGenderFilter(options.genderFilter) ? options.genderFilter : null
+  const shouldPrioritizeByGender =
+    !explicitGenderFilter && Boolean(getTournamentGenderPriority(options.priorityGender))
 
   if (!organization) {
     return []
   }
 
-  const { data } = await supabase
+  let query = supabase
     .from("tournaments")
     .select(`
       id,
@@ -65,10 +82,29 @@ export async function getTenantUpcomingTournamentSummaries(limit: number = 12): 
     .eq("organization_id", organization.id)
     .eq("status", "NOT_STARTED")
     .neq("status", "CANCELED")
+    .neq("is_draft", true)
     .order("start_date", { ascending: true })
-    .limit(limit)
 
-  return (data || []).map((tournament: any) => {
+  if (explicitGenderFilter) {
+    query = query.eq("gender", explicitGenderFilter)
+  }
+
+  if (!shouldPrioritizeByGender) {
+    query = query.limit(limit)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error("Error fetching tenant upcoming tournament summaries:", error)
+    return []
+  }
+
+  const orderedTournaments = shouldPrioritizeByGender
+    ? prioritizeTournamentsByGender(data || [], options.priorityGender).slice(0, limit)
+    : data || []
+
+  return orderedTournaments.map((tournament: any) => {
     const club = Array.isArray(tournament.clubes) ? tournament.clubes[0] || null : tournament.clubes || null
     const categoryDisplay = getTournamentCategoryDisplay(tournament)
 

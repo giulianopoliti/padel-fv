@@ -19,6 +19,7 @@ export default function TournamentFilters({ categories, clubs }: TournamentFilte
 
   const categoryFilter = searchParams.get("category") || "all"
   const clubFilter = searchParams.get("club") || "all"
+  const genderFilter = searchParams.get("gender") || "all"
 
   useEffect(() => {
     const checkDesktop = () => {
@@ -31,7 +32,7 @@ export default function TournamentFilters({ categories, clubs }: TournamentFilte
     return () => window.removeEventListener("resize", checkDesktop)
   }, [])
 
-  const updateFilter = (key: "category" | "club", value: string) => {
+  const updateFilter = (key: "category" | "club" | "gender", value: string) => {
     const params = new URLSearchParams(searchParams.toString())
 
     if (value === "all") {
@@ -60,8 +61,12 @@ export default function TournamentFilters({ categories, clubs }: TournamentFilte
     router.push(`?${params.toString()}`)
   }
 
-  const hasActiveFilters = categoryFilter !== "all" || clubFilter !== "all"
-  const activeFiltersCount = [categoryFilter !== "all", clubFilter !== "all"].filter(Boolean).length
+  const hasActiveFilters = categoryFilter !== "all" || clubFilter !== "all" || genderFilter !== "all"
+  const activeFiltersCount = [
+    categoryFilter !== "all",
+    clubFilter !== "all",
+    genderFilter !== "all",
+  ].filter(Boolean).length
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -115,6 +120,20 @@ export default function TournamentFilters({ categories, clubs }: TournamentFilte
                     {club.name}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-full md:w-56">
+            <Select value={genderFilter} onValueChange={(value) => updateFilter("gender", value)}>
+              <SelectTrigger className="text-gray-600 placeholder:text-gray-400 focus:border-blue-300 focus:ring-blue-200">
+                <SelectValue placeholder="Genero" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los generos</SelectItem>
+                <SelectItem value="MALE">Masculino</SelectItem>
+                <SelectItem value="FEMALE">Femenino</SelectItem>
+                <SelectItem value="MIXED">Mixto</SelectItem>
               </SelectContent>
             </Select>
           </div>

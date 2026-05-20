@@ -38,6 +38,9 @@ export interface TenantBranding {
     showTransferProofHighlights: boolean
     playerPanelVariant: "default" | "padel-fv" | "padel-elite"
   }
+  tournaments: {
+    defaultPublicType: "LONG" | "AMERICAN"
+  }
 }
 
 const tenantBranding: Record<TenantBranding["key"], TenantBranding> = {
@@ -81,6 +84,9 @@ const tenantBranding: Record<TenantBranding["key"], TenantBranding> = {
       showTransferProofHighlights: false,
       playerPanelVariant: "padel-fv",
     },
+    tournaments: {
+      defaultPublicType: "LONG",
+    },
   },
   "padel-elite": {
     key: "padel-elite",
@@ -122,6 +128,9 @@ const tenantBranding: Record<TenantBranding["key"], TenantBranding> = {
       showTransferProofHighlights: true,
       playerPanelVariant: "padel-elite",
     },
+    tournaments: {
+      defaultPublicType: "AMERICAN",
+    },
   },
 }
 
@@ -133,6 +142,10 @@ export function getTenantBranding(): TenantBranding {
   }
 
   return tenantBranding["padel-fv"]
+}
+
+export function getDefaultPublicTournamentType(): "LONG" | "AMERICAN" {
+  return getTenantBranding().tournaments.defaultPublicType
 }
 
 export const TENANT_CONFIG = getTenantBranding()

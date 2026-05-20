@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import Link from "next/link"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { CalendarDays, ChevronLeft, ChevronRight, MapPin, Ticket, Trophy, Users } from "lucide-react"
 import type { UpcomingTournament } from "@/app/api/panel/actions"
 import PublicRegistrationLauncher from "@/components/tournament/public-registration-launcher"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Gender } from "@/types"
+import { isTournamentGenderFilter } from "@/lib/tournaments/gender-filtering"
 import { formatDateLabel, formatPrice, formatTimeLabel } from "./panel-formatters"
 
 interface PlayerFvUpcomingTournamentsSectionProps {
@@ -34,18 +37,48 @@ const typeLabels: Record<string, string> = {
 export default function PlayerFvUpcomingTournamentsSection({
   tournaments,
 }: PlayerFvUpcomingTournamentsSectionProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [page, setPage] = useState(1)
+  const upcomingGenderParam = searchParams.get("upcomingGender")
+  const selectedGenderFilter: "all" | Gender.MALE | Gender.FEMALE | Gender.MIXED = isTournamentGenderFilter(upcomingGenderParam)
+    ? upcomingGenderParam
+    : "all"
   const totalPages = Math.max(1, Math.ceil(tournaments.length / ITEMS_PER_PAGE))
   const paginatedTournaments = useMemo(() => {
     const startIndex = (page - 1) * ITEMS_PER_PAGE
     return tournaments.slice(startIndex, startIndex + ITEMS_PER_PAGE)
   }, [page, tournaments])
+  const tournamentsHref = (() => {
+    const params = new URLSearchParams()
+
+    if (selectedGenderFilter !== "all") {
+      params.set("gender", selectedGenderFilter)
+    }
+
+    const queryString = params.toString()
+    return queryString ? `/tournaments/upcoming?${queryString}` : "/tournaments/upcoming"
+  })()
 
   useEffect(() => {
     if (page > totalPages) {
       setPage(totalPages)
     }
   }, [page, totalPages])
+
+  const handleGenderFilterChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+
+    if (value === "all") {
+      params.delete("upcomingGender")
+    } else {
+      params.set("upcomingGender", value)
+    }
+
+    const queryString = params.toString()
+    router.push(queryString ? `${pathname}?${queryString}` : pathname)
+  }
 
   if (tournaments.length === 0) {
     return (
@@ -65,17 +98,32 @@ export default function PlayerFvUpcomingTournamentsSection({
   return (
     <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-brand-800/75 shadow-[0_18px_45px_rgba(7,12,28,0.18)] backdrop-blur-sm">
       <div className="border-b border-white/10 bg-[linear-gradient(135deg,rgba(198,222,6,0.12)_0%,rgba(18,29,57,0)_100%)] px-5 py-5 sm:px-8">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="mb-2 text-sm font-semibold uppercase tracking-[0.22em] text-court-300">Inscripciones abiertas</p>
             <h2 className="text-2xl font-black text-white sm:text-3xl">Proximos torneos</h2>
           </div>
-          <Button asChild variant="ghost" className="h-auto justify-start rounded-full px-0 text-sm font-semibold text-court-300 hover:bg-transparent hover:text-court-200">
-            <Link href="/tournaments/upcoming">
-              Ver todos
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </Link>
-          </Button>
+          <div className="flex flex-col gap-3 sm:w-auto sm:min-w-[240px] sm:items-end">
+            <div className="w-full sm:w-56">
+              <Select value={selectedGenderFilter} onValueChange={handleGenderFilterChange}>
+                <SelectTrigger className="border-white/15 bg-white/8 text-sm font-medium text-white">
+                  <SelectValue placeholder="Genero" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los generos</SelectItem>
+                  <SelectItem value="MALE">Masculino</SelectItem>
+                  <SelectItem value="FEMALE">Femenino</SelectItem>
+                  <SelectItem value="MIXED">Mixto</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button asChild variant="ghost" className="h-auto justify-start rounded-full px-0 text-sm font-semibold text-court-300 hover:bg-transparent hover:text-court-200">
+              <Link href={tournamentsHref}>
+                Ver todos
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
 

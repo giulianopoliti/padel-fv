@@ -3,7 +3,8 @@ import { getTournamentsOptimized, getCategories, getClubsForFilter } from "@/app
 import TournamentsLayout from "../components/tournaments-layout"
 import PaginationWrapper from "../components/pagination-wrapper"
 import { PublicTournamentCards } from "@/components/tournaments/public-tournament-cards"
-import { getTenantBranding } from "@/config/tenant"
+import { getDefaultPublicTournamentType, getTenantBranding } from "@/config/tenant"
+import { isTournamentGenderFilter } from "@/lib/tournaments/gender-filtering"
 
 export const dynamic = "force-dynamic"
 
@@ -12,6 +13,7 @@ interface PageProps {
     page?: string
     category?: string
     club?: string
+    gender?: string
     search?: string
     type?: string
   }>
@@ -22,9 +24,11 @@ export default async function UpcomingTournamentsPage({ searchParams }: PageProp
   const page = Number(params.page) || 1
   const categoryFilter = params.category
   const clubFilter = params.club
+  const genderFilter = isTournamentGenderFilter(params.gender) ? params.gender : undefined
   const searchTerm = params.search
-  const type = params.type === "AMERICAN" ? "AMERICAN" : "LONG"
   const branding = getTenantBranding()
+  const defaultType = getDefaultPublicTournamentType()
+  const type = params.type === "AMERICAN" || params.type === "LONG" ? params.type : defaultType
 
   const [tournamentsData, categories, clubs] = await Promise.all([
     getTournamentsOptimized({
@@ -34,6 +38,7 @@ export default async function UpcomingTournamentsPage({ searchParams }: PageProp
       filters: {
         categoryName: categoryFilter,
         clubId: clubFilter,
+        gender: genderFilter,
         search: searchTerm,
         type,
       },
@@ -58,6 +63,7 @@ export default async function UpcomingTournamentsPage({ searchParams }: PageProp
           emptyTitle={type === "LONG" ? "No hay ligas publicadas" : "No hay americanos publicados"}
           emptyDescription={
             categoryFilter || clubFilter || searchTerm
+              || genderFilter
               ? "No encontramos torneos con esos filtros. Proba cambiando la categoria, el club o la busqueda."
               : `No hay torneos cargados para este formato en ${branding.siteName} en este momento.`
           }
