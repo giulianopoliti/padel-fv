@@ -135,6 +135,25 @@ export function createSupabaseMock(
                 data: positions,
                 error: null
               })
+            }),
+            eq: () => ({
+              order: () => Promise.resolve({
+                data: positions,
+                error: null
+              })
+            })
+          })
+        }
+      }
+
+      if (table === 'tournament_couple_disqualifications') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => Promise.resolve({
+                data: [],
+                error: null
+              })
             })
           })
         }

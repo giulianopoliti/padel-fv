@@ -35,6 +35,7 @@ interface ZoneCardProps {
   isMobile?: boolean
   selectedCoupleForMove?: { coupleId: string; coupleName: string; sourceZoneId: string | null } | null
   onCoupleSelect?: (selection: { coupleId: string; coupleName: string; sourceZoneId: string | null } | null) => void
+  onDisqualificationChange?: () => Promise<void> | void
 }
 
 export function ZoneCard({
@@ -52,7 +53,8 @@ export function ZoneCard({
   isOwner = false,
   isMobile = false,
   selectedCoupleForMove = null,
-  onCoupleSelect
+  onCoupleSelect,
+  onDisqualificationChange
 }: ZoneCardProps) {
   const {
     isDragging,
@@ -189,6 +191,9 @@ export function ZoneCard({
               <TableHead className="w-12 text-center text-xs">G</TableHead>
               <TableHead className="w-12 text-center text-xs">P</TableHead>
               <TableHead className="w-16 text-center">+/-</TableHead>
+              {isOwner && tournamentId && (
+                <TableHead className="w-24 text-right">Accion</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           
@@ -214,15 +219,17 @@ export function ZoneCard({
                     }
                   }}
                   isOwner={isOwner}
+                  tournamentId={tournamentId}
                   isMobile={isMobile}
                   selectedCoupleForMove={selectedCoupleForMove}
                   onCoupleSelect={onCoupleSelect}
+                  onDisqualificationChange={onDisqualificationChange}
                 />
               ))
             ) : (
               <TableRow>
                 <TableCell 
-                  colSpan={6} 
+                  colSpan={isOwner && tournamentId ? 7 : 6}
                   className="text-center py-8 text-slate-500"
                 >
                   <div className="flex flex-col items-center gap-2">

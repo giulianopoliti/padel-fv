@@ -1,10 +1,15 @@
 import { createClient } from '@/utils/supabase/server'
+import {
+  filterOutDisqualifiedCouples,
+  getActiveDisqualifiedCoupleIds,
+} from '@/lib/services/tournament-disqualifications'
 
 export interface LongTournamentValidationResult {
   canGenerate: boolean
   reason?: string
   details?: {
     totalCouples: number
+    disqualifiedCouples?: number
     completedCouples: number
     pendingCouples: number
     allCouplesCompleted: boolean
@@ -15,6 +20,8 @@ export interface LongTournamentValidationResult {
       matches_needed: number
     }>
     averageMatches?: number
+    warnings?: string[]
+    hasWarnings?: boolean
     // Qualifying advancement settings
     qualifyingAdvancementEnabled?: boolean
     couplesAdvance?: number
@@ -92,19 +99,29 @@ export async function validateLongTournamentForBracket(
       }
     }
 
-    console.log(`[LONG-VALIDATION] Found ${couples.length} couples to validate`)
+    const disqualifiedCoupleIds = await getActiveDisqualifiedCoupleIds(tournamentId, supabase)
+    const activeCouples = filterOutDisqualifiedCouples(couples, disqualifiedCoupleIds)
+
+    if (activeCouples.length === 0) {
+      return {
+        canGenerate: false,
+        reason: 'No active couples found in tournament'
+      }
+    }
+
+    console.log(`[LONG-VALIDATION] Found ${activeCouples.length} active couples to validate (${couples.length - activeCouples.length} disqualified)`)
 
     // Determinar cuántas parejas participarán en el bracket
     const totalCouplesAdvancing = qualifyingAdvancementEnabled
-      ? Math.min(couplesAdvance || couples.length, couples.length)
-      : couples.length
+      ? Math.min(couplesAdvance || activeCouples.length, activeCouples.length)
+      : activeCouples.length
 
-    console.log(`[LONG-VALIDATION] Couples advancing to bracket: ${totalCouplesAdvancing} of ${couples.length}`)
+    console.log(`[LONG-VALIDATION] Couples advancing to bracket: ${totalCouplesAdvancing} of ${activeCouples.length}`)
 
     // 4. Contar matches por pareja (ZONE round solamente)
     const coupleMatchCounts = []
 
-    for (const couple of couples) {
+    for (const couple of activeCouples) {
       const { data: matches, error: matchesError } = await supabase
         .from('matches')
         .select('id, status')
@@ -132,13 +149,16 @@ export async function validateLongTournamentForBracket(
     const completedCouples = coupleMatchCounts.length - incompleteCouples.length
 
     if (incompleteCouples.length > 0) {
-      console.log(`[LONG-VALIDATION] ${incompleteCouples.length} couples haven't completed 3 matches`)
+      console.log(`[LONG-VALIDATION] ${incompleteCouples.length} couples haven't completed 3 matches; allowing generation with warning`)
+
+      const warning = `${incompleteCouples.length} parejas no completaron 3 partidos de zona. La llave se puede generar con las posiciones actuales.`
 
       return {
-        canGenerate: false,
-        reason: `${incompleteCouples.length} couples haven't completed 3 matches`,
+        canGenerate: true,
+        reason: warning,
         details: {
           totalCouples: coupleMatchCounts.length,
+          disqualifiedCouples: couples.length - activeCouples.length,
           completedCouples,
           pendingCouples: incompleteCouples.length,
           allCouplesCompleted: false,
@@ -147,8 +167,10 @@ export async function validateLongTournamentForBracket(
             matches_played: c.matches_played,
             matches_needed: 3 - c.matches_played
           })),
-          requirement: 'Exactly 3 zone matches per couple',
+          requirement: '3 zone matches per couple (warning only)',
           averageMatches: coupleMatchCounts.reduce((sum, c) => sum + c.matches_played, 0) / coupleMatchCounts.length,
+          warnings: [warning],
+          hasWarnings: true,
           qualifyingAdvancementEnabled,
           couplesAdvance,
           totalCouplesAdvancing
@@ -162,10 +184,13 @@ export async function validateLongTournamentForBracket(
       canGenerate: true,
       details: {
         totalCouples: coupleMatchCounts.length,
+        disqualifiedCouples: couples.length - activeCouples.length,
         completedCouples: coupleMatchCounts.length,
         pendingCouples: 0,
         allCouplesCompleted: true,
         averageMatches: 3,
+        warnings: [],
+        hasWarnings: false,
         requirement: '3 zone matches per couple - ✅ SATISFIED',
         qualifyingAdvancementEnabled,
         couplesAdvance,

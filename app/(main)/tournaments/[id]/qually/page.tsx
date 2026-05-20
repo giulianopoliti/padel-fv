@@ -1,12 +1,12 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
-import { checkTournamentAccess } from '@/utils/tournament-permissions';
+import { checkTournamentAccess, checkTournamentPermissions } from '@/utils/tournament-permissions';
 import { canViewTournamentParticipantPages } from '@/utils/tournament-visibility';
 import QuallyView from './components/QuallyView';
 
 interface QuallyPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /**
@@ -40,6 +40,9 @@ export default async function QuallyPage({ params }: QuallyPageProps) {
   }
 
   const accessCheck = await checkTournamentAccess(user?.id || null, tournamentId);
+  const permissionCheck = user
+    ? await checkTournamentPermissions(user.id, tournamentId)
+    : { hasPermission: false };
 
   if (!canViewTournamentParticipantPages({
     enablePublicInscriptions: tournament.enable_public_inscriptions,
@@ -86,6 +89,7 @@ export default async function QuallyPage({ params }: QuallyPageProps) {
     <QuallyView 
       tournament={tournament as any}
       coupleInscriptions={coupleInscriptions as any}
+      canManageTournament={permissionCheck.hasPermission}
     />
   );
 }

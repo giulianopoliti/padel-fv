@@ -23,6 +23,10 @@ import { TournamentFormatResolver } from '@/lib/services/tournament-format-resol
 import { hasFormatConfigV2, shouldUseLegacyQualifying } from '@/lib/services/tournament-format-policy'
 import type { BracketKey } from '@/types/tournament-format-v2'
 import { DEFAULT_BRACKET_KEY } from '@/lib/services/bracket-key-policy'
+import {
+  filterOutDisqualifiedCouples,
+  getActiveDisqualifiedCoupleIds,
+} from '@/lib/services/tournament-disqualifications'
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
@@ -162,9 +166,16 @@ export class PlaceholderBracketGenerator {
       throw new Error(`Error fetching zone positions: ${positionsError.message}`)
     }
     
+    const disqualifiedCoupleIds = await getActiveDisqualifiedCoupleIds(tournamentId, supabase)
+    const activeZonePositions = filterOutDisqualifiedCouples(allZonePositions || [], disqualifiedCoupleIds)
+
+    if (disqualifiedCoupleIds.size > 0) {
+      console.log(`🚫 [BRACKET-GEN-V2] Excluding ${(allZonePositions || []).length - activeZonePositions.length} disqualified couples from AMERICAN seeding`)
+    }
+
     // Group positions by zone for easy access
     const positionsByZone = new Map<string, any[]>()
-    for (const position of allZonePositions || []) {
+    for (const position of activeZonePositions || []) {
       if (!positionsByZone.has(position.zone_id)) {
         positionsByZone.set(position.zone_id, [])
       }
@@ -309,22 +320,32 @@ export class PlaceholderBracketGenerator {
     console.log(`📊 [BRACKET-GEN-V2] Found ${allZonePositions?.length || 0} total zone positions`)
 
     // 4. Apply advancement policy (V2 first, legacy fallback)
-    let zonePositions = allZonePositions
+    const disqualifiedCoupleIds = await getActiveDisqualifiedCoupleIds(tournamentId, supabase)
+    const activeZonePositions = filterOutDisqualifiedCouples(allZonePositions || [], disqualifiedCoupleIds)
+
+    if (disqualifiedCoupleIds.size > 0) {
+      console.log(`🚫 [BRACKET-GEN-V2] Excluding ${(allZonePositions || []).length - activeZonePositions.length} disqualified couples from LONG seeding`)
+    }
+
+    let zonePositions = activeZonePositions
 
     if (hasV2Config && resolvedFormat) {
-      const validation = AdvancementPlanner.validateAdvancementCounts((allZonePositions || []).length, resolvedFormat)
+      const validation = AdvancementPlanner.validateAdvancementCounts(activeZonePositions.length, resolvedFormat)
       if (!validation.isValid) {
         throw new Error(validation.error)
       }
 
-      zonePositions = AdvancementPlanner.selectBracketEntries(allZonePositions || [], resolvedFormat, bracketKey, {
-        totalCouples: (allZonePositions || []).length,
+      zonePositions = AdvancementPlanner.selectBracketEntries(activeZonePositions, resolvedFormat, bracketKey, {
+        totalCouples: activeZonePositions.length,
       })
     } else if (qualifyingAdvancementEnabled && couplesAdvance) {
-      zonePositions = (allZonePositions || []).slice(0, couplesAdvance)
+      zonePositions = activeZonePositions.slice(0, couplesAdvance)
     }
 
     const totalAdvancing = zonePositions?.length || 0
+    if (totalAdvancing === 0) {
+      throw new Error('No hay parejas disponibles para generar la llave')
+    }
     console.log(`🎯 [BRACKET-GEN-V2] Couples advancing to bracket: ${totalAdvancing}${qualifyingAdvancementEnabled ? ` (limited from ${allZonePositions?.length || 0})` : ''}`)
 
     // 5. Generate seeds using by-performance strategy (1, 2, 3, 4...)
@@ -333,7 +354,7 @@ export class PlaceholderBracketGenerator {
 
     // For LONG format, iterate through positions in order (no zone letter)
     for (const positionData of zonePositions || []) {
-      if (positionData.is_definitive && positionData.couple_id) {
+      if (positionData.couple_id) {
         // Definitive couple - use couple_id directly
         console.log(`✅ [BRACKET-GEN-V2] Position ${positionData.position}: DEFINITIVE couple ${positionData.couple_id}`)
 

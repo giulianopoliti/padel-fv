@@ -1,6 +1,7 @@
 import {
   calculateExpectedZoneMatches,
   resolveEffectiveRoundsPerCoupleForValidation,
+  shouldAllowIncompleteZoneMatchesForBracketGeneration,
 } from '@/lib/services/bracket-generation-validation'
 
 describe('bracket-generation-validation', () => {
@@ -54,6 +55,13 @@ describe('bracket-generation-validation', () => {
       )
 
       expect(rounds).toBe(3)
+    })
+  })
+
+  describe('shouldAllowIncompleteZoneMatchesForBracketGeneration', () => {
+    it('allows LONG bracket generation to continue with warnings for incomplete zone matches', () => {
+      expect(shouldAllowIncompleteZoneMatchesForBracketGeneration({ type: 'LONG' })).toBe(true)
+      expect(shouldAllowIncompleteZoneMatchesForBracketGeneration({ type: 'AMERICAN' })).toBe(false)
     })
   })
 })

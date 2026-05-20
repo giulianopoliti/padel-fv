@@ -2,6 +2,10 @@ import { createClientServiceRole } from '@/utils/supabase/server'
 import { TournamentConfigService } from '@/lib/services/tournament-config.service'
 import { getZonesFormatIdFromTournament } from '@/lib/services/zones-format-utils'
 import type { BracketKey } from '@/types/tournament-format-v2'
+import {
+  filterOutDisqualifiedCouples,
+  getActiveDisqualifiedCoupleIds,
+} from '@/lib/services/tournament-disqualifications'
 
 export interface BracketArtifactState {
   seedCount: number
@@ -27,6 +31,16 @@ export interface PlaceholderBracketValidationSuccess {
   totalCouples: number
   totalZones: number
   artifacts: BracketArtifactState
+  warnings?: string[]
+  incompleteZones?: Array<{
+    zoneId: string
+    zoneName: string
+    coupleCount: number
+    roundsPerCouple: number
+    matchCount: number
+    expectedMatches: number
+    missingMatches: number
+  }>
 }
 
 export interface PlaceholderBracketValidationFailure {
@@ -110,6 +124,13 @@ export function resolveEffectiveRoundsPerCoupleForValidation(
   }
 
   return persistedRoundsPerCouple
+}
+
+export function shouldAllowIncompleteZoneMatchesForBracketGeneration(tournament: {
+  type?: string | null
+  format_type?: string | null
+}): boolean {
+  return tournament.type === 'LONG' || tournament.format_type === 'LONG'
 }
 
 export async function getPersistedBracketArtifacts(
@@ -258,12 +279,15 @@ export async function validatePlaceholderBracketGeneration(
   }
 
   const incompleteZones: PlaceholderBracketValidationFailure['incompleteZones'] = []
+  const warnings: string[] = []
   let totalCouples = 0
+  const disqualifiedCoupleIds = await getActiveDisqualifiedCoupleIds(tournamentId, supabase)
+  const allowIncompleteZoneMatches = shouldAllowIncompleteZoneMatchesForBracketGeneration(tournament)
 
   for (const zone of zones || []) {
-    const { count: coupleCount, error: coupleError } = await supabase
+    const { data: zoneCouples, error: coupleError } = await supabase
       .from('zone_positions')
-      .select('*', { count: 'exact', head: true })
+      .select('couple_id')
       .eq('zone_id', zone.id)
 
     if (coupleError) {
@@ -295,7 +319,8 @@ export async function validatePlaceholderBracketGeneration(
       }
     }
 
-    const couplesInZone = coupleCount || 0
+    const activeZoneCouples = filterOutDisqualifiedCouples(zoneCouples || [], disqualifiedCoupleIds)
+    const couplesInZone = activeZoneCouples.length
     const matchesInZone = matchCount || 0
     const roundsPerCouple = resolveEffectiveRoundsPerCoupleForValidation(
       tournament,
@@ -320,6 +345,11 @@ export async function validatePlaceholderBracketGeneration(
 
   if (incompleteZones.length > 0) {
     const firstIncompleteZone = incompleteZones[0]
+    if (allowIncompleteZoneMatches) {
+      warnings.push(
+        `Zona ${firstIncompleteZone.zoneName}: faltan ${firstIncompleteZone.missingMatches} partidos por crear. La llave LONG se generara con las posiciones actuales.`
+      )
+    } else {
     return {
       success: false,
       code: 'ZONE_MATCHES_INCOMPLETE',
@@ -333,6 +363,7 @@ export async function validatePlaceholderBracketGeneration(
       tournament,
       incompleteZones
     }
+    }
   }
 
   return {
@@ -342,6 +373,8 @@ export async function validatePlaceholderBracketGeneration(
     tournament,
     totalCouples,
     totalZones: zones?.length || 0,
-    artifacts
+    artifacts,
+    warnings,
+    incompleteZones: warnings.length > 0 ? incompleteZones : undefined
   }
 }

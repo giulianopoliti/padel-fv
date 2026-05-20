@@ -20,11 +20,15 @@ export interface SerializableCouple {
   id: string
   player1Name: string
   player2Name: string
+  position?: number
   stats: CoupleStats
   // Optional metadata for operations (always serializable)
   metadata?: {
     player1Id?: string
     player2Id?: string
+    isDisqualified?: boolean
+    disqualificationId?: string
+    disqualificationPhase?: string
     registrationDate?: string // ISO string, not Date object
     // Keep original data for name preservation during optimistic updates
     originalPlayerData?: {

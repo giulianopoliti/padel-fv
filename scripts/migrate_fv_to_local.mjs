@@ -212,8 +212,9 @@ const insertStatement = (columnsByTable, schema, table, rows, conflictColumns, o
   }
 
   const quotedColumns = columns.map((column) => `"${column}"`).join(", ")
+  const noUpdateColumns = new Set([...conflictColumns, ...(options.noUpdateColumns ?? [])])
   const assignments = columns
-    .filter((column) => !conflictColumns.includes(column))
+    .filter((column) => !noUpdateColumns.has(column))
     .map((column) => `"${column}" = excluded."${column}"`)
     .join(", ")
   const conflict = conflictColumns.map((column) => `"${column}"`).join(", ")
@@ -693,6 +694,7 @@ const main = async () => {
       "couple_id",
     ]),
     insertStatement(columnsByTable, "public", "zone_positions", zonePositions, ["id"]),
+    insertStatement(columnsByTable, "public", "inscriptions", migratedInscriptions, ["id"]),
     insertStatement(columnsByTable, "public", "tournament_fechas", tournamentFechas, ["id"]),
     insertStatement(columnsByTable, "public", "tournament_time_slots", timeSlots, ["id"]),
     insertStatement(
@@ -706,7 +708,9 @@ const main = async () => {
     insertStatement(columnsByTable, "public", "matches", matches, ["id"]),
     insertStatement(columnsByTable, "public", "match_hierarchy", matchHierarchy, ["id"]),
     insertStatement(columnsByTable, "public", "fecha_matches", fechaMatches, ["id"]),
-    insertStatement(columnsByTable, "public", "set_matches", setMatches, ["id"]),
+    insertStatement(columnsByTable, "public", "set_matches", setMatches, ["match_id", "set_number"], {
+      noUpdateColumns: ["id"],
+    }),
     insertStatement(columnsByTable, "public", "match_points_couples", matchPoints, ["id"]),
     insertStatement(columnsByTable, "public", "player_tournament_history", playerHistory, [
       "id",
@@ -749,6 +753,30 @@ where t.id = source_rows.id
         "public.couples",
         "id",
         couples.map((row) => row.id)
+      ),
+    },
+    {
+      table_name: "inscriptions_by_source_ids",
+      count: localCountWhereIn(
+        "public.inscriptions",
+        "id",
+        migratedInscriptions.map((row) => row.id)
+      ),
+    },
+    {
+      table_name: "tournament_time_slots_by_source_ids",
+      count: localCountWhereIn(
+        "public.tournament_time_slots",
+        "id",
+        timeSlots.map((row) => row.id)
+      ),
+    },
+    {
+      table_name: "couple_time_availability_by_source_ids",
+      count: localCountWhereIn(
+        "public.couple_time_availability",
+        "id",
+        coupleAvailability.map((row) => row.id)
       ),
     },
     {

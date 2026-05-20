@@ -19,12 +19,31 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Trophy,
   Clock,
   MapPin,
   Edit3,
   Zap,
-  Play
+  Play,
+  Ban,
+  Loader2,
+  MoreHorizontal
 } from 'lucide-react'
 import { DraggableCoupleSlot } from './DraggableCoupleSlot'
 import { useBracketDragOperations } from '../hooks/useBracketDragOperations'
@@ -39,6 +58,7 @@ import { SameZonePlaceholderConflictBadge, ZoneConflictBadge } from './ZoneConfl
 import { useZoneMatchHistory, havePlayedInZone } from '../hooks/useZoneMatchHistory'
 import { resolveCoupleIds } from '../utils/couple-resolver'
 import { detectSameZonePlaceholderConflict } from '../utils/same-zone-placeholder-conflict'
+import { toast } from '../../zones/utils/toast-alternative'
 import type {
   BracketMatchV2,
   CoupleData,
@@ -93,6 +113,8 @@ export function GranularMatchCard({
   const [showInlineResult, setShowInlineResult] = useState<boolean>(false)
   const [showModifyResult, setShowModifyResult] = useState<boolean>(false)
   const [showLoadMatchDialog, setShowLoadMatchDialog] = useState<boolean>(false)
+  const [isDisqualifyingCoupleId, setIsDisqualifyingCoupleId] = useState<string | null>(null)
+  const [pendingDisqualification, setPendingDisqualification] = useState<{ coupleId: string; coupleName: string | null } | null>(null)
   // ✅ NUEVOS ESTADOS PARA ASIGNACIÓN DE CANCHA
   const [courtNumber, setCourtNumber] = useState<string>(match.scheduling?.court || '')
   const [isAssigningCourt, setIsAssigningCourt] = useState<boolean>(false)
@@ -398,6 +420,13 @@ export function GranularMatchCard({
       id: match.id,
       couple1_id: couple1?.id || '',
       couple2_id: couple2?.id || '',
+      time_slot_id: null,
+      status: match.status,
+      scheduled_date: null,
+      scheduled_start_time: null,
+      scheduled_end_time: null,
+      court_assignment: match.scheduling?.court || null,
+      club_id: null,
       couple1: couple1 ? {
         player1: couple1.player1_details,
         player2: couple1.player2_details
@@ -468,6 +497,34 @@ export function GranularMatchCard({
     // Notificar al padre si existe
     if (onMatchUpdate) {
       onMatchUpdate(match.id, { status: match.status })
+    }
+  }
+
+  const handleDisqualifyCouple = async (coupleId: string, coupleName: string | null) => {
+    setIsDisqualifyingCoupleId(coupleId)
+
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/couples/${coupleId}/disqualify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matchId: match.id,
+          reason: 'Descalificacion administrativa en llave',
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'No se pudo descalificar la pareja')
+      }
+
+      toast.success('Match ganado por descalificacion')
+      setPendingDisqualification(null)
+      handleByeActionComplete()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo descalificar la pareja')
+    } finally {
+      setIsDisqualifyingCoupleId(null)
     }
   }
 
@@ -567,6 +624,47 @@ export function GranularMatchCard({
   }
 
   const statusInfo = getMatchStatusInfo()
+  const canDisqualifyInBracket = isOwner &&
+    !isEditMode &&
+    ['PENDING', 'IN_PROGRESS', 'WAITING_OPONENT'].includes(match.status) &&
+    !!couple1 &&
+    !!couple2
+
+  const renderDisqualificationMenu = (couple: CoupleData | null, coupleName: string | null) => {
+    if (!canDisqualifyInBracket || !couple) return null
+
+    return (
+      <div className="absolute right-2 top-2 z-20">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 bg-white/90 text-gray-600 shadow-sm hover:bg-white hover:text-red-700"
+              disabled={isDisqualifyingCoupleId === couple.id}
+              aria-label={`Acciones para ${coupleName || 'pareja'}`}
+            >
+              {isDisqualifyingCoupleId === couple.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MoreHorizontal className="h-4 w-4" />
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem
+              className="text-red-700 focus:text-red-700"
+              onClick={() => setPendingDisqualification({ coupleId: couple.id, coupleName })}
+            >
+              <Ban className="mr-2 h-4 w-4" />
+              Descalificar pareja
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    )
+  }
 
   // ============================================================================
   // CLASES CSS DINÁMICAS
@@ -639,25 +737,28 @@ export function GranularMatchCard({
 
       <CardContent className="space-y-4">
         {/* Slot 1 - Pareja 1 */}
-        <DraggableCoupleSlot
-          couple={couple1}
-          match={match}
-          slotPosition="slot1"
-          placeholderLabel={match.participants?.slot1?.placeholder?.display || null}
-          isPlaceholder={match.participants?.slot1?.type === 'placeholder' || false}
-          canDrag={canDragSlot1}
-          isEditMode={isEditMode}
-          isDragging={slot1IsDragging}
-          canReceiveDrop={!!canReceiveDropSlot1}
-          isDragHover={localDragHover === 'slot1'}
-          result={match.result_couple1 as 'W' | 'L' | null}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={handleCoupleClick}
-        />
+        <div className="relative">
+          <DraggableCoupleSlot
+            couple={couple1}
+            match={match}
+            slotPosition="slot1"
+            placeholderLabel={match.participants?.slot1?.placeholder?.display || null}
+            isPlaceholder={match.participants?.slot1?.type === 'placeholder' || false}
+            canDrag={canDragSlot1}
+            isEditMode={isEditMode}
+            isDragging={slot1IsDragging}
+            canReceiveDrop={!!canReceiveDropSlot1}
+            isDragHover={localDragHover === 'slot1'}
+            result={match.result_couple1 as 'W' | 'L' | null}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={handleCoupleClick}
+          />
+          {renderDisqualificationMenu(couple1, couple1Name)}
+        </div>
 
         {/* Separador VS */}
         <div className="text-center">
@@ -667,25 +768,28 @@ export function GranularMatchCard({
         </div>
 
         {/* Slot 2 - Pareja 2 */}
-        <DraggableCoupleSlot
-          couple={couple2}
-          match={match}
-          slotPosition="slot2"
-          placeholderLabel={match.participants?.slot2?.placeholder?.display || null}
-          isPlaceholder={match.participants?.slot2?.type === 'placeholder' || false}
-          canDrag={canDragSlot2}
-          isEditMode={isEditMode}
-          isDragging={slot2IsDragging}
-          canReceiveDrop={!!canReceiveDropSlot2}
-          isDragHover={localDragHover === 'slot2'}
-          result={match.result_couple2 as 'W' | 'L' | null}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={handleCoupleClick}
-        />
+        <div className="relative">
+          <DraggableCoupleSlot
+            couple={couple2}
+            match={match}
+            slotPosition="slot2"
+            placeholderLabel={match.participants?.slot2?.placeholder?.display || null}
+            isPlaceholder={match.participants?.slot2?.type === 'placeholder' || false}
+            canDrag={canDragSlot2}
+            isEditMode={isEditMode}
+            isDragging={slot2IsDragging}
+            canReceiveDrop={!!canReceiveDropSlot2}
+            isDragHover={localDragHover === 'slot2'}
+            result={match.result_couple2 as 'W' | 'L' | null}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={handleCoupleClick}
+          />
+          {renderDisqualificationMenu(couple2, couple2Name)}
+        </div>
 
         {/* Información adicional del match */}
         <div className="pt-2 border-t border-gray-100 space-y-2">
@@ -699,6 +803,12 @@ export function GranularMatchCard({
 
           {/* ✅ RESULTADO CONDICIONAL SEGÚN TIPO DE TORNEO */}
           {match.status === 'FINISHED' && (
+            match.result_couple1 === 'W/DQ' || match.result_couple2 === 'W/DQ' ? (
+              <div className="flex items-center gap-2 text-sm text-red-700">
+                <Ban className="h-4 w-4" />
+                <span className="font-medium">Gano por descalificacion</span>
+              </div>
+            ) :
             isLongTournament ? (
               <ThreeSetResultDisplay matchId={match.id} className="text-sm" />
             ) : (
@@ -767,6 +877,7 @@ export function GranularMatchCard({
                   Modificar Resultado
                 </Button>
               )}
+
             </div>
           )}
         </div>
@@ -798,7 +909,7 @@ export function GranularMatchCard({
         {/* ✅ LOADMATCHRESULTDIALOG PARA TORNEOS LARGOS */}
         {showLoadMatchDialog && isLongTournament && isOwner && (
           <LoadMatchResultDialog
-            match={adaptMatchForDialog(match)}
+            match={adaptMatchForDialog(match) as any}
             open={showLoadMatchDialog}
             onOpenChange={(open) => !open && setShowLoadMatchDialog(false)}
             onResultSaved={handleLoadMatchResultSaved}
@@ -807,6 +918,63 @@ export function GranularMatchCard({
           />
         )}
       </CardContent>
+
+      <AlertDialog
+        open={pendingDisqualification !== null}
+        onOpenChange={(open) => {
+          if (!open && !isDisqualifyingCoupleId) {
+            setPendingDisqualification(null)
+          }
+        }}
+      >
+        <AlertDialogContent className="max-w-md bg-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Ban className="h-5 w-5 text-red-600" />
+              Descalificar pareja
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="font-medium text-red-800">
+                    Confirmas descalificar a {pendingDisqualification?.coupleName || 'esta pareja'}?
+                  </p>
+                  <p className="mt-1 text-xs text-red-700">
+                    El rival avanzara automaticamente, este match quedara ganado por descalificacion y no computara puntos de match.
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(isDisqualifyingCoupleId)}>
+              Volver
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={Boolean(isDisqualifyingCoupleId)}
+              onClick={(event) => {
+                event.preventDefault()
+                if (pendingDisqualification) {
+                  void handleDisqualifyCouple(
+                    pendingDisqualification.coupleId,
+                    pendingDisqualification.coupleName
+                  )
+                }
+              }}
+            >
+              {isDisqualifyingCoupleId ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Procesando...
+                </>
+              ) : (
+                'Descalificar pareja'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }

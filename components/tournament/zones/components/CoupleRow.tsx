@@ -8,7 +8,25 @@
 
 import React from 'react'
 import { TableCell, TableRow } from '@/components/ui/table'
-import { Clock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Ban, Clock, Loader2, MoreHorizontal, RotateCcw } from 'lucide-react'
 import type { SerializableCouple, Match, MatchResult } from '../types/zone-types'
 import type { DragItem } from '../types/drag-types'
 import { useDragDropOperations } from '../hooks/use-drag-drop'
@@ -29,9 +47,11 @@ interface CoupleRowProps {
   onDragEnd?: () => void
   onCellClick?: (couple1: SerializableCouple, couple2: SerializableCouple, match: Match | null) => void
   isOwner?: boolean
+  tournamentId?: string
   isMobile?: boolean
   selectedCoupleForMove?: { coupleId: string; coupleName: string; sourceZoneId: string | null } | null
   onCoupleSelect?: (selection: { coupleId: string; coupleName: string; sourceZoneId: string | null } | null) => void
+  onDisqualificationChange?: () => Promise<void> | void
 }
 
 export function CoupleRow({
@@ -48,10 +68,14 @@ export function CoupleRow({
   onDragEnd,
   onCellClick,
   isOwner = false,
+  tournamentId,
   isMobile = false,
   selectedCoupleForMove = null,
-  onCoupleSelect
+  onCoupleSelect,
+  onDisqualificationChange
 }: CoupleRowProps) {
+  const [isUpdatingDisqualification, setIsUpdatingDisqualification] = React.useState(false)
+  const [disqualificationDialogOpen, setDisqualificationDialogOpen] = React.useState(false)
   const {
     isDragging,
     draggedItem,
@@ -73,7 +97,8 @@ export function CoupleRow({
   const isBeingDragged = isDragging && draggedItem?.coupleId === couple.id
   
   // Check if couple can be dragged (not restricted)
-  const canDrag = canDragCouple(couple.id)
+  const isDisqualified = couple.metadata?.isDisqualified === true
+  const canDrag = canDragCouple(couple.id) && !isDisqualified
   const restrictionReason = getCoupleRestrictionReason(couple.id)
   
   // Get animation classes for this couple
@@ -161,11 +186,39 @@ export function CoupleRow({
     })
   }
 
+  const handleConfirmDisqualification = async () => {
+    if (!tournamentId || !isOwner) return
+
+    setIsUpdatingDisqualification(true)
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/couples/${couple.id}/disqualify`, {
+        method: isDisqualified ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: isDisqualified ? undefined : JSON.stringify({ reason: 'Descalificacion administrativa' }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'No se pudo actualizar la descalificacion')
+      }
+
+      toast.success(isDisqualified ? 'Descalificacion revertida' : 'Pareja descalificada')
+      setDisqualificationDialogOpen(false)
+      await onDisqualificationChange?.()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo actualizar la descalificacion')
+    } finally {
+      setIsUpdatingDisqualification(false)
+    }
+  }
+
   // Base classes for the row
   const baseClasses = [
     'border-b transition-all duration-200',
     isEditMode && canDrag ? 'cursor-move hover:bg-slate-50' : '',
     isEditMode && !canDrag ? 'cursor-not-allowed opacity-60 bg-gray-100' : '',
+    isDisqualified ? 'bg-red-50/70' : '',
     isBeingDragged ? 'opacity-50 scale-95' : '',
     isMobile && isEditMode ? 'select-none' : '',  // Prevent text selection in mobile
     animationClasses
@@ -224,6 +277,11 @@ export function CoupleRow({
             <div className={`font-medium text-sm ${!canDrag ? 'text-gray-500' : ''}`}>
               {couple.player1Name} / {couple.player2Name}
             </div>
+            {isDisqualified && (
+              <Badge variant="destructive" className="mt-1 h-5 px-1.5 text-[10px]">
+                Descalificada
+              </Badge>
+            )}
             {!canDrag && restrictionReason && (
               <div className="text-xs text-red-600">
                 {restrictionReason}
@@ -327,8 +385,108 @@ export function CoupleRow({
               {formatGamesDifference(gamesStats.gamesDifference)}
             </div>
           </TableCell>
+
+          {isOwner && tournamentId && (
+            <TableCell className="w-24 text-right">
+              <div onClick={(event) => event.stopPropagation()}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      disabled={isUpdatingDisqualification}
+                      aria-label={`Acciones para ${couple.player1Name} / ${couple.player2Name}`}
+                    >
+                      {isUpdatingDisqualification ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <MoreHorizontal className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem
+                      className={isDisqualified ? 'text-slate-700' : 'text-red-700 focus:text-red-700'}
+                      onClick={() => setDisqualificationDialogOpen(true)}
+                    >
+                      {isDisqualified ? (
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                      ) : (
+                        <Ban className="mr-2 h-4 w-4" />
+                      )}
+                      {isDisqualified ? 'Revertir descalificacion' : 'Descalificar pareja'}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </TableCell>
+          )}
         </>
       )}
+
+      <AlertDialog
+        open={disqualificationDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !isUpdatingDisqualification) {
+            setDisqualificationDialogOpen(false)
+          }
+        }}
+      >
+        <AlertDialogContent className="max-w-md bg-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {isDisqualified ? (
+                <RotateCcw className="h-5 w-5 text-slate-600" />
+              ) : (
+                <Ban className="h-5 w-5 text-red-600" />
+              )}
+              {isDisqualified ? 'Revertir descalificacion' : 'Descalificar pareja'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <div className={isDisqualified ? 'bg-slate-50 border border-slate-200 rounded-lg p-3' : 'bg-red-50 border border-red-200 rounded-lg p-3'}>
+                  <p className={isDisqualified ? 'font-medium text-slate-800' : 'font-medium text-red-800'}>
+                    {isDisqualified
+                      ? `La pareja ${couple.player1Name} / ${couple.player2Name} volvera a quedar habilitada.`
+                      : `Confirmas descalificar a ${couple.player1Name} / ${couple.player2Name}?`}
+                  </p>
+                  <p className={isDisqualified ? 'mt-1 text-xs text-slate-600' : 'mt-1 text-xs text-red-700'}>
+                    {isDisqualified
+                      ? 'Esto solo se permite mientras no exista una llave generada.'
+                      : 'No avanzara a la llave y se cancelaran sus partidos pendientes. Los resultados ya cargados no se modifican.'}
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isUpdatingDisqualification}>
+              Volver
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className={isDisqualified ? undefined : 'bg-red-600 hover:bg-red-700'}
+              disabled={isUpdatingDisqualification}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleConfirmDisqualification()
+              }}
+            >
+              {isUpdatingDisqualification ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Procesando...
+                </>
+              ) : isDisqualified ? (
+                'Revertir'
+              ) : (
+                'Descalificar pareja'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TableRow>
   )
 }
