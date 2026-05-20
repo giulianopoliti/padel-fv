@@ -5,6 +5,7 @@ import { Trophy, Users, UserPlus, AlertCircle, Calendar, CheckCircle } from 'luc
 
 import CancelRegistrationButton from '@/components/tournament/player/cancel-registration-button'
 import PublicRegistrationLauncher from '@/components/tournament/public-registration-launcher'
+import TournamentHeroDetails from '@/components/tournament/TournamentHeroDetails'
 import TournamentPublicInfoCard from '@/components/tournament/TournamentPublicInfoCard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -29,6 +30,7 @@ interface AmericanPlayerDashboardProps {
     status?: string
     gender?: Gender
     price?: string | number | null
+    enable_public_inscriptions?: boolean
     enable_transfer_proof?: boolean
     transfer_alias?: string | null
     transfer_amount?: number | null
@@ -101,6 +103,7 @@ export default function AmericanPlayerDashboard({
   const finishedMatches = [...playerData.zoneMatches, ...playerData.bracketMatches].filter(
     match => match.status === 'FINISHED'
   ).length
+  const canShowParticipantStats = Boolean(tournament.enable_public_inscriptions)
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -117,8 +120,12 @@ export default function AmericanPlayerDashboard({
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-8">
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                <div className="text-3xl font-bold">{playerData.totalCouplesInTournament}</div>
-                <div className="text-blue-100 text-sm mt-1">Parejas Inscriptas</div>
+                <div className="text-3xl font-bold">
+                  {canShowParticipantStats ? playerData.totalCouplesInTournament : tournament.publicInfo?.typeLabel || 'Torneo'}
+                </div>
+                <div className="text-blue-100 text-sm mt-1">
+                  {canShowParticipantStats ? 'Parejas Inscriptas' : 'Formato'}
+                </div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
                 <div className="text-3xl font-bold">{totalMatches}</div>
@@ -129,6 +136,10 @@ export default function AmericanPlayerDashboard({
                 <div className="text-blue-100 text-sm mt-1">Completados</div>
               </div>
             </div>
+
+            {tournament.publicInfo && (
+              <TournamentHeroDetails publicInfo={tournament.publicInfo} className="mt-6 text-left" />
+            )}
           </div>
         </div>
       </div>
@@ -381,6 +392,10 @@ function NotRegisteredView({
             <h1 className="text-4xl lg:text-5xl font-bold mb-4">{tournament.name}</h1>
             {tournament.clubName && (
               <p className="text-xl text-blue-100">{tournament.clubName}</p>
+            )}
+
+            {tournament.publicInfo && (
+              <TournamentHeroDetails publicInfo={tournament.publicInfo} className="mt-6 text-left" />
             )}
           </div>
         </div>

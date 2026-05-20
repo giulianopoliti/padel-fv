@@ -5,6 +5,7 @@ import { Trophy, Calendar, Users, Clock, CheckCircle, XCircle } from 'lucide-rea
 
 import PlayerTournamentDashboard from '@/components/player/PlayerTournamentDashboard';
 import NotRegisteredView from '@/components/tournament/NotRegisteredView';
+import TournamentHeroDetails from '@/components/tournament/TournamentHeroDetails';
 import TournamentPublicInfoCard from '@/components/tournament/TournamentPublicInfoCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUser } from '@/contexts/user-context';
@@ -177,6 +178,12 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({
             <span className="capitalize">{stats.status.toLowerCase()}</span>
           </div>
         </div>
+
+        <TournamentHeroDetails
+          publicInfo={publicInfo}
+          variant="light"
+          className="pt-2"
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

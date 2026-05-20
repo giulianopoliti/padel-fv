@@ -4,6 +4,7 @@ import React from 'react'
 import { Trophy, UserPlus, AlertCircle } from 'lucide-react'
 
 import PublicRegistrationLauncher from '@/components/tournament/public-registration-launcher'
+import TournamentHeroDetails from '@/components/tournament/TournamentHeroDetails'
 import TournamentPublicInfoCard from '@/components/tournament/TournamentPublicInfoCard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -44,6 +45,14 @@ export default function NotRegisteredView({
             </p>
           </div>
         </div>
+
+        {tournament.publicInfo && (
+          <TournamentHeroDetails
+            publicInfo={tournament.publicInfo}
+            variant="light"
+            className="pt-2"
+          />
+        )}
       </div>
 
       <Alert className="border-orange-200 bg-orange-50">

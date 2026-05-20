@@ -5,6 +5,7 @@ import { Calendar, MapPin, Trophy, Users, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import PublicRegistrationLauncher from "@/components/tournament/public-registration-launcher";
+import TournamentHeroDetails from "@/components/tournament/TournamentHeroDetails";
 import TournamentPublicInfoCard from "@/components/tournament/TournamentPublicInfoCard";
 import type { TournamentPublicInfo } from "@/lib/tournaments/public-tournament-details";
 import { Gender } from "@/types";
@@ -44,6 +45,7 @@ export default function AmericanPublicView({
     couples: coupleInscriptions.length,
     players: individualInscriptions.length,
   };
+  const canShowParticipantStats = Boolean(tournament.enable_public_inscriptions);
 
   const isCanceled = tournament.status === "CANCELED";
   const isAuthenticated = !!metadata.userRole;
@@ -91,17 +93,39 @@ export default function AmericanPublicView({
             )}
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-8">
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                <Users className="h-8 w-8 mx-auto mb-2" />
-                <div className="text-3xl font-bold">{stats.couples}</div>
-                <div className="text-blue-100 text-sm mt-1">Parejas inscriptas</div>
-              </div>
+              {canShowParticipantStats ? (
+                <>
+                  <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
+                    <Users className="h-8 w-8 mx-auto mb-2" />
+                    <div className="text-3xl font-bold">{stats.couples}</div>
+                    <div className="text-blue-100 text-sm mt-1">Parejas inscriptas</div>
+                  </div>
 
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                <Trophy className="h-8 w-8 mx-auto mb-2" />
-                <div className="text-3xl font-bold">{stats.players}</div>
-                <div className="text-blue-100 text-sm mt-1">Jugadores</div>
-              </div>
+                  <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
+                    <Trophy className="h-8 w-8 mx-auto mb-2" />
+                    <div className="text-3xl font-bold">{stats.players}</div>
+                    <div className="text-blue-100 text-sm mt-1">Jugadores</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
+                    <Trophy className="h-8 w-8 mx-auto mb-2" />
+                    <div className="text-lg font-bold mt-1">{publicInfo.typeLabel}</div>
+                    <div className="text-blue-100 text-sm mt-1">Formato</div>
+                  </div>
+
+                  <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
+                    <Users className="h-8 w-8 mx-auto mb-2" />
+                    <div className="text-lg font-bold mt-1">
+                      {publicInfo.category || publicInfo.genderLabel}
+                    </div>
+                    <div className="text-blue-100 text-sm mt-1">
+                      {publicInfo.category ? "Categoría" : "Género"}
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 col-span-2 md:col-span-1">
                 <Calendar className="h-8 w-8 mx-auto mb-2" />
@@ -111,6 +135,8 @@ export default function AmericanPublicView({
                 <div className="text-blue-100 text-sm mt-1">Fecha de inicio</div>
               </div>
             </div>
+
+            <TournamentHeroDetails publicInfo={publicInfo} className="mt-6 text-left" />
 
             {isCanceled && (
               <div className="mt-8 max-w-md mx-auto">

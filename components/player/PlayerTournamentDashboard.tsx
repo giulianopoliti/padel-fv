@@ -8,6 +8,7 @@ import NextMatchCardEdge from '@/components/player/NextMatchCardEdge'
 import CancelRegistrationButton from '@/components/tournament/player/cancel-registration-button'
 import NotRegisteredView from '@/components/tournament/NotRegisteredView'
 import PublicRegistrationLauncher from '@/components/tournament/public-registration-launcher'
+import TournamentHeroDetails from '@/components/tournament/TournamentHeroDetails'
 import TournamentPublicInfoCard from '@/components/tournament/TournamentPublicInfoCard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -147,6 +148,14 @@ export default function PlayerTournamentDashboard({
             </p>
           </div>
         </div>
+
+        {tournament.publicInfo && (
+          <TournamentHeroDetails
+            publicInfo={tournament.publicInfo}
+            variant="light"
+            className="pt-2"
+          />
+        )}
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -267,6 +276,14 @@ function AwaitingPartnerView({
             </p>
           </div>
         </div>
+
+        {tournament.publicInfo && (
+          <TournamentHeroDetails
+            publicInfo={tournament.publicInfo}
+            variant="light"
+            className="pt-2"
+          />
+        )}
       </div>
 
       <Alert className="border-blue-200 bg-blue-50">
@@ -384,6 +401,14 @@ function EliminatedPlayerView({
             </p>
           </div>
         </div>
+
+        {tournament.publicInfo && (
+          <TournamentHeroDetails
+            publicInfo={tournament.publicInfo}
+            variant="light"
+            className="pt-2"
+          />
+        )}
       </div>
 
       <Alert className="border-red-200 bg-red-50">

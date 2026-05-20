@@ -202,6 +202,7 @@ export default function AmericanTournamentOverview({
           status: tournament.status,
           gender: tournament.gender,
           price: tournament.price ?? null,
+          enable_public_inscriptions: tournament.enable_public_inscriptions ?? false,
           enable_transfer_proof: tournament.enable_transfer_proof ?? false,
           transfer_alias: tournament.transfer_alias ?? null,
           transfer_amount: tournament.transfer_amount ?? null,
