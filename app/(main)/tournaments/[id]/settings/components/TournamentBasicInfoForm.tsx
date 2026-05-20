@@ -7,8 +7,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Save, FileText, Users, AlertCircle } from 'lucide-react'
+import { Loader2, Save, FileText, Users, AlertCircle, Tag } from 'lucide-react'
 import { updateTournamentBasicInfo } from '../actions'
+import { MAX_TOURNAMENT_PRICE } from '@/lib/constants/tournaments'
 
 interface TournamentBasicInfoFormProps {
   tournamentId: string
@@ -16,6 +17,7 @@ interface TournamentBasicInfoFormProps {
     name: string
     description?: string | null
     max_participants?: number | null
+    price?: number | null
   }
   inscriptionsCount: number
 }
@@ -30,6 +32,9 @@ export default function TournamentBasicInfoForm({
   const [description, setDescription] = useState(initialData.description || '')
   const [maxParticipants, setMaxParticipants] = useState<number | ''>(
     initialData.max_participants || ''
+  )
+  const [price, setPrice] = useState<number | ''>(
+    initialData.price ?? ''
   )
   const [hasChanges, setHasChanges] = useState(false)
   const { toast } = useToast()
@@ -57,7 +62,8 @@ export default function TournamentBasicInfoForm({
         tournamentId,
         name: name.trim(),
         description: description.trim() || null,
-        max_participants: maxParticipants === '' ? null : Number(maxParticipants)
+        max_participants: maxParticipants === '' ? null : Number(maxParticipants),
+        price: price === '' ? null : Number(price),
       })
 
       if (result.success) {
@@ -95,6 +101,7 @@ export default function TournamentBasicInfoForm({
     setName(initialData.name)
     setDescription(initialData.description || '')
     setMaxParticipants(initialData.max_participants || '')
+    setPrice(initialData.price ?? '')
     setHasChanges(false)
   }
 
@@ -102,6 +109,12 @@ export default function TournamentBasicInfoForm({
     if (maxParticipants === '') return true
     const value = Number(maxParticipants)
     return value >= inscriptionsCount && value <= 256
+  }
+
+  const isPriceValid = () => {
+    if (price === '') return true
+    const value = Number(price)
+    return Number.isInteger(value) && value >= 0 && value <= MAX_TOURNAMENT_PRICE
   }
 
   return (
@@ -129,6 +142,43 @@ export default function TournamentBasicInfoForm({
         <p className="text-xs text-muted-foreground">
           {name.length}/100 caracteres
         </p>
+      </div>
+
+      {/* Tournament Price */}
+      <div className="space-y-2">
+        <Label htmlFor="tournament-price" className="flex items-center gap-2">
+          <Tag className="h-4 w-4 text-emerald-600" />
+          Precio de inscripcion
+        </Label>
+        <Input
+          id="tournament-price"
+          type="number"
+          value={price}
+          onChange={(e) => {
+            const value = e.target.value
+            setPrice(value === '' ? '' : Number(value))
+            handleInputChange()
+          }}
+          placeholder="Sin definir"
+          min={0}
+          max={MAX_TOURNAMENT_PRICE}
+          step={1}
+          disabled={isLoading}
+          className="w-full"
+        />
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground">
+            Opcional. Solo numeros enteros.
+          </p>
+          {price !== '' && !isPriceValid() && (
+            <Alert variant="destructive" className="py-2">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                El precio debe ser un entero entre 0 y {MAX_TOURNAMENT_PRICE.toLocaleString('es-AR')}
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
       </div>
 
       {/* Tournament Description */}
@@ -195,7 +245,7 @@ export default function TournamentBasicInfoForm({
       <div className="flex gap-3 pt-4 border-t">
         <Button
           type="submit"
-          disabled={isLoading || !hasChanges || !isMaxParticipantsValid()}
+          disabled={isLoading || !hasChanges || !isMaxParticipantsValid() || !isPriceValid()}
           className="flex-1"
         >
           {isLoading ? (

@@ -56,6 +56,7 @@ import {
   type TournamentCategoryConfig,
 } from '@/lib/services/tournament-category-config';
 import { cn } from '@/lib/utils';
+import { MAX_TOURNAMENT_PRICE } from '@/lib/constants/tournaments';
 import type { TournamentFormatPresetId } from '@/types/tournament-format-v2';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
@@ -127,7 +128,7 @@ const tournamentSchema = z.object({
   max_participants: z.number().min(2, 'Minimo 2 parejas').max(64, 'Maximo 64 parejas').optional(),
   club_id: z.string().min(1, 'Selecciona un club'),
   extra_club_ids: z.array(z.string()).default([]),
-  price: z.number().int('El precio debe ser un numero entero').min(0, 'El precio no puede ser negativo').max(32767, 'El precio es demasiado alto').optional(),
+  price: z.number().int('El precio debe ser un numero entero').min(0, 'El precio no puede ser negativo').max(MAX_TOURNAMENT_PRICE, 'El precio es demasiado alto').optional(),
   award: z.string().optional(),
   single_bracket_advance_count: z.number().int().min(2, 'Minimo 2 parejas').optional(),
   gold_count: z.number().int().min(0, 'No puede ser negativo').optional(),
@@ -1694,7 +1695,7 @@ export default function TournamentCreateForm() {
                                 <Input
                                   type="number"
                                   min="0"
-                                  max="32767"
+                                  max={MAX_TOURNAMENT_PRICE}
                                   step="1"
                                   placeholder="Ej: 5000"
                                   className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900"

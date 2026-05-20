@@ -26,6 +26,7 @@ import {
 import { normalizePlayerDni } from '@/lib/utils/player-dni';
 import { findExistingPlayerByIdentity } from '@/lib/utils/player-identity';
 import { ensureLongTournamentGeneralZone } from '@/lib/services/tournaments/long-general-zone';
+import { MAX_TOURNAMENT_PRICE } from '@/lib/constants/tournaments';
 
 
 // Sistema unificado de puntos para TODO el torneo
@@ -589,6 +590,20 @@ export async function createTournamentAction(formData: CreateTournamentData & { 
       }
 
       normalizedCategoryName = resolvePersistedTournamentCategoryName(formData.category_config, categories)
+    }
+
+    if (formData.price !== null) {
+      if (!Number.isInteger(formData.price)) {
+        return { success: false, error: 'El precio debe ser un numero entero' };
+      }
+
+      if (formData.price < 0) {
+        return { success: false, error: 'El precio no puede ser negativo' };
+      }
+
+      if (formData.price > MAX_TOURNAMENT_PRICE) {
+        return { success: false, error: 'El precio es demasiado alto' };
+      }
     }
 
     // 3. Prepare data for insertion (remove club_id and extra_club_ids from formData to avoid conflicts)

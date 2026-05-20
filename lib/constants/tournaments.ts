@@ -1,0 +1,1 @@
+export const MAX_TOURNAMENT_PRICE = 999_999_999

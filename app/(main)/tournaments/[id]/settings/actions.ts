@@ -18,6 +18,7 @@ import {
   calculateExpectedZoneMatches,
   getPersistedBracketArtifacts
 } from '@/lib/services/bracket-generation-validation'
+import { MAX_TOURNAMENT_PRICE } from '@/lib/constants/tournaments'
 
 interface QualifyingAdvancementSettings {
   enabled: boolean
@@ -29,6 +30,7 @@ interface UpdateTournamentBasicInfoParams {
   name: string
   description?: string | null
   max_participants?: number | null
+  price?: number | null
 }
 
 interface ActionResult {
@@ -428,7 +430,7 @@ export async function updateTournamentFormatConfig(
 }
 
 /**
- * Updates tournament basic information (name, description, max_participants)
+ * Updates tournament basic information (name, description, max_participants, price)
  * Validates permissions and business rules before updating
  */
 export async function updateTournamentBasicInfo(
@@ -469,6 +471,29 @@ export async function updateTournamentBasicInfo(
       return {
         success: false,
         error: 'El nombre del torneo no puede exceder 100 caracteres'
+      }
+    }
+
+    if (params.price !== undefined && params.price !== null) {
+      if (!Number.isInteger(params.price)) {
+        return {
+          success: false,
+          error: 'El precio debe ser un numero entero'
+        }
+      }
+
+      if (params.price < 0) {
+        return {
+          success: false,
+          error: 'El precio no puede ser negativo'
+        }
+      }
+
+      if (params.price > MAX_TOURNAMENT_PRICE) {
+        return {
+          success: false,
+          error: 'El precio es demasiado alto'
+        }
       }
     }
 
@@ -521,6 +546,10 @@ export async function updateTournamentBasicInfo(
     // Only include max_participants if it was provided
     if (params.max_participants !== undefined && params.max_participants !== null) {
       updateData.max_participants = params.max_participants
+    }
+
+    if (params.price !== undefined) {
+      updateData.price = params.price
     }
 
     // Update tournament
@@ -592,6 +621,7 @@ export async function getTournamentForEdit(tournamentId: string): Promise<Action
         name,
         description,
         max_participants,
+        price,
         pre_tournament_image_url,
         status,
         bracket_status,

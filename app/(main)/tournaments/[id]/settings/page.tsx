@@ -125,6 +125,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
       name,
       description,
       max_participants,
+      price,
       category_name,
       category_config,
       gender,
@@ -346,6 +347,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
                   name: tournament.name,
                   description: tournament.description,
                   max_participants: tournament.max_participants,
+                  price: tournament.price,
                 }}
                 inscriptionsCount={inscriptionsCount || 0}
               />
