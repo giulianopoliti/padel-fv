@@ -1,5 +1,7 @@
 import {
+  calculateCoupleMatchCounts,
   calculateExpectedZoneMatches,
+  findCouplesBelowRequiredMatches,
   resolveEffectiveRoundsPerCoupleForValidation,
 } from '@/lib/services/bracket-generation-validation'
 
@@ -54,6 +56,44 @@ describe('bracket-generation-validation', () => {
       )
 
       expect(rounds).toBe(3)
+    })
+  })
+
+  describe('couple-level match requirements', () => {
+    it('counts created matches per couple in a zone', () => {
+      const counts = calculateCoupleMatchCounts(
+        ['couple-a', 'couple-b', 'couple-c', 'couple-d'],
+        [
+          { couple1_id: 'couple-a', couple2_id: 'couple-b' },
+          { couple1_id: 'couple-a', couple2_id: 'couple-c' },
+          { couple1_id: 'couple-a', couple2_id: 'couple-d' },
+          { couple1_id: 'couple-b', couple2_id: 'couple-c' },
+        ]
+      )
+
+      expect(counts).toEqual({
+        'couple-a': 3,
+        'couple-b': 2,
+        'couple-c': 2,
+        'couple-d': 1,
+      })
+    })
+
+    it('detects couples below the required matches for AMERICAN_MULTI_ZONE_3', () => {
+      const incompleteCouples = findCouplesBelowRequiredMatches(
+        {
+          'couple-a': 3,
+          'couple-b': 3,
+          'couple-c': 2,
+          'couple-d': 1,
+        },
+        3
+      )
+
+      expect(incompleteCouples).toEqual([
+        { coupleId: 'couple-c', matchCount: 2, missingMatches: 1 },
+        { coupleId: 'couple-d', matchCount: 1, missingMatches: 2 },
+      ])
     })
   })
 })

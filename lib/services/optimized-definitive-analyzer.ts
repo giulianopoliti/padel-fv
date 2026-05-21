@@ -19,6 +19,7 @@
 import { createClient } from '@/utils/supabase/client'
 import { ZoneRankingEngine } from './zone-position/zone-ranking-engine'
 import type { CoupleStats, MatchData, HeadToHeadResult } from './zone-position/types'
+import { DefinitivePositionService } from '@/lib/services/definitive-position.service'
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -124,6 +125,44 @@ export class OptimizedDefinitiveAnalyzer {
    * MÉTODO PRINCIPAL: Análisis completo de zona con optimizaciones
    */
   async analyzeZoneOptimized(zoneId: string): Promise<ZoneAnalysisResult> {
+    const supabase = createClient()
+    const { data: zone } = await supabase
+      .from('zones')
+      .select('tournament_id, name')
+      .eq('id', zoneId)
+      .single()
+
+    if (zone?.tournament_id) {
+      const definitiveResult = await DefinitivePositionService.analyzeTournament(zone.tournament_id, zoneId)
+      const zoneResult = definitiveResult.zoneResults[0]
+
+      if (zoneResult) {
+        return {
+          zoneId: zoneResult.zoneId,
+          zoneName: zone.name || 'Unknown',
+          totalCouples: zoneResult.totalCouples,
+          definitivePositions: zoneResult.definitivePositions,
+          analysisTimeMs: zoneResult.totalComputationTime,
+          positionAnalyses: zoneResult.analysis.map((analysis) => ({
+            coupleId: analysis.coupleId,
+            currentPosition: analysis.currentPosition,
+            isDefinitive: analysis.isDefinitive,
+            possiblePositions: analysis.possiblePositions,
+            analysisMethod: analysis.analysisMethod === 'NO_PENDING_MATCHES'
+              ? 'NO_PENDING_MATCHES'
+              : analysis.analysisMethod === 'CONSERVATIVE_FALLBACK'
+                ? 'BACKTRACKING_LIMITED'
+                : 'BACKTRACKING_FULL',
+            analysisDetails: analysis.analysisDetails,
+            confidence: analysis.confidence === 'HIGH' ? 1 : 0,
+            computationTimeMs: analysis.computationTime,
+            constraintsSatisfied: [],
+          })),
+          optimizationsSaved: zoneResult.optimizationsApplied,
+        }
+      }
+    }
+
     const startTime = performance.now()
     console.log(`🚀 [OPTIMIZER] Starting optimized analysis for zone: ${zoneId}`)
     

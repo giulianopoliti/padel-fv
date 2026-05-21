@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generatePlaceholderBracketAction } from '../actions'
+import { validatePlaceholderBracketGeneration } from '@/lib/services/bracket-generation-validation'
 
 /**
  * POST /api/tournaments/[id]/generate-placeholder-bracket
@@ -9,10 +10,10 @@ import { generatePlaceholderBracketAction } from '../actions'
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tournamentId = params.id
+    const { id: tournamentId } = await params
 
     if (!tournamentId) {
       return NextResponse.json({
@@ -26,11 +27,13 @@ export async function POST(
     // Llamar al Server Action desde el API Route
     const result = await generatePlaceholderBracketAction(tournamentId)
     
+    const resultData = 'data' in result ? result.data : undefined
+
     console.log(`[API] Placeholder bracket generation result:`, {
       success: result.success,
-      definitiveSeeds: result.data?.definitiveSeeds,
-      placeholderSeeds: result.data?.placeholderSeeds,
-      totalMatches: result.data?.totalMatches
+      definitiveSeeds: resultData?.definitiveSeeds,
+      placeholderSeeds: resultData?.placeholderSeeds,
+      totalMatches: resultData?.totalMatches
     })
     
     return NextResponse.json(result)
@@ -40,6 +43,32 @@ export async function POST(
     return NextResponse.json({
       success: false,
       error: error.message || 'Failed to generate placeholder bracket'
+    }, { status: 500 })
+  }
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: tournamentId } = await params
+
+    if (!tournamentId) {
+      return NextResponse.json({
+        success: false,
+        error: 'Tournament ID is required'
+      }, { status: 400 })
+    }
+
+    const validation = await validatePlaceholderBracketGeneration(tournamentId)
+
+    return NextResponse.json(validation)
+  } catch (error: any) {
+    console.error('[API] Error validating placeholder bracket generation:', error)
+    return NextResponse.json({
+      success: false,
+      error: error.message || 'Failed to validate placeholder bracket generation'
     }, { status: 500 })
   }
 }

@@ -27,6 +27,7 @@ export interface PlaceholderBracketValidationSuccess {
   totalCouples: number
   totalZones: number
   artifacts: BracketArtifactState
+  requiredMatchesPerCoupleValues?: number[]
 }
 
 export interface PlaceholderBracketValidationFailure {
@@ -41,6 +42,7 @@ export interface PlaceholderBracketValidationFailure {
   totalCouples: number
   totalZones: number
   artifacts: BracketArtifactState
+  requiredMatchesPerCoupleValues?: number[]
   tournament?: {
     id: string
     status: string
@@ -58,6 +60,11 @@ export interface PlaceholderBracketValidationFailure {
     matchCount: number
     expectedMatches: number
     missingMatches: number
+    incompleteCouples?: Array<{
+      coupleId: string
+      matchCount: number
+      missingMatches: number
+    }>
   }>
 }
 
@@ -82,6 +89,42 @@ export function calculateExpectedZoneMatches(
   }
 
   return Math.ceil((coupleCount * roundsPerCouple) / 2)
+}
+
+export function calculateCoupleMatchCounts(
+  coupleIds: string[],
+  matches: Array<{ couple1_id?: string | null; couple2_id?: string | null }>
+): Record<string, number> {
+  const counts = Object.fromEntries(coupleIds.map((coupleId) => [coupleId, 0]))
+
+  matches.forEach((match) => {
+    if (match.couple1_id && match.couple1_id in counts) {
+      counts[match.couple1_id] += 1
+    }
+
+    if (match.couple2_id && match.couple2_id in counts) {
+      counts[match.couple2_id] += 1
+    }
+  })
+
+  return counts
+}
+
+export function findCouplesBelowRequiredMatches(
+  coupleMatchCounts: Record<string, number>,
+  requiredMatchesPerCouple: number
+): Array<{ coupleId: string; matchCount: number; missingMatches: number }> {
+  if (requiredMatchesPerCouple <= 0) {
+    return []
+  }
+
+  return Object.entries(coupleMatchCounts)
+    .filter(([, matchCount]) => matchCount < requiredMatchesPerCouple)
+    .map(([coupleId, matchCount]) => ({
+      coupleId,
+      matchCount,
+      missingMatches: requiredMatchesPerCouple - matchCount
+    }))
 }
 
 export function resolveEffectiveRoundsPerCoupleForValidation(
@@ -259,11 +302,12 @@ export async function validatePlaceholderBracketGeneration(
 
   const incompleteZones: PlaceholderBracketValidationFailure['incompleteZones'] = []
   let totalCouples = 0
+  const requiredMatchesPerCoupleValues = new Set<number>()
 
   for (const zone of zones || []) {
-    const { count: coupleCount, error: coupleError } = await supabase
+    const { data: zonePositions, error: coupleError } = await supabase
       .from('zone_positions')
-      .select('*', { count: 'exact', head: true })
+      .select('couple_id')
       .eq('zone_id', zone.id)
 
     if (coupleError) {
@@ -278,9 +322,9 @@ export async function validatePlaceholderBracketGeneration(
       }
     }
 
-    const { count: matchCount, error: matchError } = await supabase
+    const { data: zoneMatches, error: matchError } = await supabase
       .from('matches')
-      .select('*', { count: 'exact', head: true })
+      .select('id, couple1_id, couple2_id')
       .eq('zone_id', zone.id)
 
     if (matchError) {
@@ -295,17 +339,25 @@ export async function validatePlaceholderBracketGeneration(
       }
     }
 
-    const couplesInZone = coupleCount || 0
-    const matchesInZone = matchCount || 0
+    const coupleIds = (zonePositions || [])
+      .map((position) => position.couple_id)
+      .filter((coupleId): coupleId is string => Boolean(coupleId))
+    const couplesInZone = coupleIds.length
+    const matchesInZone = zoneMatches?.length || 0
     const roundsPerCouple = resolveEffectiveRoundsPerCoupleForValidation(
       tournament,
       zone,
       couplesInZone
     )
     const expectedMatches = calculateExpectedZoneMatches(couplesInZone, roundsPerCouple)
+    const coupleMatchCounts = calculateCoupleMatchCounts(coupleIds, zoneMatches || [])
+    const incompleteCouples = findCouplesBelowRequiredMatches(coupleMatchCounts, roundsPerCouple)
+    if (roundsPerCouple > 0) {
+      requiredMatchesPerCoupleValues.add(roundsPerCouple)
+    }
     totalCouples += couplesInZone
 
-    if (matchesInZone < expectedMatches) {
+    if (matchesInZone < expectedMatches || incompleteCouples.length > 0) {
       incompleteZones.push({
         zoneId: zone.id,
         zoneName: zone.name,
@@ -313,7 +365,8 @@ export async function validatePlaceholderBracketGeneration(
         roundsPerCouple,
         matchCount: matchesInZone,
         expectedMatches,
-        missingMatches: expectedMatches - matchesInZone
+        missingMatches: Math.max(expectedMatches - matchesInZone, 0),
+        incompleteCouples
       })
     }
   }
@@ -323,14 +376,16 @@ export async function validatePlaceholderBracketGeneration(
     return {
       success: false,
       code: 'ZONE_MATCHES_INCOMPLETE',
-      message:
-        `Zona ${firstIncompleteZone.zoneName}: faltan ${firstIncompleteZone.missingMatches} partidos por crear. ` +
-        `Creados: ${firstIncompleteZone.matchCount}, Esperados: ${firstIncompleteZone.expectedMatches} ` +
-        `(partidos por pareja: ${firstIncompleteZone.roundsPerCouple})`,
+      message: firstIncompleteZone.incompleteCouples?.length
+        ? `Zona ${firstIncompleteZone.zoneName}: hay ${firstIncompleteZone.incompleteCouples.length} parejas con menos de ${firstIncompleteZone.roundsPerCouple} partidos creados.`
+        : `Zona ${firstIncompleteZone.zoneName}: faltan ${firstIncompleteZone.missingMatches} partidos por crear. ` +
+          `Creados: ${firstIncompleteZone.matchCount}, Esperados: ${firstIncompleteZone.expectedMatches} ` +
+          `(partidos por pareja: ${firstIncompleteZone.roundsPerCouple})`,
       totalCouples,
       totalZones: zones?.length || 0,
       artifacts,
       tournament,
+      requiredMatchesPerCoupleValues: Array.from(requiredMatchesPerCoupleValues).sort((a, b) => a - b),
       incompleteZones
     }
   }
@@ -342,6 +397,7 @@ export async function validatePlaceholderBracketGeneration(
     tournament,
     totalCouples,
     totalZones: zones?.length || 0,
+    requiredMatchesPerCoupleValues: Array.from(requiredMatchesPerCoupleValues).sort((a, b) => a - b),
     artifacts
   }
 }

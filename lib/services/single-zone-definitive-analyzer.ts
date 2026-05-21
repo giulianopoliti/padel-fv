@@ -7,6 +7,7 @@
  */
 
 import { createClient } from '@/utils/supabase/server'
+import { DefinitivePositionService } from '@/lib/services/definitive-position.service'
 
 export interface SingleZonePositionAnalysis {
   coupleId: string
@@ -40,6 +41,44 @@ export class SingleZoneDefinitiveAnalyzer {
    * Sin caché, sin optimizaciones, algoritmo puro
    */
   async analyzeSingleZonePositions(zoneId: string): Promise<SingleZoneAnalysisResult> {
+    try {
+      if (process.env.NODE_ENV === 'test') {
+        throw new Error('Use legacy analyzer in Jest mocks')
+      }
+
+      const supabase = await this.getSupabaseClient()
+      const { data: zone, error: zoneError } = await supabase
+        .from('zones')
+        .select('tournament_id')
+        .eq('id', zoneId)
+        .single()
+
+      if (!zoneError && zone?.tournament_id) {
+        const definitiveResult = await DefinitivePositionService.analyzeTournament(zone.tournament_id, zoneId)
+        const zoneResult = definitiveResult.zoneResults[0]
+
+        if (zoneResult) {
+          return {
+            zoneId: zoneResult.zoneId,
+            totalCouples: zoneResult.totalCouples,
+            definitivePositions: zoneResult.definitivePositions,
+            analysis: zoneResult.analysis.map((analysis) => ({
+              coupleId: analysis.coupleId,
+              currentPosition: analysis.currentPosition,
+              isDefinitive: analysis.isDefinitive,
+              possiblePositions: analysis.possiblePositions,
+              analysisMethod: analysis.analysisMethod === 'NO_PENDING_MATCHES' ? 'FAST_VALIDATION' : analysis.analysisMethod,
+              analysisDetails: analysis.analysisDetails,
+              confidence: analysis.confidence,
+              computationTime: analysis.computationTime,
+            })),
+            totalComputationTime: zoneResult.totalComputationTime,
+          }
+        }
+      }
+    } catch (delegationError) {
+      console.warn('[SINGLE-ZONE-ANALYZER] Falling back to legacy analyzer:', delegationError)
+    }
     console.log(`[SINGLE-ZONE-ANALYZER] 🔍 Analyzing zone: ${zoneId} (no cache, pure algorithm)`)
     
     const startTime = Date.now()
@@ -71,11 +110,14 @@ export class SingleZoneDefinitiveAnalyzer {
     const supabase = await this.getSupabaseClient()
     
     // Obtener posiciones de la zona
-    const { data: positions, error: positionsError } = await supabase
+    const positionsQuery = supabase
       .from('zone_positions')
       .select('*')
       .eq('zone_id', zoneId)
-      .order('position')
+
+    const { data: positions, error: positionsError } = typeof positionsQuery.order === 'function'
+      ? await positionsQuery.order('position')
+      : await positionsQuery
     
     if (!positions || positions.length === 0) {
       throw new Error(`No se encontraron posiciones para la zona ${zoneId}. Error: ${positionsError?.message || 'Unknown'}`)

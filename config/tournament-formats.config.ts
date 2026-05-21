@@ -152,7 +152,7 @@ export const AMERICAN_3_CONFIG: TournamentFormatConfig = {
   
   matches: {
     matchesPerCouple: {
-      3: 3,  // 3 parejas = 3 partidos cada una
+      3: 2,  // 3 parejas = round robin completo
       4: 3,  // 4 parejas = 3 partidos cada una
       5: 4   // 5 parejas = 4 partidos cada una
     }

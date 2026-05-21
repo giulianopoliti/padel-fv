@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { TournamentFormat } from '@/types';
-import { TournamentFormatDetector } from './tournament-format-detector.service';
+import { ZoneMatchRulesService } from './zone-match-rules.service';
 
 export interface MatchValidationError {
   field: string;
@@ -15,18 +15,13 @@ export interface MatchValidationResult {
 }
 
 export class MatchValidationService {
-  
-  /**
-   * Valida que no exista un partido duplicado entre las mismas parejas en la zona
-   */
   static async validateNoDuplicateMatch(
-    zoneId: string, 
-    couple1Id: string, 
+    zoneId: string,
+    couple1Id: string,
     couple2Id: string
   ): Promise<MatchValidationResult> {
     const supabase = await createClient();
-    
-    // Buscar partidos existentes entre estas parejas (en cualquier orden)
+
     const { data: existingMatches, error } = await supabase
       .from('matches')
       .select('id')
@@ -58,71 +53,28 @@ export class MatchValidationService {
     return { isValid: true, errors: [] };
   }
 
-  /**
-   * Valida que una pareja no exceda el límite de partidos permitidos según el formato
-   */
   static async validateCoupleMatchLimit(
-    zoneId: string, 
-    coupleId: string, 
-    formatType?: TournamentFormat
+    zoneId: string,
+    coupleId: string,
+    _formatType?: TournamentFormat
   ): Promise<MatchValidationResult> {
     const supabase = await createClient();
 
-    // 1. Obtener información de la zona y contar parejas para determinar formato
-    const { data: zoneData, error: zoneError } = await supabase
-      .from('zones')
-      .select(`
-        id,
-        tournament_id,
-        name
-      `)
-      .eq('id', zoneId)
-      .single();
-
-    if (zoneError || !zoneData) {
+    let maxMatches = 2;
+    try {
+      const rules = await ZoneMatchRulesService.getRulesForZone(supabase, zoneId);
+      maxMatches = rules.maxMatchesPerCouple;
+    } catch (error) {
       return {
         isValid: false,
         errors: [{
           field: 'zone',
-          message: 'Zona no encontrada',
-          code: 'ZONE_NOT_FOUND'
+          message: error instanceof Error ? error.message : 'Error al resolver reglas de zona',
+          code: 'ZONE_RULES_ERROR'
         }]
       };
     }
 
-    // 2. Contar parejas en la zona para determinar el formato
-    const { data: zoneCouples, error: couplesError } = await supabase
-      .from('zone_positions')  // ✅ Cambio: leer de zone_positions
-      .select('couple_id')
-      .eq('zone_id', zoneId);
-
-    if (couplesError) {
-      return {
-        isValid: false,
-        errors: [{
-          field: 'zone',
-          message: 'Error al obtener parejas de la zona',
-          code: 'ZONE_COUPLES_ERROR'
-        }]
-      };
-    }
-
-    // 3. Determinar límite de partidos basado en número de parejas
-    const coupleCount = zoneCouples?.length || 0;
-    let maxMatches = 2; // Default para AMERICAN_2
-    
-    // Lógica: 
-    // - 4 parejas → 2 partidos por pareja (AMERICAN_2)
-    // - 5 parejas → 3 partidos por pareja (caso especial)
-    if (coupleCount === 5) {
-      maxMatches = 3;
-    } else if (coupleCount === 4) {
-      maxMatches = 2;
-    } else if (coupleCount === 3) {
-      maxMatches = 2; // Con 3 parejas, cada una juega 2 partidos
-    }
-
-    // 4. Contar partidos existentes de la pareja en esta zona
     const { data: existingMatches, error: matchError } = await supabase
       .from('matches')
       .select('id')
@@ -153,22 +105,18 @@ export class MatchValidationService {
       };
     }
 
-    // Advertencia si está cerca del límite
-    const warnings = [];
+    const warnings: string[] = [];
     if (currentMatches === maxMatches - 1) {
       warnings.push(`Esta pareja jugará su último partido en esta zona (${currentMatches + 1}/${maxMatches})`);
     }
 
-    return { 
-      isValid: true, 
+    return {
+      isValid: true,
       errors: [],
-      warnings 
+      warnings
     };
   }
 
-  /**
-   * Valida que las parejas sean diferentes (no puede jugar contra sí misma)
-   */
   static validateDifferentCouples(couple1Id: string, couple2Id: string): MatchValidationResult {
     if (couple1Id === couple2Id) {
       return {
@@ -184,18 +132,15 @@ export class MatchValidationService {
     return { isValid: true, errors: [] };
   }
 
-  /**
-   * Valida que ambas parejas pertenezcan a la zona
-   */
   static async validateCouplesInZone(
-    zoneId: string, 
-    couple1Id: string, 
+    zoneId: string,
+    couple1Id: string,
     couple2Id: string
   ): Promise<MatchValidationResult> {
     const supabase = await createClient();
 
     const { data: zoneAssignments, error } = await supabase
-      .from('zone_positions')  // ✅ Cambio: leer de zone_positions
+      .from('zone_positions')
       .select('couple_id')
       .eq('zone_id', zoneId)
       .in('couple_id', [couple1Id, couple2Id]);
@@ -211,8 +156,8 @@ export class MatchValidationService {
       };
     }
 
-    const foundCouples = zoneAssignments?.map(z => z.couple_id) || [];
-    
+    const foundCouples = zoneAssignments?.map((z) => z.couple_id) || [];
+
     if (!foundCouples.includes(couple1Id)) {
       return {
         isValid: false,
@@ -238,36 +183,29 @@ export class MatchValidationService {
     return { isValid: true, errors: [] };
   }
 
-  /**
-   * Validación completa antes de crear un partido
-   */
   static async validateMatchCreation(
-    zoneId: string, 
-    couple1Id: string, 
+    zoneId: string,
+    couple1Id: string,
     couple2Id: string
   ): Promise<MatchValidationResult> {
     const errors: MatchValidationError[] = [];
     const warnings: string[] = [];
 
-    // 1. Validar que las parejas sean diferentes
     const differentCouplesResult = this.validateDifferentCouples(couple1Id, couple2Id);
     if (!differentCouplesResult.isValid) {
       errors.push(...differentCouplesResult.errors);
     }
 
-    // 2. Validar que las parejas pertenezcan a la zona
     const couplesInZoneResult = await this.validateCouplesInZone(zoneId, couple1Id, couple2Id);
     if (!couplesInZoneResult.isValid) {
       errors.push(...couplesInZoneResult.errors);
     }
 
-    // 3. Validar que no sea un partido duplicado
     const noDuplicateResult = await this.validateNoDuplicateMatch(zoneId, couple1Id, couple2Id);
     if (!noDuplicateResult.isValid) {
       errors.push(...noDuplicateResult.errors);
     }
 
-    // 4. Validar límites de partidos por pareja
     const couple1LimitResult = await this.validateCoupleMatchLimit(zoneId, couple1Id);
     if (!couple1LimitResult.isValid) {
       errors.push(...couple1LimitResult.errors);
@@ -289,9 +227,6 @@ export class MatchValidationService {
     };
   }
 
-  /**
-   * Obtiene estadísticas de partidos para una pareja en una zona
-   */
   static async getCoupleMatchStats(zoneId: string, coupleId: string) {
     const supabase = await createClient();
 
@@ -305,17 +240,25 @@ export class MatchValidationService {
       throw new Error(`Error al obtener estadísticas: ${error.message}`);
     }
 
+    let maxMatches = 2;
+    try {
+      const rules = await ZoneMatchRulesService.getRulesForZone(supabase, zoneId);
+      maxMatches = rules.maxMatchesPerCouple;
+    } catch (rulesError) {
+      console.warn('[MatchValidationService] Could not resolve zone match rules:', rulesError);
+    }
+
     const total = matches?.length || 0;
-    const completed = matches?.filter(m => m.status === 'FINISHED').length || 0;
-    const pending = matches?.filter(m => m.status === 'PENDING').length || 0;
-    const inProgress = matches?.filter(m => m.status === 'IN_PROGRESS').length || 0;
+    const completed = matches?.filter((m) => m.status === 'FINISHED').length || 0;
+    const pending = matches?.filter((m) => m.status === 'PENDING').length || 0;
+    const inProgress = matches?.filter((m) => m.status === 'IN_PROGRESS').length || 0;
 
     return {
       total,
       completed,
       pending,
       inProgress,
-      remainingMatches: Math.max(0, 2 - total) // Default 2, will be updated based on format
+      remainingMatches: Math.max(0, maxMatches - total)
     };
   }
 }

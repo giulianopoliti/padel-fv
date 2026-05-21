@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/utils/supabase/server"
 import { createApiResponse } from "@/utils/serialization"
+import { TournamentFormatResolver } from "@/lib/services/tournament-format-resolver"
+import { getZoneStageAndMatchesPerCouple } from "@/lib/services/zone-fixture-planner.service"
 
 export async function POST(
   req: Request, 
@@ -9,6 +11,7 @@ export async function POST(
   try {
     const { id: tournamentId } = await params
     const { name, capacity = 4 } = await req.json()
+    const requestedCapacity = Number(capacity) || 4
     
     if (!name || typeof name !== 'string') {
       return NextResponse.json(
@@ -18,6 +21,36 @@ export async function POST(
     }
     
     const supabase = await createClient()
+
+    const { data: tournamentData, error: tournamentError } = await supabase
+      .from("tournaments")
+      .select("type, format_type, format_config")
+      .eq("id", tournamentId)
+      .single()
+
+    if (tournamentError || !tournamentData) {
+      return NextResponse.json(
+        createApiResponse({ success: false, message: "No se pudo resolver el formato del torneo" }),
+        { status: 400 }
+      )
+    }
+
+    const resolved = TournamentFormatResolver.getResolvedFormat(tournamentData, {
+      totalCouples: requestedCapacity
+    })
+    const normalizedCapacity = requestedCapacity
+
+    if (!resolved.zoneRules.allowedSizes.includes(normalizedCapacity)) {
+      return NextResponse.json(
+        createApiResponse({
+          success: false,
+          message: `Zona de ${normalizedCapacity} parejas no permitida para este formato`
+        }),
+        { status: 400 }
+      )
+    }
+
+    const stageInfo = getZoneStageAndMatchesPerCouple(normalizedCapacity, resolved)
     
     // Check if zone name already exists in this tournament (check both languages)
     const { data: existingZones, error: checkError } = await supabase
@@ -76,7 +109,9 @@ export async function POST(
       .insert({
         tournament_id: tournamentId,
         name: name.trim(),
-        capacity: capacity
+        capacity: normalizedCapacity,
+        max_couples: normalizedCapacity,
+        rounds_per_couple: stageInfo.matchesPerCouple
       })
       .select()
       .single()

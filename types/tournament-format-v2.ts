@@ -3,6 +3,7 @@ export type BaseTournamentType = 'AMERICAN' | 'LONG'
 export type TournamentFormatPresetId =
   | 'AMERICAN_MULTI_ZONE_2'
   | 'AMERICAN_MULTI_ZONE_3'
+  | 'AMERICAN_MULTI_ZONE_GLOBAL_STANDINGS'
   | 'AMERICAN_SINGLE_ZONE_2_BRACKET'
   | 'AMERICAN_SINGLE_ZONE_3_BRACKET'
   | 'AMERICAN_SINGLE_ZONE_ROUND_ROBIN_CHAMPION'
@@ -15,6 +16,10 @@ export type ZoneMode = 'MULTI_ZONE' | 'SINGLE_ZONE'
 export type ZoneStage = 'FIXED_MATCH_COUNT' | 'ROUND_ROBIN'
 export type BracketMode = 'NONE' | 'SINGLE' | 'GOLD_SILVER'
 export type BracketKey = 'MAIN' | 'GOLD' | 'SILVER'
+export type RankingScope = 'PER_ZONE' | 'GLOBAL'
+export type RankingPolicyId = 'STANDARD_PADEL'
+export type QualificationSource = 'ZONE_POSITIONS' | 'GLOBAL_STANDINGS'
+export type BracketSeedingStrategy = 'SERPENTINE_BY_ZONE' | 'GLOBAL_RANKING'
 
 export interface SingleBracketAdvancementConfig {
   kind: 'SINGLE'
@@ -50,9 +55,13 @@ export interface TournamentFormatConfigV2 {
   baseType: BaseTournamentType
   zoneMode: ZoneMode
   zoneStage: ZoneStage
-  targetMatchesPerCouple: 2 | 3 | null
+  targetMatchesPerCouple: number | null
   bracketMode: BracketMode
   advancementConfig: AdvancementConfig
+  rankingScope: RankingScope
+  rankingPolicyId: RankingPolicyId
+  qualificationSource: QualificationSource
+  bracketSeedingStrategy: BracketSeedingStrategy
   zoneRules: TournamentFormatZoneRules
   display: {
     name: string

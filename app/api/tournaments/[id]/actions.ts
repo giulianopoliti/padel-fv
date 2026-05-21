@@ -9,6 +9,7 @@ import { CoupleAvailabilityService } from '@/lib/services/couple-availability.se
 import { CorrectedDefinitiveAnalyzer } from '@/lib/services/corrected-definitive-analyzer'
 import { SingleZoneDefinitiveAnalyzer } from '@/lib/services/single-zone-definitive-analyzer';
 import { generatePlaceholderBracket } from '@/lib/services/bracket-generation-orchestrator';
+import { ZoneFixturePlanner } from '@/lib/services/zone-fixture-planner.service';
 // import { Database } from "../../../../database.types"; // File not found
 
 // -----------------------------------------------------------------------------
@@ -219,6 +220,7 @@ export async function getTournamentCoupleInscriptions(
 export type ZoneSkeleton = {
     name: string;   // "Zona A", "Zona B", etc.
     capacity: number; // 3 ó 4
+    rounds_per_couple?: number | null;
     couples: Couple[];
   };
   
@@ -272,9 +274,32 @@ export type ZoneSkeleton = {
 export async function createTournamentZones(tournamentId: string) {
   const supabase = await createClient();
   const couples = await getTournamentCoupleInscriptions(tournamentId);
-  const skeletons = createEmptyZones(couples.length).map((z) => ({ ...z, couples: [] as Couple[] }));
+  const { data: tournament, error: tournamentError } = await supabase
+    .from('tournaments')
+    .select('type, format_type, format_config')
+    .eq('id', tournamentId)
+    .single();
 
-  const zones = snakeAssignCouplesToZones(couples, skeletons);
+  if (tournamentError || !tournament) {
+    throw new Error(tournamentError?.message || 'No se pudo obtener el formato del torneo');
+  }
+
+  const plan = ZoneFixturePlanner.planForTournament(tournament, couples.length);
+  if (!plan.isValid) {
+    throw new Error(plan.errors.join(' '));
+  }
+
+  const skeletons = plan.zones.map((zone) => ({
+    name: zone.name,
+    capacity: zone.size,
+    rounds_per_couple: zone.matchesPerCouple,
+    couples: [] as Couple[],
+  }));
+
+  const zones =
+    plan.zoneMode === 'SINGLE_ZONE'
+      ? skeletons.map((zone) => ({ ...zone, couples }))
+      : snakeAssignCouplesToZones(couples, skeletons);
 
   // Persistir en la base de datos
   // 1) Insertar filas en "zones" y quedarnos con sus IDs generados
@@ -282,6 +307,8 @@ export async function createTournamentZones(tournamentId: string) {
     tournament_id: tournamentId,
     name: z.name,
     capacity: z.couples.length, // capacidad real (3 o 4)
+    max_couples: z.capacity ?? z.couples.length,
+    rounds_per_couple: z.rounds_per_couple || null,
   }));
 
   const { data: insertedZones, error: insertZonesErr } = await supabase

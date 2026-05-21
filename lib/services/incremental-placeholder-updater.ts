@@ -106,6 +106,23 @@ export class IncrementalPlaceholderUpdater {
     console.log(`🔄 [INCREMENTAL-UPDATER] Updating seed for zone ${zoneId}, position ${position}, couple ${coupleId}`)
     
     const supabase = await createClient()
+
+    const { data: existingResolvedSeed, error: existingSeedError } = await supabase
+      .from('tournament_couple_seeds')
+      .select('id, seed')
+      .eq('tournament_id', tournamentId)
+      .eq('couple_id', coupleId)
+      .maybeSingle()
+
+    if (existingSeedError) {
+      console.error(`âŒ [INCREMENTAL-UPDATER] Error checking existing seed for couple ${coupleId}:`, existingSeedError)
+      throw new Error(`Failed to check existing seed: ${existingSeedError.message}`)
+    }
+
+    if (existingResolvedSeed) {
+      console.warn(`âš ï¸ [INCREMENTAL-UPDATER] Couple ${coupleId} already resolved in seed ${existingResolvedSeed.seed}. Skipping automatic resolution; manual drag-and-drop/audit must handle it.`)
+      return false
+    }
     
     // 3. ACTUALIZAR tournament_couple_seeds
     const { data: updatedSeeds, error: seedError } = await supabase

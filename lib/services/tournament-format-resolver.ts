@@ -30,6 +30,28 @@ function isTournamentFormatConfigV2(value: any): value is TournamentFormatConfig
   )
 }
 
+function hydrateFormatConfig(value: TournamentFormatConfigV2): TournamentFormatConfigV2 {
+  const preset = getTournamentFormatPreset(value.presetId)
+
+  return {
+    ...preset,
+    ...structuredClone(value),
+    zoneRules: {
+      ...preset.zoneRules,
+      ...(value.zoneRules || {}),
+    },
+    display: {
+      ...preset.display,
+      ...(value.display || {}),
+    },
+    advancementConfig: structuredClone(value.advancementConfig || preset.advancementConfig),
+    rankingScope: value.rankingScope || preset.rankingScope,
+    rankingPolicyId: value.rankingPolicyId || preset.rankingPolicyId,
+    qualificationSource: value.qualificationSource || preset.qualificationSource,
+    bracketSeedingStrategy: value.bracketSeedingStrategy || preset.bracketSeedingStrategy,
+  }
+}
+
 function getLegacyPresetId(tournament: TournamentLike): TournamentFormatPresetId {
   if (tournament.type === 'LONG') {
     return 'LONG_SINGLE_ZONE_BRACKET'
@@ -55,7 +77,7 @@ export class TournamentFormatResolver {
   ): ResolvedTournamentFormat {
     const rawConfig = tournament.format_config
     const baseConfig = isTournamentFormatConfigV2(rawConfig)
-      ? structuredClone(rawConfig)
+      ? hydrateFormatConfig(rawConfig)
       : getTournamentFormatPreset(getLegacyPresetId(tournament))
 
     const notes: string[] = []

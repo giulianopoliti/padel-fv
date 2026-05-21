@@ -29,6 +29,52 @@ export default function BracketGenerationPrompt({
   const router = useRouter()
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [requiredMatchesPerCoupleValues, setRequiredMatchesPerCoupleValues] = useState<number[]>([])
+
+  React.useEffect(() => {
+    let cancelled = false
+
+    const fetchBracketRequirements = async () => {
+      try {
+        const response = await fetch(`/api/tournaments/${tournamentId}/generate-placeholder-bracket`)
+        if (!response.ok) return
+
+        const validation = await response.json()
+        const values = Array.isArray(validation.requiredMatchesPerCoupleValues)
+          ? validation.requiredMatchesPerCoupleValues.filter((value: unknown): value is number => (
+            typeof value === 'number' && Number.isFinite(value) && value > 0
+          ))
+          : []
+
+        if (!cancelled) {
+          setRequiredMatchesPerCoupleValues(values)
+        }
+      } catch (requirementError) {
+        console.warn('[BracketGenerationPrompt] Could not load bracket requirements:', requirementError)
+      }
+    }
+
+    fetchBracketRequirements()
+
+    return () => {
+      cancelled = true
+    }
+  }, [tournamentId])
+
+  const requirementText = React.useMemo(() => {
+    if (requiredMatchesPerCoupleValues.length === 1) {
+      const matches = requiredMatchesPerCoupleValues[0]
+      const noun = matches === 1 ? 'partido creado' : 'partidos creados'
+      return `Podés iniciar la llave únicamente si cada pareja tiene ${matches} ${noun}.`
+    }
+
+    if (requiredMatchesPerCoupleValues.length > 1) {
+      const formattedValues = requiredMatchesPerCoupleValues.join(' o ')
+      return `Podés iniciar la llave únicamente si cada pareja tiene los partidos creados que exige su zona (${formattedValues}).`
+    }
+
+    return 'Podés iniciar la llave únicamente si cada pareja tiene los partidos creados que exige el formato.'
+  }, [requiredMatchesPerCoupleValues])
 
   const handleGenerate = async () => {
     if (isGenerating) return
@@ -98,7 +144,7 @@ export default function BracketGenerationPrompt({
           {/* Nota informativa */}
           <div className="text-center mb-6">
             <p className="text-sm text-muted-foreground">
-              Podés iniciar la llave únicamente si cada pareja tiene 2 partidos creados.
+              {requirementText}
             </p>
           </div>
 

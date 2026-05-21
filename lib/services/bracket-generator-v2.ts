@@ -23,6 +23,7 @@ import { TournamentFormatResolver } from '@/lib/services/tournament-format-resol
 import { hasFormatConfigV2, shouldUseLegacyQualifying } from '@/lib/services/tournament-format-policy'
 import type { BracketKey } from '@/types/tournament-format-v2'
 import { DEFAULT_BRACKET_KEY } from '@/lib/services/bracket-key-policy'
+import { QualificationSourceService, type QualifiedEntry } from '@/lib/services/qualification-source.service'
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
@@ -118,11 +119,39 @@ export class PlaceholderBracketGenerator {
       throw new Error('El formato Oro/Plata requiere generar por llave GOLD o SILVER.')
     }
 
-    if (resolvedFormat.zoneMode === 'SINGLE_ZONE') {
-      return this.generateLongSeeding(tournamentId, resolvedFormat, tournament, bracketKey)
-    }
+    return this.generateSeedingFromQualifiedEntries(tournamentId, bracketKey)
+  }
 
-    return this.generateAmericanSeeding(tournamentId, bracketKey)
+  private async generateSeedingFromQualifiedEntries(
+    tournamentId: string,
+    bracketKey: BracketKey
+  ): Promise<PlaceholderSeed[]> {
+    const qualifiedEntries = await QualificationSourceService.getQualifiedEntries(tournamentId, { bracketKey })
+
+    const seeds = qualifiedEntries.map((entry, index) => this.entryToSeed(entry, index + 1, bracketKey))
+    const bracketSeeding = this.buildBracketSeeding(seeds.length)
+
+    seeds.forEach((seed, index) => {
+      seed.bracket_position = bracketSeeding.position_by_seed[index]
+    })
+
+    console.log(`âœ… [BRACKET-GEN-V2] Generated ${seeds.length} seeds from qualification source (${seeds.filter(seed => !seed.is_placeholder).length} definitive, ${seeds.filter(seed => seed.is_placeholder).length} placeholders)`)
+
+    return seeds
+  }
+
+  private entryToSeed(entry: QualifiedEntry, seed: number, bracketKey: BracketKey): PlaceholderSeed {
+    return {
+      bracket_key: bracketKey,
+      seed,
+      bracket_position: 0,
+      couple_id: entry.isDefinitive ? entry.coupleId : null,
+      placeholder_zone_id: entry.isDefinitive ? null : entry.zoneId,
+      placeholder_position: entry.isDefinitive ? null : entry.localPosition || entry.globalPosition,
+      placeholder_label: entry.label,
+      is_placeholder: !entry.isDefinitive,
+      created_as_placeholder: !entry.isDefinitive,
+    }
   }
 
   /**
