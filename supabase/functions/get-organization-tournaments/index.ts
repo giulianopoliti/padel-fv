@@ -82,7 +82,23 @@ serve(async (req) => {
     // Query 1: Fetch torneos base
     const { data: tournaments, error: tournamentsError } = await supabaseClient
       .from('tournaments')
-      .select('id, name, status, pre_tournament_image_url, start_date, end_date, category_name, gender, type, is_draft')
+      .select(`
+        id,
+        name,
+        status,
+        pre_tournament_image_url,
+        start_date,
+        end_date,
+        category_name,
+        gender,
+        type,
+        is_draft,
+        price,
+        clubes (
+          id,
+          name
+        )
+      `)
       .eq('organization_id', organizationId)
       .neq('status', 'CANCELED')
       .eq('es_prueba', false)

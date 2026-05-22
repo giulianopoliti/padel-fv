@@ -33,7 +33,7 @@ function TournamentsLoading() {
 // Componente principal (renderizado en el servidor)
 export default async function MyTournamentsPage() {
   const result = await getClubTournamentsWithMetrics(undefined, 999)
-  const tournaments = result.tournaments || []
+  const tournaments = (result.tournaments || []) as NonNullable<typeof result.tournaments>
 
   // Agrupar torneos por estado según el orden definido
   const upcomingTournaments = tournaments.filter((t) =>

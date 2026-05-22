@@ -3514,10 +3514,16 @@ export type GetClubTournamentsWithMetricsResult = {
     category_name: string;
     gender: string;
     type: string;
+    price: number | string | null;
+    clubes?: {
+      id: string;
+      name: string;
+    } | null;
     inscriptions: number;
     matchesFinished: number;
     matchesPending: number;
     totalMatches: number;
+    is_draft?: boolean;
   }[];
 };
 

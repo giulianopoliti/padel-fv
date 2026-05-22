@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import InitiateTournamentButton from '@/components/tournament/club/initiate-tournament-button';
 import BuildZonesButton from '@/components/tournament/club/build-zones-button';
+import { formatDateArgentina, formatTimeArgentina } from '@/lib/utils';
 import type { AccessLevel, TournamentPermission } from '@/utils/tournament-permissions';
 
 interface AmericanOrganizerViewProps {
@@ -80,6 +81,19 @@ export default function AmericanOrganizerView({
 
   const roleBadge = getRoleBadge();
   const RoleIcon = roleBadge.icon;
+  const tournamentDateLabel = tournament.start_date
+    ? formatDateArgentina(tournament.start_date, {
+        day: 'numeric',
+        month: 'short',
+      })
+    : 'Por definir';
+  const tournamentTimeLabel = tournament.start_date
+    ? formatTimeArgentina(tournament.start_date, {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+    : 'Por definir';
 
   return (
     <div className="bg-slate-50">
@@ -115,7 +129,7 @@ export default function AmericanOrganizerView({
             )}
 
             {/* Quick Stats - Versión Completa */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-8">
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
                 <div className="text-3xl font-bold">{stats.couples}</div>
                 <div className="text-blue-100 text-sm mt-1">Parejas</div>
@@ -144,12 +158,16 @@ export default function AmericanOrganizerView({
                   <Calendar className="h-8 w-8 mx-auto" />
                 </div>
                 <div className="text-blue-100 text-sm mt-1">
-                  {tournament.start_date
-                    ? new Date(tournament.start_date).toLocaleDateString('es-ES', {
-                        day: 'numeric',
-                        month: 'short'
-                      })
-                    : 'Por definir'}
+                  {tournamentDateLabel}
+                </div>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
+                <div className="text-3xl font-bold">
+                  <Clock className="h-8 w-8 mx-auto" />
+                </div>
+                <div className="text-blue-100 text-sm mt-1">
+                  {tournamentTimeLabel === 'Por definir' ? tournamentTimeLabel : `${tournamentTimeLabel} hs`}
                 </div>
               </div>
             </div>

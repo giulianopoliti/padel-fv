@@ -83,7 +83,23 @@ serve(async (req) => {
     // Query 1: Fetch torneos base
     let query = supabaseClient
       .from('tournaments')
-      .select('id, name, status, pre_tournament_image_url, start_date, end_date, category_name, gender, type, is_draft')
+      .select(`
+        id,
+        name,
+        status,
+        pre_tournament_image_url,
+        start_date,
+        end_date,
+        category_name,
+        gender,
+        type,
+        is_draft,
+        price,
+        clubes (
+          id,
+          name
+        )
+      `)
       .eq('club_id', clubId)
       .eq('es_prueba', false)
       .order('created_at', { ascending: false })
