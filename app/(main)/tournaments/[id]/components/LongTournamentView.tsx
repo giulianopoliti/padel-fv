@@ -7,7 +7,6 @@ import PlayerTournamentDashboard from '@/components/player/PlayerTournamentDashb
 import NotRegisteredView from '@/components/tournament/NotRegisteredView';
 import TournamentHeroDetails from '@/components/tournament/TournamentHeroDetails';
 import TournamentPublicInfoCard from '@/components/tournament/TournamentPublicInfoCard';
-import { formatTimeArgentina } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUser } from '@/contexts/user-context';
 import type { TournamentPublicInfo } from '@/lib/tournaments/public-tournament-details';
@@ -65,13 +64,6 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({
   const [loading, setLoading] = useState(true);
 
   const isLoggedInPlayer = userDetails?.role === 'PLAYER';
-  const tournamentTimeLabel = tournament.start_date
-    ? formatTimeArgentina(tournament.start_date, {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
-    : null;
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -181,12 +173,6 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({
             <Calendar className="h-4 w-4" />
             <span>{publicInfo.startDateLabel || 'Sin fecha'}</span>
           </div>
-          {tournamentTimeLabel && (
-            <div className="flex items-center gap-1">
-              <Clock className="h-4 w-4" />
-              <span>{tournamentTimeLabel} hs</span>
-            </div>
-          )}
           <div className="flex items-center gap-1">
             <Clock className="h-4 w-4" />
             <span className="capitalize">{stats.status.toLowerCase()}</span>

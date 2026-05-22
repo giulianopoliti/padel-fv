@@ -154,7 +154,7 @@ export default function TournamentCard({ tournament, priority = false }: Tournam
     ? Math.round((tournament.matchesFinished / tournament.totalMatches) * 100)
     : 0
   const clubName = tournament.clubes?.name?.trim() || "Club a confirmar"
-  const showSchedule = tournament.type !== "AMERICAN"
+  const showSchedule = tournament.type === "AMERICAN"
   const statusLabel = getTournamentStatusLabel(tournament.status)
 
   return (
