@@ -81,4 +81,20 @@ describe("organizer matches helpers", () => {
     })
     expect(includePastResult).toHaveLength(2)
   })
+
+  it("filters correctly by explicit past date when includePast is enabled", () => {
+    const result = applyOrganizerMatchesFilters(
+      [
+        baseMatch({ matchId: "old", scheduledDate: "2025-10-12" }),
+        baseMatch({ matchId: "new", scheduledDate: "2026-10-12" }),
+      ],
+      {
+        includePast: true,
+        date: "2025-10-12",
+      },
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0].matchId).toBe("old")
+  })
 })

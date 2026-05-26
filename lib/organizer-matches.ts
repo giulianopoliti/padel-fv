@@ -6,6 +6,14 @@ import {
   type OrganizerMatchesFilters,
 } from "@/lib/organizer-matches-shared"
 
+export interface OrganizerMatchesPageResult {
+  matches: OrganizerMatchRow[]
+  totalCount: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
 type NameRelation = {
   first_name?: string | null
   last_name?: string | null
@@ -85,7 +93,26 @@ export async function getOrganizationScheduledMatches(
   organizationId: string,
   filters: OrganizerMatchesFilters = {},
 ): Promise<OrganizerMatchRow[]> {
+  const result = await getOrganizationScheduledMatchesPage(organizationId, filters, {
+    page: 1,
+    pageSize: 5000,
+  })
+
+  return result.matches
+}
+
+export async function getOrganizationScheduledMatchesPage(
+  organizationId: string,
+  filters: OrganizerMatchesFilters = {},
+  pagination?: {
+    page?: number
+    pageSize?: number
+  },
+): Promise<OrganizerMatchesPageResult> {
   const supabase = await createClient()
+  const page = Math.max(1, pagination?.page ?? 1)
+  const pageSize = Math.min(5000, Math.max(10, pagination?.pageSize ?? 25))
+  const today = new Date().toLocaleDateString("en-CA")
 
   const { data: tournamentsData, error: tournamentsError } = await supabase
     .from("tournaments")
@@ -106,7 +133,13 @@ export async function getOrganizationScheduledMatches(
 
   const tournaments = tournamentsData || []
   if (tournaments.length === 0) {
-    return []
+    return {
+      matches: [],
+      totalCount: 0,
+      page,
+      pageSize,
+      totalPages: 0,
+    }
   }
 
   const tournamentMap = new Map<
@@ -130,7 +163,7 @@ export async function getOrganizationScheduledMatches(
     })
   }
 
-  const { data: matchesData, error: matchesError } = await supabase
+  let matchesQuery = supabase
     .from("matches")
     .select(`
       id,
@@ -164,8 +197,48 @@ export async function getOrganizationScheduledMatches(
           last_name
         )
       )
-    `)
+    `, { count: "exact" })
     .in("tournament_id", tournaments.map((tournament) => tournament.id))
+
+  if (filters.date) {
+    matchesQuery = matchesQuery.eq("fecha_matches.scheduled_date", filters.date)
+  } else if (!filters.includePast) {
+    matchesQuery = matchesQuery.gte("fecha_matches.scheduled_date", today)
+  }
+
+  if (filters.status) {
+    matchesQuery = matchesQuery.eq("status", filters.status)
+  }
+
+  if (filters.startTime) {
+    matchesQuery = matchesQuery.gte("fecha_matches.scheduled_start_time", filters.startTime)
+  }
+
+  if (filters.endTime) {
+    matchesQuery = matchesQuery.lte("fecha_matches.scheduled_start_time", filters.endTime)
+  }
+
+  if (filters.clubId) {
+    const tournamentIdsWithClub = tournaments
+      .filter((tournament) => tournament.club_id === filters.clubId)
+      .map((tournament) => tournament.id)
+
+    if (tournamentIdsWithClub.length > 0) {
+      matchesQuery = matchesQuery.or(
+        `club_id.eq.${filters.clubId},and(club_id.is.null,tournament_id.in.(${tournamentIdsWithClub.join(",")}))`,
+      )
+    } else {
+      matchesQuery = matchesQuery.eq("club_id", filters.clubId)
+    }
+  }
+
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
+  const { data: matchesData, error: matchesError, count } = await matchesQuery
+    .order("scheduled_date", { foreignTable: "fecha_matches", ascending: true })
+    .order("scheduled_start_time", { foreignTable: "fecha_matches", ascending: true, nullsFirst: false })
+    .range(from, to)
 
   if (matchesError) {
     throw new Error(`Error al cargar partidos programados: ${matchesError.message}`)
@@ -236,7 +309,16 @@ export async function getOrganizationScheduledMatches(
     })
   }
 
-  return applyOrganizerMatchesFilters(rows, filters).sort(compareOrganizerMatches)
+  const totalCount = count ?? 0
+  const totalPages = totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0
+
+  return {
+    matches: applyOrganizerMatchesFilters(rows, filters).sort(compareOrganizerMatches),
+    totalCount,
+    page,
+    pageSize,
+    totalPages,
+  }
 }
 
 export { applyOrganizerMatchesFilters } from "@/lib/organizer-matches-shared"

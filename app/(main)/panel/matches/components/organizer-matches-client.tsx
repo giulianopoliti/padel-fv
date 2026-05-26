@@ -51,6 +51,9 @@ interface OrganizerMatchesClientProps {
     status?: string
     includePast?: boolean
   }
+  currentPage: number
+  totalPages: number
+  totalCount: number
 }
 
 const buildFilterState = (filters: OrganizerMatchesClientProps["initialFilters"]): MatchFiltersState => ({
@@ -79,6 +82,9 @@ export default function OrganizerMatchesClient({
   matches,
   clubs,
   initialFilters,
+  currentPage,
+  totalPages,
+  totalCount,
 }: OrganizerMatchesClientProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -143,6 +149,21 @@ export default function OrganizerMatchesClient({
     router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
   }
 
+  const navigateToPage = (page: number) => {
+    const params = new URLSearchParams()
+
+    if (initialFilters.date) params.set("date", initialFilters.date)
+    if (initialFilters.startTime) params.set("startTime", initialFilters.startTime)
+    if (initialFilters.endTime) params.set("endTime", initialFilters.endTime)
+    if (initialFilters.clubId) params.set("clubId", initialFilters.clubId)
+    if (initialFilters.status) params.set("status", initialFilters.status)
+    if (initialFilters.includePast) params.set("includePast", "true")
+    if (page > 1) params.set("page", String(page))
+
+    const queryString = params.toString()
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+  }
+
   return (
     <div className="container mx-auto space-y-6 px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -197,7 +218,7 @@ export default function OrganizerMatchesClient({
           <MatchFilters
             filters={filters}
             onFiltersChange={syncFiltersToUrl}
-            matchCount={matches.length}
+            matchCount={totalCount}
             clubes={clubs}
           />
 
@@ -210,65 +231,93 @@ export default function OrganizerMatchesClient({
               </p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Horario</TableHead>
-                  <TableHead>Club</TableHead>
-                  <TableHead>Cancha</TableHead>
-                  <TableHead>Torneo</TableHead>
-                  <TableHead>Ronda</TableHead>
-                  <TableHead>Pareja 1</TableHead>
-                  <TableHead>Pareja 2</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acceso</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {matches.map((match) => (
-                  <TableRow key={match.matchId}>
-                    <TableCell className="font-medium capitalize">
-                      {formatDateLabel(match.scheduledDate)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-sm text-slate-700">
-                        <Clock3 className="h-4 w-4 text-slate-500" />
-                        <span>{formatTimeRange(match.scheduledStartTime, match.scheduledEndTime)}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-sm text-slate-700">
-                        <MapPin className="h-4 w-4 text-slate-500" />
-                        <span>{match.effectiveClubName}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{match.courtAssignment || "Sin cancha"}</TableCell>
-                    <TableCell>
-                      <div className="max-w-[220px] truncate font-medium">{match.tournamentName}</div>
-                    </TableCell>
-                    <TableCell>{getRoundLabel(match.round)}</TableCell>
-                    <TableCell className="max-w-[240px]">
-                      <span className="line-clamp-2">{match.couple1Display}</span>
-                    </TableCell>
-                    <TableCell className="max-w-[240px]">
-                      <span className="line-clamp-2">{match.couple2Display}</span>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={match.status} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button asChild size="sm" variant="ghost">
-                        <Link href={`/tournaments/${match.tournamentId}`}>
-                          Ver torneo
-                          <ExternalLink className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </TableCell>
+            <div className="space-y-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Horario</TableHead>
+                    <TableHead>Club</TableHead>
+                    <TableHead>Cancha</TableHead>
+                    <TableHead>Torneo</TableHead>
+                    <TableHead>Ronda</TableHead>
+                    <TableHead>Pareja 1</TableHead>
+                    <TableHead>Pareja 2</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Acceso</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {matches.map((match) => (
+                    <TableRow key={match.matchId}>
+                      <TableCell className="font-medium capitalize">
+                        {formatDateLabel(match.scheduledDate)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-sm text-slate-700">
+                          <Clock3 className="h-4 w-4 text-slate-500" />
+                          <span>{formatTimeRange(match.scheduledStartTime, match.scheduledEndTime)}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-sm text-slate-700">
+                          <MapPin className="h-4 w-4 text-slate-500" />
+                          <span>{match.effectiveClubName}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{match.courtAssignment || "Sin cancha"}</TableCell>
+                      <TableCell>
+                        <div className="max-w-[220px] truncate font-medium">{match.tournamentName}</div>
+                      </TableCell>
+                      <TableCell>{getRoundLabel(match.round)}</TableCell>
+                      <TableCell className="max-w-[240px]">
+                        <span className="line-clamp-2">{match.couple1Display}</span>
+                      </TableCell>
+                      <TableCell className="max-w-[240px]">
+                        <span className="line-clamp-2">{match.couple2Display}</span>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={match.status} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild size="sm" variant="ghost">
+                          <Link href={`/tournaments/${match.tournamentId}`}>
+                            Ver torneo
+                            <ExternalLink className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {totalPages > 1 && (
+                <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-slate-600">
+                    Página {currentPage} de {totalPages}. Mostrando {matches.length} partidos en esta página, {totalCount} en total.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={currentPage <= 1}
+                      onClick={() => navigateToPage(currentPage - 1)}
+                    >
+                      Anterior
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => navigateToPage(currentPage + 1)}
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>

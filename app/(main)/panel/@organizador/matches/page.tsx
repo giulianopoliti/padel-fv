@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import OrganizerMatchesClient from "@/app/(main)/panel/matches/components/organizer-matches-client"
 import {
   getOrganizationClubs,
-  getOrganizationScheduledMatches,
+  getOrganizationScheduledMatchesPage,
   parseOrganizerMatchesFilters,
 } from "@/lib/organizer-matches"
 
@@ -16,6 +16,10 @@ interface OrganizerMatchesPageProps {
 export default async function OrganizerMatchesPage({ searchParams }: OrganizerMatchesPageProps) {
   const supabase = await createClient()
   const resolvedSearchParams = searchParams ? await searchParams : {}
+  const rawPage = Array.isArray(resolvedSearchParams.page)
+    ? resolvedSearchParams.page[0]
+    : resolvedSearchParams.page
+  const page = Number.isFinite(Number(rawPage)) && Number(rawPage) > 0 ? Number(rawPage) : 1
 
   const {
     data: { user },
@@ -62,16 +66,19 @@ export default async function OrganizerMatchesPage({ searchParams }: OrganizerMa
   }
 
   const filters = parseOrganizerMatchesFilters(resolvedSearchParams)
-  const [matches, clubs] = await Promise.all([
-    getOrganizationScheduledMatches(orgMember.organizacion_id, filters),
+  const [matchesPage, clubs] = await Promise.all([
+    getOrganizationScheduledMatchesPage(orgMember.organizacion_id, filters, { page, pageSize: 25 }),
     getOrganizationClubs(orgMember.organizacion_id),
   ])
 
   return (
     <OrganizerMatchesClient
-      matches={matches}
+      matches={matchesPage.matches}
       clubs={clubs}
       initialFilters={filters}
+      currentPage={matchesPage.page}
+      totalPages={matchesPage.totalPages}
+      totalCount={matchesPage.totalCount}
     />
   )
 }
