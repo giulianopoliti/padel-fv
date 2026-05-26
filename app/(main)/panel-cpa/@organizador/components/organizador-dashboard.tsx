@@ -1,6 +1,6 @@
 "use client"
 
-import { Trophy, ArrowRight, Users } from "lucide-react"
+import { Trophy, ArrowRight, Users, CalendarDays } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -82,6 +82,32 @@ export default function OrganizadorDashboard({
 
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <section aria-labelledby="matches-heading">
+        <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-sky-50 p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="rounded-xl bg-amber-100 p-3">
+                <CalendarDays className="h-6 w-6 text-amber-700" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 id="matches-heading" className="text-xl font-bold">
+                  Agenda global de partidos
+                </h2>
+                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                  Consultá en una sola vista los partidos programados de todos los torneos de tu organización y exportalos por fecha, horario o club.
+                </p>
+              </div>
+            </div>
+            <Button asChild>
+              <Link href="/panel/matches" className="flex items-center gap-2">
+                Ver agenda
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* Sección: Mis Torneos */}
       <section aria-labelledby="tournaments-heading">
         <div className="flex items-center justify-between mb-6">
