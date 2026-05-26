@@ -107,6 +107,10 @@ export default function OrganizerMatchesClient({
       params.set("status", nextFilters.selectedStatus)
     }
 
+    if (initialFilters.includePast) {
+      params.set("includePast", "true")
+    }
+
     const queryString = params.toString()
     router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
   }
