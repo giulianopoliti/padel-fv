@@ -31,6 +31,8 @@ interface UpdateTournamentBasicInfoParams {
   description?: string | null
   max_participants?: number | null
   price?: number | null
+  start_date?: string | null
+  end_date?: string | null
 }
 
 interface ActionResult {
@@ -123,6 +125,21 @@ function canSwitchLongSingleZoneBracketMode(
   )
 }
 
+const adjustDateForArgentina = (dateString: string): string => {
+  const argentinaDate = new Date(`${dateString}T12:00:00-03:00`)
+
+  const year = argentinaDate.getFullYear()
+  const month = String(argentinaDate.getMonth() + 1).padStart(2, '0')
+  const day = String(argentinaDate.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+function revalidateTournamentSettingsPaths(tournamentId: string) {
+  revalidatePath(`/tournaments/${tournamentId}`)
+  revalidatePath(`/tournaments/${tournamentId}/settings`, 'layout')
+}
+
 async function getZoneSnapshots(
   supabase: Awaited<ReturnType<typeof createClient>>,
   tournamentId: string
@@ -212,8 +229,7 @@ export async function updateAdvancementSettings(
     throw new Error('Error al actualizar la configuración')
   }
 
-  revalidatePath(`/tournaments/${tournamentId}/settings`)
-  revalidatePath(`/tournaments/${tournamentId}`)
+  revalidateTournamentSettingsPaths(tournamentId)
 }
 
 export async function updateTournamentFormatConfig(
@@ -420,8 +436,7 @@ export async function updateTournamentFormatConfig(
       }
     }
 
-    revalidatePath(`/tournaments/${tournamentId}`)
-    revalidatePath(`/tournaments/${tournamentId}/settings`)
+    revalidateTournamentSettingsPaths(tournamentId)
 
     return { success: true }
   } catch (error: any) {
@@ -537,6 +552,13 @@ export async function updateTournamentBasicInfo(
       }
     }
 
+    if (params.start_date && params.end_date && params.start_date > params.end_date) {
+      return {
+        success: false,
+        error: 'La fecha de cierre no puede ser anterior a la fecha de inicio'
+      }
+    }
+
     // Build update object
     const updateData: any = {
       name: params.name.trim(),
@@ -550,6 +572,14 @@ export async function updateTournamentBasicInfo(
 
     if (params.price !== undefined) {
       updateData.price = params.price
+    }
+
+    if (params.start_date !== undefined) {
+      updateData.start_date = params.start_date ? adjustDateForArgentina(params.start_date) : null
+    }
+
+    if (params.end_date !== undefined) {
+      updateData.end_date = params.end_date ? adjustDateForArgentina(params.end_date) : null
     }
 
     // Update tournament
@@ -569,8 +599,7 @@ export async function updateTournamentBasicInfo(
     }
 
     // Revalidate the tournament pages
-    revalidatePath(`/tournaments/${params.tournamentId}`)
-    revalidatePath(`/tournaments/${params.tournamentId}/settings`)
+    revalidateTournamentSettingsPaths(params.tournamentId)
 
     return {
       success: true,
@@ -676,7 +705,7 @@ export async function addTournamentClubsAction(tournamentId: string, clubIds: st
     const result = await linkTournamentClubs({ supabase, userId: user.id, tournamentId, clubIds })
     if (!result.success) return { success: false, error: result.message || 'No se pudo agregar clubes' }
 
-    revalidatePath(`/tournaments/${tournamentId}/settings`)
+    revalidateTournamentSettingsPaths(tournamentId)
     revalidatePath(`/tournaments/${tournamentId}`)
     return { success: true }
   } catch (e: any) {
@@ -696,7 +725,7 @@ export async function removeTournamentClubsAction(tournamentId: string, clubIds:
     const result = await unlinkTournamentClubs({ supabase, userId: user.id, tournamentId, clubIds })
     if (!result.success) return { success: false, error: result.message || 'No se pudo quitar clubes' }
 
-    revalidatePath(`/tournaments/${tournamentId}/settings`)
+    revalidateTournamentSettingsPaths(tournamentId)
     revalidatePath(`/tournaments/${tournamentId}`)
     return { success: true }
   } catch (e: any) {
@@ -1000,7 +1029,7 @@ export async function backTournamentToNotStartedAction(
 
     // Revalidate tournament pages
     revalidatePath(`/tournaments/${tournamentId}`)
-    revalidatePath(`/tournaments/${tournamentId}/settings`)
+    revalidateTournamentSettingsPaths(tournamentId)
     
     return {
       success: true,
@@ -1227,7 +1256,7 @@ export async function backTournamentFromBracketToZones(
     // Revalidate tournament pages
     console.log('[backTournamentFromBracketToZones] Revalidating paths...')
     revalidatePath(`/tournaments/${tournamentId}`)
-    revalidatePath(`/tournaments/${tournamentId}/settings`)
+    revalidateTournamentSettingsPaths(tournamentId)
     
     console.log('[backTournamentFromBracketToZones] Process completed successfully')
     return {

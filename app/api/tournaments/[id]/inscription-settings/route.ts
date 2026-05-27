@@ -115,7 +115,7 @@ export async function PATCH(
     }
 
     revalidatePath(`/tournaments/${tournamentId}`)
-    revalidatePath(`/tournaments/${tournamentId}/settings`)
+    revalidatePath(`/tournaments/${tournamentId}/settings`, 'layout')
     revalidatePath(`/tournaments/${tournamentId}/inscriptions`)
 
     return NextResponse.json({

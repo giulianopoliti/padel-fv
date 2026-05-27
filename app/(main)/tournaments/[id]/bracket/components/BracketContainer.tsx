@@ -10,6 +10,7 @@ import ReadOnlyBracketVisualization from '@/components/tournament/bracket-v2/com
 import { PointsCalculationBanner } from '@/components/tournament/bracket-v2/components/PointsCalculationBanner'
 import { useTournament } from '@/hooks/use-tournament'
 import { useTournamentFinalization } from '@/components/tournament/bracket-v2/hooks/useTournamentFinalization'
+import BackFromBracketButton from '../../settings/components/BackFromBracketButton'
 
 type ViewMode = 'bracket' | 'schedule'
 
@@ -126,6 +127,14 @@ export default function BracketContainer({
                   <span className="hidden sm:inline">Vista Horarios</span>
                   <span className="sm:hidden">Horarios</span>
                 </Button>
+                {isOwner && tournament.status === 'BRACKET_PHASE' && (
+                  <BackFromBracketButton
+                    tournamentId={tournamentId}
+                    mode="inline"
+                    buttonLabel="Volver a zonas"
+                    tooltipMessage="Si tuviste algun problema con la llave y queres borrarla, usa este boton para volver el torneo a fase de zonas."
+                  />
+                )}
               </div>
 
               <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2">

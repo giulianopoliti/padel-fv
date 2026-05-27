@@ -406,6 +406,7 @@ export function transformMatchStatus(statusStr: string): MatchStatus {
     'CANCELLED': 'CANCELED',
     'CANCELADO': 'CANCELED',
     'BYE': 'BYE',
+    'WAITING_OPONENT': 'WAITING_OPPONENT',
     'WAITING_OPPONENT': 'WAITING_OPPONENT',
     'ESPERANDO_OPONENTE': 'WAITING_OPPONENT'
   }
@@ -586,11 +587,19 @@ export function transformCurrentApiMatchToBracketV2(
         )
       : createEmptySlot()
   
-  // NUEVO: Determinar status considerando placeholders
-  const hasPlaceholders = slot1PlaceholderLabel || slot2PlaceholderLabel
-  const matchStatus = hasPlaceholders && currentMatch.status === 'PENDING' 
-    ? 'WAITING_OPPONENT' 
-    : transformMatchStatus(currentMatch.status)
+  // The real couple ids are the operational truth for whether a match can be played.
+  const hasResolvedCouple1 = Boolean(currentMatch.couple1_id || currentMatch.couple1?.id)
+  const hasResolvedCouple2 = Boolean(currentMatch.couple2_id || currentMatch.couple2?.id)
+  const hasBothResolvedCouples = hasResolvedCouple1 && hasResolvedCouple2
+  const normalizedStatus = transformMatchStatus(currentMatch.status)
+  const statusCanBeDerivedFromParticipants =
+    normalizedStatus === 'PENDING' || normalizedStatus === 'WAITING_OPPONENT'
+
+  const matchStatus: MatchStatus = statusCanBeDerivedFromParticipants
+    ? hasBothResolvedCouples
+      ? 'PENDING'
+      : 'WAITING_OPPONENT'
+    : normalizedStatus
   
   // Procesar scheduling data - priorizar currentMatch.scheduling si existe
   // Si viene scheduling desde fecha_matches, usarlo. Sino, usar court legacy.

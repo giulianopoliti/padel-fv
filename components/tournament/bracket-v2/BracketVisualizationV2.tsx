@@ -37,6 +37,7 @@ import { PointsCalculationBanner } from './components/PointsCalculationBanner'
 import ReadOnlyBracketTab from '../read-only-bracket-tab'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Trophy } from 'lucide-react'
+import BackFromBracketButton from '@/app/(main)/tournaments/[id]/settings/components/BackFromBracketButton'
 // REMOVIDO: generatePlaceholderBracketAction import (causaba error de serialización)
 // Ahora usamos API Route en su lugar
 
@@ -375,6 +376,8 @@ function BracketVisualizationV2Internal({
           config={finalConfig}
           isRefetching={isRefetching}
           dragOperations={dragOperations}
+          tournamentId={tournamentId}
+          tournamentStatus={tournamentStatus}
         />
       )}
       
@@ -578,18 +581,30 @@ function BracketControlsPlaceholder({
   onRegeneratePlaceholders,
   config,
   isRefetching,
-  dragOperations
+  dragOperations,
+  tournamentId,
+  tournamentStatus,
 }: {
   onProcessBYEs: () => void
   onRegeneratePlaceholders: () => void
   config: BracketConfig
   isRefetching?: boolean
   dragOperations?: any
+  tournamentId: string
+  tournamentStatus?: string
 }) {
   
   return (
     <div className="bracket-v2-controls bg-white border border-slate-200 rounded-lg p-4 mb-6">
       <div className="flex gap-3 items-center flex-wrap">
+        {tournamentStatus === 'BRACKET_PHASE' && (
+          <BackFromBracketButton
+            tournamentId={tournamentId}
+            mode="inline"
+            buttonLabel="Volver a zonas"
+            tooltipMessage="Si tuviste algun problema con la llave y queres borrarla, usa este boton para volver el torneo a fase de zonas."
+          />
+        )}
         
         {/* Controles de drag & drop */}
         {dragOperations && config.features.enableDragDrop && (

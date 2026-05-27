@@ -24,20 +24,22 @@ interface PaymentInfo {
 
 interface InscriptionResponse {
   id: string;
-  couple_id: string;
+  couple_id: string | null;
+  player_id?: string | null;
   created_at: string;
   is_pending: boolean;
   payment_proof_status?: 'NOT_REQUIRED' | 'PENDING_REVIEW' | 'APPROVED';
   payment_proof_uploaded_at?: string | null;
   payment_alias_snapshot?: string | null;
   payment_amount_snapshot?: number | null;
-  couples: {
+  couples?: {
     id: string;
     player1_id: string;
     player2_id: string;
     players_player1: PlayerInfo;
     players_player2: PlayerInfo;
-  };
+  } | null;
+  player?: PlayerInfo | null;
   inscription_payments?: PaymentInfo[];
 }
 
@@ -49,6 +51,14 @@ interface PlayerInfo {
   dni?: string | null;
   phone?: string | null;
 }
+
+const getSingleRelation = <T,>(relation: T | T[] | null | undefined): T | null => {
+  if (!relation) {
+    return null;
+  }
+
+  return Array.isArray(relation) ? relation[0] ?? null : relation;
+};
 
 /**
  * 📖 GET /api/tournaments/[id]/inscriptions
@@ -122,6 +132,7 @@ export async function GET(
       .select(`
         id,
         couple_id,
+        player_id,
         created_at,
         is_pending,
         payment_proof_status,
@@ -149,6 +160,14 @@ export async function GET(
             phone
           )
         ),
+        player:player_id (
+          id,
+          first_name,
+          last_name,
+          score,
+          dni,
+          phone
+        ),
         inscription_payments (
           player_id,
           has_paid,
@@ -156,7 +175,6 @@ export async function GET(
         )
       `)
       .eq('tournament_id', tournamentId)
-      .not('couple_id', 'is', null)
       .order('created_at', { ascending: true });
 
     if (inscriptionsError) {
@@ -169,55 +187,64 @@ export async function GET(
 
     // Transformar datos al formato esperado por el frontend
     const formattedInscriptions: InscriptionResponse[] = (inscriptions || [])
-      .filter(inscription => inscription.couples) // Filter out null couples
       .map(inscription => ({
         id: inscription.id,
-        couple_id: inscription.couple_id,
+        couple_id: inscription.couple_id ?? null,
+        player_id: inscription.player_id ?? null,
         created_at: inscription.created_at,
         is_pending: inscription.is_pending ?? false,
         payment_proof_status: inscription.payment_proof_status ?? 'NOT_REQUIRED',
         payment_proof_uploaded_at: inscription.payment_proof_uploaded_at ?? null,
         payment_alias_snapshot: inscription.payment_alias_snapshot ?? null,
         payment_amount_snapshot: inscription.payment_amount_snapshot ?? null,
-        couples: {
-          id: inscription.couples.id,
-          player1_id: inscription.couples.player1_id,
-          player2_id: inscription.couples.player2_id,
-          players_player1: inscription.couples.players_player1,
-          players_player2: inscription.couples.players_player2,
-        },
+        couples: getSingleRelation(inscription.couples),
+        player: getSingleRelation(inscription.player),
         inscription_payments: inscription.inscription_payments || []
       }));
 
     // Transform to format expected by useTournamentInscriptions hook (both AMERICAN and LONG)
-    const coupleInscriptions = formattedInscriptions.map(inscription => {
-      const payments = inscription.inscription_payments || [];
-      const player1Payment = payments.find(p => p.player_id === inscription.couples.player1_id);
-      const player2Payment = payments.find(p => p.player_id === inscription.couples.player2_id);
-      
-      return {
-        id: inscription.couples.id, // Use couple ID as main ID
-        tournament_id: tournamentId,
-        player_1_id: inscription.couples.player1_id,
-        player_2_id: inscription.couples.player2_id,
-        created_at: inscription.created_at,
-        player_1_info: inscription.couples.players_player1,
-        player_2_info: inscription.couples.players_player2,
-        is_pending: inscription.is_pending ?? false,
-        payment_proof_status: inscription.payment_proof_status ?? 'NOT_REQUIRED',
-        payment_proof_uploaded_at: inscription.payment_proof_uploaded_at ?? null,
-        payment_alias_snapshot: inscription.payment_alias_snapshot ?? null,
-        payment_amount_snapshot: inscription.payment_amount_snapshot ?? null,
-        inscription_id: inscription.id, // ID de la inscripcion para cambiar estado
-        // Payment status for each player
-        player_1_has_paid: player1Payment?.has_paid ?? false,
-        player_2_has_paid: player2Payment?.has_paid ?? false,
-      };
-    });
+    const coupleInscriptions = formattedInscriptions
+      .filter(inscription => inscription.couple_id && inscription.couples)
+      .map(inscription => {
+        const couple = inscription.couples!;
+        const payments = inscription.inscription_payments || [];
+        const player1Payment = payments.find(p => p.player_id === couple.player1_id);
+        const player2Payment = payments.find(p => p.player_id === couple.player2_id);
+        
+        return {
+          id: couple.id, // Use couple ID as main ID
+          tournament_id: tournamentId,
+          player_1_id: couple.player1_id,
+          player_2_id: couple.player2_id,
+          created_at: inscription.created_at,
+          player_1_info: couple.players_player1,
+          player_2_info: couple.players_player2,
+          is_pending: inscription.is_pending ?? false,
+          payment_proof_status: inscription.payment_proof_status ?? 'NOT_REQUIRED',
+          payment_proof_uploaded_at: inscription.payment_proof_uploaded_at ?? null,
+          payment_alias_snapshot: inscription.payment_alias_snapshot ?? null,
+          payment_amount_snapshot: inscription.payment_amount_snapshot ?? null,
+          inscription_id: inscription.id, // ID de la inscripcion para cambiar estado
+          // Payment status for each player
+          player_1_has_paid: player1Payment?.has_paid ?? false,
+          player_2_has_paid: player2Payment?.has_paid ?? false,
+        };
+      });
+
+    const individualInscriptions = formattedInscriptions
+      .filter(inscription => !inscription.couple_id && inscription.player)
+      .map(inscription => ({
+        id: inscription.player!.id,
+        first_name: inscription.player!.first_name,
+        last_name: inscription.player!.last_name,
+        score: inscription.player!.score,
+        dni: inscription.player!.dni ?? null,
+        phone: inscription.player!.phone ?? null,
+      }));
 
     return Response.json({
       coupleInscriptions,
-      individualInscriptions: [], // Note: Currently returns empty for both types
+      individualInscriptions,
       tournament: {
         id: tournament.id,
         name: tournament.name,
@@ -232,7 +259,7 @@ export async function GET(
         transfer_amount: tournament.transfer_amount
       },
       meta: {
-        total: coupleInscriptions.length,
+        total: coupleInscriptions.length + individualInscriptions.length,
         timestamp: new Date().toISOString()
       }
     });

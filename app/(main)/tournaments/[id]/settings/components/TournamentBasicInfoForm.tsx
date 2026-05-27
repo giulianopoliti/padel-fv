@@ -18,6 +18,8 @@ interface TournamentBasicInfoFormProps {
     description?: string | null
     max_participants?: number | null
     price?: number | null
+    start_date?: string | null
+    end_date?: string | null
   }
   inscriptionsCount: number
 }
@@ -27,6 +29,11 @@ export default function TournamentBasicInfoForm({
   initialData,
   inscriptionsCount
 }: TournamentBasicInfoFormProps) {
+  const toInputDate = (value?: string | null) => {
+    if (!value) return ''
+    return value.slice(0, 10)
+  }
+
   const [isLoading, setIsLoading] = useState(false)
   const [name, setName] = useState(initialData.name)
   const [description, setDescription] = useState(initialData.description || '')
@@ -36,6 +43,8 @@ export default function TournamentBasicInfoForm({
   const [price, setPrice] = useState<number | ''>(
     initialData.price ?? ''
   )
+  const [startDate, setStartDate] = useState(toInputDate(initialData.start_date))
+  const [endDate, setEndDate] = useState(toInputDate(initialData.end_date))
   const [hasChanges, setHasChanges] = useState(false)
   const { toast } = useToast()
 
@@ -64,6 +73,8 @@ export default function TournamentBasicInfoForm({
         description: description.trim() || null,
         max_participants: maxParticipants === '' ? null : Number(maxParticipants),
         price: price === '' ? null : Number(price),
+        start_date: startDate || null,
+        end_date: endDate || null,
       })
 
       if (result.success) {
@@ -102,6 +113,8 @@ export default function TournamentBasicInfoForm({
     setDescription(initialData.description || '')
     setMaxParticipants(initialData.max_participants || '')
     setPrice(initialData.price ?? '')
+    setStartDate(toInputDate(initialData.start_date))
+    setEndDate(toInputDate(initialData.end_date))
     setHasChanges(false)
   }
 
@@ -115,6 +128,11 @@ export default function TournamentBasicInfoForm({
     if (price === '') return true
     const value = Number(price)
     return Number.isInteger(value) && value >= 0 && value <= MAX_TOURNAMENT_PRICE
+  }
+
+  const areDatesValid = () => {
+    if (!startDate || !endDate) return true
+    return startDate <= endDate
   }
 
   return (
@@ -205,6 +223,58 @@ export default function TournamentBasicInfoForm({
         </p>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="tournament-start-date" className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-sky-600" />
+            Fecha de inicio
+          </Label>
+          <Input
+            id="tournament-start-date"
+            type="date"
+            value={startDate}
+            onChange={(e) => {
+              setStartDate(e.target.value)
+              handleInputChange()
+            }}
+            disabled={isLoading}
+            className="w-full"
+          />
+          <p className="text-xs text-muted-foreground">Opcional. Se usa en listados y resumenes del torneo.</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="tournament-end-date" className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-sky-600" />
+            Fecha de cierre
+          </Label>
+          <Input
+            id="tournament-end-date"
+            type="date"
+            value={endDate}
+            onChange={(e) => {
+              setEndDate(e.target.value)
+              handleInputChange()
+            }}
+            disabled={isLoading}
+            className="w-full"
+          />
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">
+              Opcional. Si existe, debe ser igual o posterior a la fecha de inicio.
+            </p>
+            {!areDatesValid() && (
+              <Alert variant="destructive" className="py-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  La fecha de cierre no puede ser anterior a la fecha de inicio.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Max Participants */}
       <div className="space-y-2">
         <Label htmlFor="max-participants" className="flex items-center gap-2">
@@ -245,7 +315,7 @@ export default function TournamentBasicInfoForm({
       <div className="flex gap-3 pt-4 border-t">
         <Button
           type="submit"
-          disabled={isLoading || !hasChanges || !isMaxParticipantsValid() || !isPriceValid()}
+          disabled={isLoading || !hasChanges || !isMaxParticipantsValid() || !isPriceValid() || !areDatesValid()}
           className="flex-1"
         >
           {isLoading ? (
