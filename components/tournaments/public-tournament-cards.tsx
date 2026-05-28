@@ -22,6 +22,8 @@ export interface PublicTournamentSummary {
   price?: number | string | null
   award?: string | null
   enablePublicInscriptions?: boolean
+  currentParticipants?: number
+  maxParticipants?: number | null
   club?: {
     id?: string | null
     name?: string | null
@@ -36,6 +38,7 @@ interface PublicTournamentCardsProps {
   tournaments: PublicTournamentSummary[]
   emptyTitle: string
   emptyDescription: string
+  showParticipantStats?: boolean
 }
 
 const typeLabel = {
@@ -129,6 +132,7 @@ export function PublicTournamentCards({
   tournaments,
   emptyTitle,
   emptyDescription,
+  showParticipantStats = false,
 }: PublicTournamentCardsProps) {
   const branding = getTenantBranding()
   const isElite = branding.key === "padel-elite"
@@ -141,7 +145,7 @@ export function PublicTournamentCards({
     ? "mx-auto mt-3 max-w-2xl text-sm text-white/72 sm:text-base"
     : "mx-auto mt-3 max-w-2xl text-slate-300"
   const cardClassName = isElite
-    ? "tpe-shell overflow-hidden rounded-[2rem] border-[var(--tpe-forest)] shadow-[0_20px_50px_rgba(16,24,40,0.2)]"
+    ? "overflow-hidden rounded-[2rem] border-2 border-[var(--tpe-forest)] bg-[linear-gradient(180deg,#2f3169_0%,#2b2e62_100%)] shadow-[0_20px_50px_rgba(16,24,40,0.24)]"
     : "overflow-hidden border-white/10 bg-brand-800/70 shadow-sm transition-shadow hover:border-court-500/40 hover:shadow-md"
   const primaryBadgeClassName = isElite
     ? "rounded-full border-0 bg-[var(--tpe-lime)] px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--tpe-night)] hover:bg-[var(--tpe-lime)]"
@@ -155,12 +159,14 @@ export function PublicTournamentCards({
   const titleClassName = isElite
     ? "text-2xl font-black uppercase tracking-tight text-[var(--tpe-paper)] sm:text-3xl"
     : "text-xl font-black tracking-tight text-white sm:text-2xl"
-  const bodyTextClassName = isElite ? "text-sm font-semibold uppercase tracking-[0.03em] text-white/72" : "text-sm text-slate-300"
+  const bodyTextClassName = isElite
+    ? "text-sm font-semibold uppercase tracking-[0.03em] text-white"
+    : "text-sm text-slate-300"
   const infoBoxClassName = isElite
-    ? "flex items-start gap-3 rounded-2xl border border-white/16 bg-[rgba(10,19,34,0.78)] px-4 py-3 sm:px-5"
+    ? "flex items-start gap-3 rounded-2xl border border-white/20 bg-[rgba(16,25,50,0.86)] px-4 py-3 sm:px-5"
     : "flex items-start gap-3 rounded-2xl bg-white/5 px-3 py-3 sm:px-4"
   const infoIconClassName = isElite ? "mt-0.5 h-4 w-4 text-[var(--tpe-lime)]" : "mt-0.5 h-4 w-4 text-court-300"
-  const infoLabelClassName = isElite ? "text-[11px] font-black uppercase tracking-[0.14em] text-white/70" : "font-semibold text-white"
+  const infoLabelClassName = isElite ? "text-[11px] font-black uppercase tracking-[0.14em] text-white/88" : "font-semibold text-white"
   const infoValueClassName = isElite ? "font-semibold text-white" : ""
   const pricePillClassName = isElite
     ? "inline-flex items-center gap-2 rounded-full bg-[var(--tpe-lime)] px-3 py-1 text-sm font-black uppercase tracking-[0.12em] text-[var(--tpe-night)]"
@@ -172,8 +178,13 @@ export function PublicTournamentCards({
     ? "h-11 rounded-full bg-[var(--tpe-lime)] text-sm font-black uppercase tracking-[0.16em] text-[var(--tpe-night)] hover:bg-[#e6ff63]"
     : "h-11 bg-court-500 text-base font-semibold text-brand-900 hover:bg-court-400"
   const detailsButtonClassName = isElite
-    ? "h-11 rounded-full border-white/20 bg-white/5 text-sm font-bold uppercase tracking-[0.14em] text-white hover:bg-white/10 hover:text-white"
+    ? "h-11 rounded-full border-white/24 bg-white/8 text-sm font-bold uppercase tracking-[0.14em] text-white hover:bg-white/14 hover:text-white"
     : "h-11 border-white/20 bg-white/5 text-base font-semibold text-white hover:bg-white/10"
+  const statsPanelClassName = isElite
+    ? "rounded-2xl border border-white/20 bg-[rgba(16,25,50,0.86)] px-4 py-3"
+    : "rounded-2xl bg-white/5 px-4 py-3"
+  const progressTrackClassName = isElite ? "bg-white/10" : "bg-white/10"
+  const progressFillClassName = isElite ? "bg-[var(--tpe-lime)]" : "bg-court-500"
 
   if (tournaments.length === 0) {
     return (
@@ -188,6 +199,15 @@ export function PublicTournamentCards({
     <div className="flex flex-col gap-4">
       {tournaments.map((tournament) => {
         const priceLabel = formatPrice(tournament.price)
+        const canShowParticipantStats =
+          showParticipantStats &&
+          Boolean(tournament.enablePublicInscriptions) &&
+          typeof tournament.maxParticipants === "number" &&
+          tournament.maxParticipants > 0
+        const currentParticipants = tournament.currentParticipants || 0
+        const progressWidth = canShowParticipantStats
+          ? `${Math.min((currentParticipants / tournament.maxParticipants!) * 100, 100)}%`
+          : "0%"
         const timeLabel = tournament.startDate
           ? hasExplicitTime(tournament.startDate)
             ? `${formatTime(tournament.startDate)} hs`
@@ -232,12 +252,12 @@ export function PublicTournamentCards({
                         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
                           <p className={infoValueClassName}>{formatSchedule(tournament)}</p>
                           <p className="inline-flex items-center gap-1 font-semibold text-white">
-                            <Clock3 className="h-3.5 w-3.5 text-[var(--tpe-lime)]" />
+                            <Clock3 className={`h-3.5 w-3.5 ${isElite ? "text-[var(--tpe-lime)]" : "text-court-300"}`} />
                             {timeLabel}
                           </p>
                         </div>
-                        <p className="mt-1 text-xs text-white/65">
-                          {tournament.type === "AMERICAN" ? "Partido unico con horario definido." : "Fecha principal del torneo."}
+                        <p className="mt-1 text-xs text-white/82">
+                          {tournament.type === "AMERICAN" ? "Partido único con horario definido." : "Fecha principal del torneo."}
                         </p>
                       </div>
                     </div>
@@ -247,8 +267,8 @@ export function PublicTournamentCards({
                       <div className="min-w-0">
                         <p className={infoLabelClassName}>Club</p>
                         <p className={infoValueClassName}>{tournament.club?.name || "Sede a confirmar"}</p>
-                        <p className="mt-1 text-xs text-white/65">
-                          {tournament.club?.address || "Direccion a confirmar"}
+                        <p className="mt-1 text-xs text-white/82">
+                          {tournament.club?.address || "Dirección a confirmar"}
                         </p>
                       </div>
                     </div>
@@ -259,7 +279,7 @@ export function PublicTournamentCards({
                       {priceLabel ? (
                         <div className={pricePillClassName}>
                           <Tag className="h-3.5 w-3.5" />
-                          Inscripcion {priceLabel}
+                          Inscripción {priceLabel}
                         </div>
                       ) : null}
                       {tournament.award ? (
@@ -268,6 +288,20 @@ export function PublicTournamentCards({
                           {tournament.award}
                         </div>
                       ) : null}
+                    </div>
+                  ) : null}
+
+                  {canShowParticipantStats ? (
+                    <div className={statsPanelClassName}>
+                      <div className="flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-[0.12em] text-white/88">
+                        <span>Inscriptos</span>
+                        <span>
+                          {currentParticipants}/{tournament.maxParticipants}
+                        </span>
+                      </div>
+                      <div className={`mt-3 h-2 overflow-hidden rounded-full ${progressTrackClassName}`}>
+                        <div className={`h-full rounded-full ${progressFillClassName}`} style={{ width: progressWidth }} />
+                      </div>
                     </div>
                   ) : null}
                 </div>

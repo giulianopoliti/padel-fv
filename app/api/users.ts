@@ -21,7 +21,7 @@ export async function getTop5MalePlayers() {
     return data;
 }
 
-// 🚀 OPTIMIZACIÓN FASE 2: Query optimizada con campos específicos
+// ÃƒÂ°Ã…Â¸Ã…Â¡Ã¢â€šÂ¬ OPTIMIZACIÃƒÆ’Ã¢â‚¬Å“N FASE 2: Query optimizada con campos especÃƒÆ’Ã‚Â­ficos
 export async function getTopPlayers(limit: number = 5) {
     const query = supabase
         .from("players")
@@ -96,7 +96,7 @@ export async function getTopPlayers(limit: number = 5) {
 
 /**
  * Obtiene una lista paginada de jugadores ordenados por puntaje
- * @param options Opciones de filtrado y paginación
+ * @param options Opciones de filtrado y paginaciÃƒÆ’Ã‚Â³n
  * @returns Objeto con la lista de jugadores y el conteo total
  */
 export async function getRankedPlayers({ 
@@ -113,9 +113,9 @@ export async function getRankedPlayers({
     gender?: "MALE" | "FEMALE";
 } = {}) {
     try {
-        // Validar parámetros de entrada
+        // Validar parÃƒÆ’Ã‚Â¡metros de entrada
         const validatedPage = Math.max(1, page);
-        const validatedPageSize = Math.min(100, Math.max(1, pageSize)); // Limitar tamaño de página
+        const validatedPageSize = Math.min(100, Math.max(1, pageSize)); // Limitar tamaÃƒÆ’Ã‚Â±o de pÃƒÆ’Ã‚Â¡gina
         const offset = (validatedPage - 1) * validatedPageSize;
 
         // Construir la consulta base para jugadores
@@ -146,7 +146,7 @@ export async function getRankedPlayers({
             countQuery.eq("club_id", clubId);
         }
 
-        // 🚀 OPTIMIZACIÓN FASE 2: Ejecutar ambas consultas en paralelo
+        // ÃƒÂ°Ã…Â¸Ã…Â¡Ã¢â€šÂ¬ OPTIMIZACIÃƒÆ’Ã¢â‚¬Å“N FASE 2: Ejecutar ambas consultas en paralelo
         const [countResult, playersResult] = await Promise.all([
             countQuery,
             baseQuery
@@ -165,7 +165,7 @@ export async function getRankedPlayers({
             throw new Error("Error al obtener la lista de jugadores");
         }
 
-        // Obtener puntos semanales para todos los jugadores en batch (optimización)
+        // Obtener puntos semanales para todos los jugadores en batch (optimizaciÃƒÆ’Ã‚Â³n)
         const { getMultiplePlayersWeeklyPoints } = await import("@/app/api/tournaments/actions");
         
         // Extraer IDs de jugadores para consulta batch
@@ -669,7 +669,8 @@ export const getUser = async (): Promise<User | null> => {
         max_participants,
         description,
         price,
-        status
+        status,
+        enable_public_inscriptions
       `)
       .eq("club_id", clubId)
       .gte("start_date", new Date().toISOString())
@@ -715,21 +716,37 @@ export const getUser = async (): Promise<User | null> => {
           : "Usuario anónimo",
         date: new Date().toISOString() // Placeholder since no date in reviews table
       })) || [],
-      upcomingTournaments: tournamentsWithParticipants.map(tournament => ({
-        id: tournament.id,
-        name: tournament.name || `Torneo ${tournament.category_name}`,
-        date: tournament.start_date 
-          ? `${new Date(tournament.start_date).toLocaleDateString()} - ${new Date(tournament.end_date).toLocaleDateString()}`
-          : "Fecha por confirmar",
-        category: tournament.category_name || "Sin categoría",
-        image: tournament.pre_tournament_image_url,
-        description: tournament.description,
-        price: tournament.price,
-        status: tournament.status,
-        maxParticipants: tournament.max_participants,
-        currentParticipants: tournament.currentParticipants || 0,
-        registrations: `${tournament.currentParticipants || 0}/${tournament.max_participants || 0}`
-      })),
+      upcomingTournaments: tournamentsWithParticipants.map(tournament => {
+        const hasStartDate = Boolean(tournament.start_date);
+        const hasEndDate = Boolean(tournament.end_date);
+
+        return {
+          id: tournament.id,
+          name: tournament.name || `Torneo ${tournament.category_name}`,
+          date: hasStartDate
+            ? hasEndDate
+              ? `${new Date(tournament.start_date).toLocaleDateString()} - ${new Date(tournament.end_date).toLocaleDateString()}`
+              : new Date(tournament.start_date).toLocaleDateString()
+            : "Fecha por confirmar",
+          category: tournament.category_name || "Sin categoría",
+          categoryName: tournament.category_name || "Sin categoría",
+          image: tournament.pre_tournament_image_url,
+          description: tournament.description,
+          price: tournament.price,
+          status: tournament.status,
+          enablePublicInscriptions: Boolean(tournament.enable_public_inscriptions),
+          maxParticipants: tournament.max_participants,
+          currentParticipants: tournament.currentParticipants || 0,
+          registrations: `${tournament.currentParticipants || 0}/${tournament.max_participants || 0}`,
+          startDate: tournament.start_date || null,
+          endDate: tournament.end_date || null,
+          club: {
+            id: club.id,
+            name: club.name || null,
+            address: club.address || null,
+          },
+        };
+      }),
       // Image data
       coverImage: club.cover_image_url,
       galleryImages: (club.gallery_images as string[]) || [],
@@ -1039,7 +1056,7 @@ export const getUser = async (): Promise<User | null> => {
         .single();
 
       if (playerError) {
-        console.error("❌ Error fetching player profile:", playerError);
+        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Error fetching player profile:", playerError);
         return null;
       }
 
@@ -1095,7 +1112,7 @@ export const getUser = async (): Promise<User | null> => {
       const result = {
         id: player.id,
         name: `${player.first_name || ''} ${player.last_name || ''}`.trim(),
-        profileImage: profileImageUrl, // ⚠️ Important: using 'profileImage' to match frontend
+        profileImage: profileImageUrl, // ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Important: using 'profileImage' to match frontend
         ranking: ranking || {
           current: 0,
           variation: 0,
@@ -1137,7 +1154,7 @@ export const getUser = async (): Promise<User | null> => {
       return result;
 
     } catch (error) {
-      console.error("💥 Error in getPlayerProfile:", error);
+      console.error("ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â¥ Error in getPlayerProfile:", error);
       return null;
     }
   }
@@ -1956,3 +1973,4 @@ export async function getOrganizationBySlug(slug: string) {
     return null;
   }
 }
+

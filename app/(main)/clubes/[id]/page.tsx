@@ -1,538 +1,453 @@
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import {
-  MapPin,
-  Star,
-  ChevronLeft,
-  Users,
-  Clock,
-  Phone,
-  Globe,
-  Mail,
-  Calendar,
-  User,
-  MessageSquare,
-  CheckCircle,
-  Trophy,
-  Instagram,
-  BarChart3,
-  Crown,
-  Award,
-  ArrowRight,
-} from "lucide-react"
-import { getClubDetails, getClubPlayersForRanking } from "@/app/api/users"
 import { notFound } from "next/navigation"
+import {
+  ArrowLeft,
+  Award,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  Globe,
+  ImageIcon,
+  Instagram,
+  Mail,
+  MapPin,
+  Phone,
+  Star,
+  Trophy,
+  Users,
+} from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { getTenantBranding } from "@/config/tenant"
+import { getClubDetails, getClubPlayersForRanking } from "@/app/api/users"
+import { PublicTournamentCards } from "@/components/tournaments/public-tournament-cards"
 import PlayerAvatar from "@/components/player-avatar"
 import ContactButton from "./contact-button"
 
 const ClubGallery = ({ images }: { images: string[] }) => (
-  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+  <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
     {images.map((image, index) => (
-      <div key={index} className="aspect-square rounded-xl overflow-hidden border border-slate-200">
+      <div key={index} className="aspect-square overflow-hidden rounded-2xl border border-white/10 bg-white/5">
         <img
           src={image || "/placeholder.svg"}
           alt={`Imagen ${index + 1}`}
-          className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+          className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
         />
       </div>
     ))}
   </div>
 )
 
-export default async function ClubDetailPage({ params }: { params: { id: string } }) {
+const formatWebsiteHref = (website: string | null) => {
+  if (!website) return null
+  return website.startsWith("http://") || website.startsWith("https://") ? website : `https://${website}`
+}
+
+const getMedalIcon = (index: number) => {
+  if (index === 0) return <Trophy className="h-4 w-4 text-amber-400" />
+  if (index === 1) return <Award className="h-4 w-4 text-slate-300" />
+  return <Star className="h-4 w-4 text-orange-300" />
+}
+
+export default async function ClubDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  
-  // Fetch club details and players data in parallel
-  const [club, playersData] = await Promise.all([
-    getClubDetails(id),
-    getClubPlayersForRanking(id)
-  ])
+  const branding = getTenantBranding()
+  const isElite = branding.key === "padel-elite"
+
+  const [club, playersData] = await Promise.all([getClubDetails(id), getClubPlayersForRanking(id)])
 
   if (!club) {
     notFound()
   }
 
-  // Calculate club statistics
   const totalPlayers = playersData.length
-  const totalScore = playersData.reduce((sum, player) => sum + (player.score || 0), 0)
-  const topPlayers = playersData.slice(0, 3) // Get top 3 players
+  const topPlayers = playersData.slice(0, 3)
+  const galleryImages = Array.isArray(club.galleryImages) ? club.galleryImages.filter(Boolean) : []
+  const tournamentsHref = isElite ? "/tournaments/upcoming" : "/tournaments"
+  const websiteHref = formatWebsiteHref(club.website)
+  const heroImage = club.coverImage || null
+  const hasHeroImage = Boolean(heroImage)
+  const showPlayersHighlights = totalPlayers > 0
+  const showReviewHighlights = club.reviewCount > 0 && club.rating > 0
+  const heroHeightClassName = hasHeroImage ? "h-72 sm:h-80 lg:h-[24rem]" : "h-52 sm:h-56 lg:h-64"
 
-  const defaultImages = [
-    "https://vulusxqgknaejdxnhiex.supabase.co/storage/v1/object/public/imagenes/prueba/cancha%20prueba.jpg?height=400&width=600",
-    "https://vulusxqgknaejdxnhiex.supabase.co/storage/v1/object/public/imagenes/prueba/cancha%20prueba.jpg?height=400&width=600",
-    "https://vulusxqgknaejdxnhiex.supabase.co/storage/v1/object/public/imagenes/prueba/cancha%20prueba.jpg?height=400&width=600",
-    "https://vulusxqgknaejdxnhiex.supabase.co/storage/v1/object/public/imagenes/prueba/cancha%20prueba.jpg?height=400&width=600",
-  ]
-
-  const galleryImages = club.galleryImages && club.galleryImages.length > 0 ? club.galleryImages : defaultImages
-
-  const getMedalIcon = (index: number) => {
-    switch (index) {
-      case 0:
-        return <Crown className="h-4 w-4 text-amber-500" />
-      case 1:
-        return <Trophy className="h-4 w-4 text-slate-500" />
-      case 2:
-        return <Award className="h-4 w-4 text-amber-600" />
-      default:
-        return null
-    }
-  }
+  const pageClassName = isElite
+    ? "tpe-page min-h-screen pb-16 text-[var(--tpe-night)]"
+    : "min-h-screen bg-[linear-gradient(180deg,#162545_0%,#192b50_42%,#152340_100%)] pb-16 text-white"
+  const shellClassName = isElite
+    ? "rounded-[2rem] border border-white/60 bg-white/72 shadow-[0_20px_50px_rgba(15,23,42,0.08)] backdrop-blur"
+    : "rounded-[2rem] border border-white/10 bg-[#1b2d52]/78 shadow-sm backdrop-blur-sm"
+  const secondaryShellClassName = isElite
+    ? "rounded-[1.75rem] border border-slate-200 bg-white"
+    : "rounded-[1.75rem] border border-white/10 bg-white/5"
+  const subtleTextClassName = isElite ? "text-slate-600" : "text-slate-300"
+  const headingTextClassName = isElite ? "text-[var(--tpe-night)]" : "text-white"
+  const backLinkClassName = isElite
+    ? "inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.14em] text-[var(--tpe-night)] transition hover:text-[var(--tpe-night-soft)]"
+    : "inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.14em] text-court-300 transition hover:text-white"
+  const primaryButtonClassName = isElite
+    ? "rounded-full bg-[var(--tpe-night)] text-[var(--tpe-paper)] hover:bg-[var(--tpe-night-soft)]"
+    : "bg-court-500 text-brand-900 hover:bg-court-400"
+  const outlineButtonClassName = isElite
+    ? "rounded-full border-[var(--tpe-night)] bg-transparent text-[var(--tpe-night)] hover:bg-[var(--tpe-night)] hover:text-[var(--tpe-paper)]"
+    : "border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+  const badgeClassName = isElite
+    ? "rounded-full border-0 bg-[var(--tpe-lime)] px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--tpe-night)]"
+    : "border-0 bg-court-500 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-brand-900"
+  const infoCardClassName = isElite
+    ? "rounded-2xl border border-slate-200 bg-white p-4"
+    : "rounded-2xl border border-white/10 bg-white/5 p-4"
+  const reviewCardClassName = isElite
+    ? "rounded-2xl border border-slate-200 bg-white p-5"
+    : "rounded-2xl border border-white/10 bg-white/5 p-5"
+  const playerCardClassName = isElite
+    ? "rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:shadow-md"
+    : "rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-court-500/40 hover:bg-white/10"
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-6">
-          <Link
-            href="/clubes"
-            className="inline-flex items-center text-slate-600 hover:text-slate-800 transition-colors group"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform" />
-            Volver a clubes
-          </Link>
-        </div>
+    <div className={pageClassName}>
+      <div className="container mx-auto max-w-6xl px-4 pt-8 sm:px-6 lg:pt-12">
+        <Link href="/clubes" className={backLinkClassName}>
+          <ArrowLeft className="h-4 w-4" />
+          Volver a clubes
+        </Link>
 
-        {/* Main Club Card */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden mb-8">
-          <div className="relative h-64 md:h-80">
-            <img
-              src={club.coverImage || defaultImages[0]}
-              alt={club.name || "Club"}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-            <div className="absolute bottom-0 left-0 p-6">
-              <Badge className="mb-3 bg-white/90 text-slate-700 backdrop-blur-sm shadow-md border-0">
-                <Star className="h-3 w-3 mr-1 fill-amber-400 text-amber-400" />
-                {club.rating > 0 ? club.rating : "Nuevo"} ({club.reviewCount} opiniones)
-              </Badge>
-              <h1 className="text-3xl md:text-4xl font-black text-white mb-2">{club.name}</h1>
-              <div className="flex items-center text-white/90">
-                <MapPin className="h-4 w-4 mr-2" />
-                <span className="font-medium">{club.address}</span>
+        <section className={`mt-6 overflow-hidden ${shellClassName}`}>
+          <div className={`relative ${heroHeightClassName}`}>
+            {hasHeroImage ? (
+              <>
+                <img src={heroImage} alt={club.name || "Club"} className="h-full w-full object-cover" />
+                <div
+                  className={
+                    isElite
+                      ? "absolute inset-0 bg-gradient-to-t from-[rgba(13,21,38,0.9)] via-[rgba(13,21,38,0.45)] to-[rgba(13,21,38,0.15)]"
+                      : "absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent"
+                  }
+                />
+              </>
+            ) : (
+              <>
+                <div
+                  className={
+                    isElite
+                      ? "absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(206,231,91,0.24),transparent_22%),linear-gradient(180deg,#f8fafc_0%,#e6edf7_100%)]"
+                      : "absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(210,236,99,0.12),transparent_24%),linear-gradient(180deg,#223765_0%,#1a2d54_100%)]"
+                  }
+                />
+                <div className="absolute right-6 top-6 hidden sm:block">
+                  <div
+                    className={
+                      isElite
+                        ? "flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200/80 bg-white/70 text-[var(--tpe-night)] shadow-sm backdrop-blur"
+                        : "flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-court-300 backdrop-blur"
+                    }
+                  >
+                    <ImageIcon className="h-7 w-7" />
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge className={badgeClassName}>{showReviewHighlights ? `${club.rating} estrellas` : "Nuevo club"}</Badge>
+                {showReviewHighlights ? (
+                  <Badge
+                    className={
+                      hasHeroImage
+                        ? "rounded-full border-0 bg-white/12 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white backdrop-blur"
+                        : isElite
+                          ? "rounded-full border border-slate-300 bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--tpe-night)]"
+                          : "rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white"
+                    }
+                  >
+                    {club.reviewCount} opiniones
+                  </Badge>
+                ) : null}
+              </div>
+
+              <h1 className={`mt-4 text-3xl font-black sm:text-4xl lg:text-5xl ${hasHeroImage ? "text-white" : headingTextClassName}`}>
+                {club.name}
+              </h1>
+              <div
+                className={`mt-3 flex flex-wrap items-center gap-4 text-sm font-semibold sm:text-base ${hasHeroImage ? "text-white/90" : subtleTextClassName}`}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  {club.address || "Dirección a confirmar"}
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  {club.courts || 0} canchas
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <Clock3 className="h-4 w-4" />
+                  {club.opens_at && club.closes_at ? `${club.opens_at.slice(0, 5)} - ${club.closes_at.slice(0, 5)}` : "Horario a confirmar"}
+                </span>
               </div>
             </div>
           </div>
+        </section>
 
-          <div className="p-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="md:col-span-2">
-                <h2 className="text-2xl font-bold text-slate-800 mb-4">Sobre el club</h2>
-                <p className="text-slate-600 mb-8 leading-relaxed">{club.description || "Descripción del club por completar"}</p>
+        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.95fr)]">
+          <div className="space-y-8">
+            <section className={`p-6 sm:p-8 ${shellClassName}`}>
+              <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+                <div>
+                  <p className={isElite ? "tpe-kicker mb-3" : "mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-court-300"}>
+                    Sobre el club
+                  </p>
+                  <h2 className={`text-2xl font-black sm:text-3xl ${headingTextClassName}`}>Una sede pensada para jugar</h2>
+                  {club.description ? (
+                    <p className={`mt-4 text-base leading-7 ${subtleTextClassName}`}>{club.description}</p>
+                  ) : null}
+                </div>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <div className="flex items-center text-slate-600 mb-2">
-                      <Users className="h-5 w-5 mr-2" />
-                      <span className="font-semibold">Pistas</span>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {showPlayersHighlights ? (
+                    <div className={infoCardClassName}>
+                      <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]">
+                        <Users className={isElite ? "h-4 w-4 text-[var(--tpe-night)]" : "h-4 w-4 text-court-300"} />
+                        Jugadores
+                      </div>
+                      <p className={`mt-3 text-3xl font-black ${headingTextClassName}`}>{totalPlayers}</p>
                     </div>
-                    <p className="text-2xl font-black text-slate-800">{club.courts || 0}</p>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <div className="flex items-center text-slate-600 mb-2">
-                      <Clock className="h-5 w-5 mr-2" />
-                      <span className="font-semibold">Horario</span>
+                  ) : null}
+
+                  {showReviewHighlights ? (
+                    <div className={infoCardClassName}>
+                      <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]">
+                        <Star className={isElite ? "h-4 w-4 text-[var(--tpe-night)]" : "h-4 w-4 text-court-300"} />
+                        Calificación
+                      </div>
+                      <p className={`mt-3 text-3xl font-black ${headingTextClassName}`}>{club.rating}</p>
                     </div>
-                    <p className="text-lg font-bold text-slate-800">
-                      {club.opens_at && club.closes_at
-                        ? `${club.opens_at.slice(0, 5)} - ${club.closes_at.slice(0, 5)}`
-                        : "8:00 - 22:00"}
+                  ) : null}
+
+                  <div className={`${infoCardClassName} sm:col-span-2`}>
+                    <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]">
+                      <CalendarDays className={isElite ? "h-4 w-4 text-[var(--tpe-night)]" : "h-4 w-4 text-court-300"} />
+                      Horario habitual
+                    </div>
+                    <p className={`mt-3 text-lg font-bold ${headingTextClassName}`}>
+                      {club.opens_at && club.closes_at ? `${club.opens_at.slice(0, 5)} - ${club.closes_at.slice(0, 5)}` : "Horario a confirmar"}
                     </p>
                   </div>
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <div className="flex items-center text-slate-600 mb-2">
-                      <Phone className="h-5 w-5 mr-2" />
-                      <span className="font-semibold">Teléfono</span>
-                    </div>
-                    <p className="text-lg font-bold text-slate-800">{club.phone}</p>
+                </div>
+              </div>
+            </section>
+
+            <section className={`p-6 sm:p-8 ${shellClassName}`}>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className={isElite ? "tpe-kicker mb-2" : "mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-court-300"}>
+                    Próximos torneos
+                  </p>
+                  <h2 className={`text-2xl font-black sm:text-3xl ${headingTextClassName}`}>Agenda del club</h2>
+                </div>
+
+                <Button asChild variant="outline" className={outlineButtonClassName}>
+                  <Link href={tournamentsHref}>
+                    Ver todos los torneos
+                    <ChevronRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+
+              <div className="mt-6">
+                <PublicTournamentCards
+                  tournaments={club.upcomingTournaments || []}
+                  emptyTitle="Sin torneos publicados"
+                  emptyDescription="Cuando este club publique nuevas fechas, van a aparecer acá automáticamente."
+                  showParticipantStats
+                />
+              </div>
+            </section>
+
+            {showPlayersHighlights ? (
+              <section className={`p-6 sm:p-8 ${shellClassName}`}>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className={isElite ? "tpe-kicker mb-2" : "mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-court-300"}>
+                      Jugadores destacados
+                    </p>
+                    <h2 className={`text-2xl font-black sm:text-3xl ${headingTextClassName}`}>Top del club</h2>
                   </div>
-                  {club.instagram && (
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                      <div className="flex items-center text-slate-600 mb-2">
-                        <Instagram className="h-5 w-5 mr-2" />
-                        <span className="font-semibold">Instagram</span>
+
+                  <Button asChild className={primaryButtonClassName}>
+                    <Link href={`/clubes/${id}/players`}>Ver todos los jugadores</Link>
+                  </Button>
+                </div>
+
+                <div className="mt-6 grid gap-4 md:grid-cols-3">
+                  {topPlayers.map((player, index) => (
+                    <Link key={player.id} href={`/ranking/${player.id}`} className={playerCardClassName}>
+                      <div className="flex items-start gap-3">
+                        <PlayerAvatar src={player.profileImage} alt={`${player.firstName} ${player.lastName}`} size={52} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            {getMedalIcon(index)}
+                            <span className={`truncate text-sm font-bold ${headingTextClassName}`}>
+                              {player.firstName} {player.lastName}
+                            </span>
+                          </div>
+                          <p className={`mt-1 text-xs font-semibold uppercase tracking-[0.12em] ${subtleTextClassName}`}>{player.category}</p>
+                          <p className={`mt-3 text-2xl font-black ${headingTextClassName}`}>{player.score.toLocaleString()}</p>
+                          <p className={`text-xs ${subtleTextClassName}`}>puntos</p>
+                        </div>
                       </div>
-                      <a
-                        href={`https://instagram.com/${club.instagram}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-lg font-bold text-slate-800 hover:text-blue-600 transition-colors"
-                      >
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {galleryImages.length > 0 ? (
+              <section className={`p-6 sm:p-8 ${shellClassName}`}>
+                <p className={isElite ? "tpe-kicker mb-2" : "mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-court-300"}>
+                  Espacios
+                </p>
+                <h2 className={`text-2xl font-black sm:text-3xl ${headingTextClassName}`}>Galería de fotos</h2>
+                <div className="mt-6">
+                  <ClubGallery images={galleryImages} />
+                </div>
+              </section>
+            ) : null}
+          </div>
+
+          <aside className="space-y-6">
+            <section className={`p-6 ${shellClassName}`}>
+              <p className={isElite ? "tpe-kicker mb-3" : "mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-court-300"}>
+                Contacto
+              </p>
+              <h2 className={`text-2xl font-black ${headingTextClassName}`}>Información útil</h2>
+
+              <div className="mt-6 space-y-3">
+                <div className={infoCardClassName}>
+                  <div className="flex items-start gap-3">
+                    <MapPin className={isElite ? "mt-0.5 h-4 w-4 text-[var(--tpe-night)]" : "mt-0.5 h-4 w-4 text-court-300"} />
+                    <span className={subtleTextClassName}>{club.address || "Dirección a confirmar"}</span>
+                  </div>
+                </div>
+
+                {club.phone ? (
+                  <div className={infoCardClassName}>
+                    <div className="flex items-center gap-3">
+                      <Phone className={isElite ? "h-4 w-4 text-[var(--tpe-night)]" : "h-4 w-4 text-court-300"} />
+                      <span className={subtleTextClassName}>{club.phone}</span>
+                    </div>
+                  </div>
+                ) : null}
+
+                {club.email ? (
+                  <div className={infoCardClassName}>
+                    <div className="flex items-center gap-3">
+                      <Mail className={isElite ? "h-4 w-4 text-[var(--tpe-night)]" : "h-4 w-4 text-court-300"} />
+                      <span className={`min-w-0 break-all ${subtleTextClassName}`}>{club.email}</span>
+                    </div>
+                  </div>
+                ) : null}
+
+                {websiteHref ? (
+                  <div className={infoCardClassName}>
+                    <div className="flex items-center gap-3">
+                      <Globe className={isElite ? "h-4 w-4 text-[var(--tpe-night)]" : "h-4 w-4 text-court-300"} />
+                      <a href={websiteHref} target="_blank" rel="noopener noreferrer" className="truncate hover:underline">
+                        {club.website}
+                      </a>
+                    </div>
+                  </div>
+                ) : null}
+
+                {club.instagram ? (
+                  <div className={infoCardClassName}>
+                    <div className="flex items-center gap-3">
+                      <Instagram className={isElite ? "h-4 w-4 text-[var(--tpe-night)]" : "h-4 w-4 text-court-300"} />
+                      <a href={`https://instagram.com/${club.instagram}`} target="_blank" rel="noopener noreferrer" className="truncate hover:underline">
                         @{club.instagram}
                       </a>
                     </div>
-                  )}
-                </div>
-
-                {/* Club Players Section */}
-                <div className="bg-gradient-to-br from-blue-50 to-slate-50 rounded-2xl p-6 mb-8 border border-blue-100">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-slate-800">Jugadores del Club</h2>
-                    <Button
-                      asChild
-                      className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm"
-                    >
-                      <Link href={`/clubes/${id}/players`} className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Ver todos los jugadores
-                      </Link>
-                    </Button>
                   </div>
+                ) : null}
+              </div>
 
-                  {/* Club Stats */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                      <div className="flex items-center text-slate-600 mb-2">
-                        <Users className="h-5 w-5 mr-2 text-blue-600" />
-                        <span className="font-semibold">Total Jugadores</span>
-                      </div>
-                      <p className="text-2xl font-black text-slate-800">{totalPlayers}</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                      <div className="flex items-center text-slate-600 mb-2">
-                        <BarChart3 className="h-5 w-5 mr-2 text-emerald-600" />
-                        <span className="font-semibold">Puntos Totales</span>
-                      </div>
-                      <p className="text-2xl font-black text-slate-800">{totalScore.toLocaleString()}</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                      <div className="flex items-center text-slate-600 mb-2">
-                        <Trophy className="h-5 w-5 mr-2 text-amber-600" />
-                        <span className="font-semibold">Promedio</span>
-                      </div>
-                      <p className="text-2xl font-black text-slate-800">
-                        {totalPlayers > 0 ? Math.round(totalScore / totalPlayers).toLocaleString() : '0'}
-                      </p>
-                    </div>
-                  </div>
+              <div className="mt-6">
+                <ContactButton club={club} />
+              </div>
+            </section>
 
-                  {/* Top 3 Players */}
-                  {topPlayers.length > 0 ? (
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-800 mb-4">Top 3 Jugadores</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {topPlayers.map((player, index) => (
-                          <Link
-                            key={player.id}
-                            href={`/ranking/${player.id}`}
-                            className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 group"
-                          >
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className="relative">
-                                <PlayerAvatar
-                                  src={player.profileImage}
-                                  alt={`${player.firstName} ${player.lastName}`}
-                                  size={48}
-                                />
-                                <div className="absolute -top-1 -right-1 bg-white rounded-full p-1 shadow-sm">
-                                  {getMedalIcon(index)}
-                                </div>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors truncate">
-                                  {player.firstName} {player.lastName}
-                                </p>
-                                <Badge className="bg-blue-100 text-blue-800 text-xs mt-1">
-                                  {player.category}
-                                </Badge>
-                              </div>
-                            </div>
-                            <div className="text-center">
-                              <div className="text-xl font-bold text-slate-800">{player.score.toLocaleString()}</div>
-                              <div className="text-xs text-slate-500">puntos</div>
-                            </div>
-                          </Link>
-                        ))}
+            <section className={`p-6 ${shellClassName}`}>
+              <p className={isElite ? "tpe-kicker mb-3" : "mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-court-300"}>
+                Servicios
+              </p>
+              <h2 className={`text-2xl font-black ${headingTextClassName}`}>Qué ofrece esta sede</h2>
+
+              <div className="mt-6 space-y-3">
+                {club.services && club.services.length > 0 ? (
+                  club.services.map((service: { name: string }, index: number) => (
+                    <div key={index} className={infoCardClassName}>
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className={isElite ? "h-4 w-4 text-[var(--tpe-night)]" : "h-4 w-4 text-court-300"} />
+                        <span className={subtleTextClassName}>{service.name}</span>
                       </div>
                     </div>
-                  ) : (
-                    <div className="bg-white rounded-xl p-8 text-center border border-slate-200">
-                      <Users className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold text-slate-800 mb-2">Sin jugadores registrados</h3>
-                      <p className="text-slate-600">Este club aún no tiene jugadores registrados en el sistema.</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Upcoming Tournaments - Moved from sidebar */}
-                {club.upcomingTournaments && club.upcomingTournaments.length > 0 && (
-                  <div className="bg-white rounded-2xl p-6 mb-8 border border-slate-200 shadow-sm">
-                    <h2 className="text-2xl font-bold text-slate-800 mb-6">Próximos torneos</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {club.upcomingTournaments.map((tournament: any) => (
-                        <div
-                          key={tournament.id}
-                          className="bg-white rounded-xl overflow-hidden border border-slate-200 hover:shadow-lg transition-all duration-300 group"
-                        >
-                          {/* Tournament Image */}
-                          {tournament.image ? (
-                            <div className="relative h-48 overflow-hidden">
-                              <img 
-                                src={tournament.image} 
-                                alt={tournament.name}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                              <div className="absolute top-3 right-3">
-                                <Badge className="bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-md">
-                                  {tournament.category}
-                                </Badge>
-                              </div>
-                              <div className="absolute bottom-3 left-3 right-3">
-                                <h4 className="text-lg font-bold text-white mb-1">{tournament.name}</h4>
-                                <div className="flex items-center gap-2 text-white/90">
-                                  <Calendar className="h-4 w-4" />
-                                  <span className="text-sm">{tournament.date}</span>
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="bg-gradient-to-br from-slate-100 to-slate-200 h-48 flex items-center justify-center">
-                              <Trophy className="h-16 w-16 text-slate-400" />
-                            </div>
-                          )}
-                          
-                          {/* Tournament Info */}
-                          <div className="p-5">
-                            {!tournament.image && (
-                              <>
-                                <div className="flex justify-between items-start mb-3">
-                                  <h4 className="text-lg font-bold text-slate-800">{tournament.name}</h4>
-                                  <Badge className="bg-gradient-to-r from-slate-600 to-slate-800 text-white">
-                                    {tournament.category}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center gap-2 text-slate-600 mb-4">
-                                  <Calendar className="h-4 w-4" />
-                                  <span className="text-sm">{tournament.date}</span>
-                                </div>
-                              </>
-                            )}
-                            
-                            {/* Tournament Details Grid */}
-                            <div className="grid grid-cols-2 gap-4 mb-4">
-                              {/* Registrations */}
-                              <div className="bg-slate-50 rounded-lg p-3 text-center border border-slate-200">
-                                <div className="flex items-center justify-center gap-1 text-slate-600 mb-1">
-                                  <Users className="h-4 w-4" />
-                                  <span className="text-xs font-medium">Inscriptos</span>
-                                </div>
-                                <div className="text-lg font-bold text-slate-800">
-                                  {tournament.currentParticipants || 0}
-                                  <span className="text-sm text-slate-500">/{tournament.maxParticipants || '∞'}</span>
-                                </div>
-                              </div>
-                              
-                              {/* Price or Status */}
-                              {tournament.price ? (
-                                <div className="bg-slate-50 rounded-lg p-3 text-center border border-slate-200">
-                                  <div className="flex items-center justify-center gap-1 text-slate-600 mb-1">
-                                    <span className="text-xs font-medium">Precio</span>
-                                  </div>
-                                  <div className="text-sm font-bold text-slate-800">
-                                    ${tournament.price}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="bg-slate-50 rounded-lg p-3 text-center border border-slate-200">
-                                  <div className="flex items-center justify-center gap-1 text-slate-600 mb-1">
-                                    <Trophy className="h-4 w-4" />
-                                    <span className="text-xs font-medium">Estado</span>
-                                  </div>
-                                  <div className="text-sm font-bold text-slate-800">
-                                    {tournament.status === 'NOT_STARTED' ? 'Próximo' : tournament.status}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                            
-                            {tournament.description && (
-                              <p className="text-sm text-slate-600 mb-4 line-clamp-2 leading-relaxed">
-                                {tournament.description}
-                              </p>
-                            )}
-                            
-                            {/* Registration Progress */}
-                            {tournament.maxParticipants && tournament.maxParticipants > 0 && (
-                              <div className="mb-4">
-                                <div className="flex justify-between text-xs text-slate-500 mb-2">
-                                  <span>Disponibilidad</span>
-                                  <span>{tournament.currentParticipants || 0}/{tournament.maxParticipants}</span>
-                                </div>
-                                <div className="w-full bg-slate-200 rounded-full h-2">
-                                  <div 
-                                    className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300"
-                                    style={{ 
-                                      width: `${Math.min((tournament.currentParticipants || 0) / tournament.maxParticipants * 100, 100)}%` 
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            )}
-                            
-                            <Button 
-                              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg shadow-md"
-                              size="sm"
-                            >
-                              Ver detalles del torneo
-                              <ArrowRight className="h-4 w-4 ml-2" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-6 text-center">
-                      <Button
-                        variant="outline"
-                        className="border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl px-6"
-                      >
-                        <Trophy className="h-4 w-4 mr-2" />
-                        Ver todos los torneos
-                      </Button>
+                  ))
+                ) : (
+                  <div className={secondaryShellClassName}>
+                    <div className="p-6 text-center">
+                      <p className={`text-sm ${subtleTextClassName}`}>No hay servicios especificados.</p>
                     </div>
                   </div>
                 )}
-
-                {/* Gallery */}
-                <h2 className="text-2xl font-bold text-slate-800 mb-6">Galería de fotos</h2>
-                <ClubGallery images={galleryImages} />
               </div>
-
-              {/* Sidebar */}
-              <div>
-                <div className="bg-slate-50 rounded-xl p-6 mb-6 border border-slate-100">
-                  <h3 className="text-xl font-bold text-slate-800 mb-6">Información de contacto</h3>
-                  <div className="space-y-4">
-                    <div className="flex items-start">
-                      <MapPin className="h-5 w-5 mr-3 text-slate-500 flex-shrink-0 mt-1" />
-                      <span className="text-slate-600 font-medium">{club.address}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Phone className="h-5 w-5 mr-3 text-slate-500" />
-                      <span className="text-slate-600 font-medium">{club.phone}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Mail className="h-5 w-5 mr-3 text-slate-500" />
-                      <span className="text-slate-600 font-medium">{club.email}</span>
-                    </div>
-                    {club.website && (
-                      <div className="flex items-center">
-                        <Globe className="h-5 w-5 mr-3 text-slate-500" />
-                        <a
-                          href={`https://${club.website}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-slate-600 hover:text-slate-800 font-medium hover:underline transition-colors"
-                        >
-                          {club.website}
-                        </a>
-                      </div>
-                    )}
-                    {club.instagram && (
-                      <div className="flex items-center">
-                        <Instagram className="h-5 w-5 mr-3 text-slate-500" />
-                        <a
-                          href={`https://instagram.com/${club.instagram}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-slate-600 hover:text-slate-800 font-medium hover:underline transition-colors"
-                        >
-                          @{club.instagram}
-                        </a>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-6">
-                    <ContactButton club={club} />
-                  </div>
-                </div>
-
-                {/* Services - Moved from main content */}
-                <div className="bg-slate-50 rounded-xl p-6 mb-6 border border-slate-100">
-                  <h3 className="text-xl font-bold text-slate-800 mb-6">Servicios y características</h3>
-                  <div className="space-y-3">
-                    {club.services && club.services.length > 0 ? (
-                      club.services.map((service: any, index: number) => (
-                        <div
-                          key={index}
-                          className="flex items-center text-slate-600 bg-white p-3 rounded-xl border border-slate-200"
-                        >
-                          <CheckCircle className="h-4 w-4 mr-3 text-emerald-500 flex-shrink-0" />
-                          <span className="font-medium text-sm">{service.name}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-slate-500 text-center py-6 bg-white rounded-xl border border-slate-200">
-                        <p className="text-sm">No hay servicios especificados</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+            </section>
+          </aside>
         </div>
 
-        {/* Reviews Section */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-8">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-bold text-slate-800">Opiniones de usuarios</h2>
-            <Badge className="bg-gradient-to-r from-slate-600 to-slate-800 text-white shadow-lg">
-              <Star className="h-4 w-4 mr-1 fill-white" />
-              {club.rating > 0 ? club.rating : "Sin calificar"} ({club.reviewCount})
-            </Badge>
-          </div>
+        {showReviewHighlights ? (
+          <section className={`mt-8 p-6 sm:p-8 ${shellClassName}`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className={isElite ? "tpe-kicker mb-2" : "mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-court-300"}>
+                  Opiniones
+                </p>
+                <h2 className={`text-2xl font-black sm:text-3xl ${headingTextClassName}`}>Lo que dicen los jugadores</h2>
+              </div>
 
-          <div className="space-y-6 mb-8">
-            {club.reviews && club.reviews.length > 0 ? (
-              club.reviews.map((review: any, index: number) => (
-                <div key={index} className="border-b border-slate-200 pb-6 last:border-0 last:pb-0">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center">
-                      <div className="bg-gradient-to-r from-slate-600 to-slate-800 rounded-full w-10 h-10 flex items-center justify-center mr-4">
-                        <User className="h-5 w-5 text-white" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-slate-800">{review.playerName}</div>
-                        <div className="text-sm text-slate-500">
-                          {new Date(review.date).toLocaleDateString("es-ES", {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })}
-                        </div>
-                      </div>
+              <Badge className={badgeClassName}>{`${club.rating} / 5`}</Badge>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              {club.reviews.map((review: { score: number; description: string; playerName: string; date: string }, index: number) => (
+                <div key={index} className={reviewCardClassName}>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className={`font-bold ${headingTextClassName}`}>{review.playerName}</p>
+                      <p className={`mt-1 text-xs uppercase tracking-[0.12em] ${subtleTextClassName}`}>
+                        {new Date(review.date).toLocaleDateString("es-AR", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </p>
                     </div>
-                    <div className="flex items-center">
-                      {[...Array(5)].map((_, i) => (
+
+                    <div className="flex items-center gap-1">
+                      {[...Array(5)].map((_, starIndex) => (
                         <Star
-                          key={i}
-                          className={`h-4 w-4 ${i < review.score ? "fill-amber-400 text-amber-400" : "text-slate-300"}`}
+                          key={starIndex}
+                          className={starIndex < review.score ? "h-4 w-4 fill-amber-400 text-amber-400" : "h-4 w-4 text-slate-400"}
                         />
                       ))}
                     </div>
                   </div>
-                  <p className="text-slate-600 leading-relaxed">{review.description}</p>
+                  <p className={`mt-4 text-sm leading-6 ${subtleTextClassName}`}>{review.description}</p>
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-12 text-slate-500 bg-slate-50 rounded-xl border border-slate-100">
-                <MessageSquare className="h-12 w-12 mx-auto mb-4 text-slate-400" />
-                <p className="text-lg">No hay opiniones aún. ¡Sé el primero en dejar una reseña!</p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-center">
-            <Button className="bg-gradient-to-r from-slate-600 to-slate-800 hover:from-slate-700 hover:to-slate-900 text-white rounded-xl shadow-lg px-8">
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Escribir una opinión
-            </Button>
-          </div>
-        </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
     </div>
   )
