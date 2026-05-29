@@ -30,7 +30,7 @@ describe('tournament-format-policy', () => {
     expect(shouldUseLegacyQualifying(tournament)).toBe(true)
   })
 
-  it('wraps legacy endpoints for AMERICAN_MULTI_ZONE_2 and AMERICAN_MULTI_ZONE_3 in v2', () => {
+  it('wraps legacy endpoints for active bracket presets in v2', () => {
     const wrappedMZ2 = {
       type: 'AMERICAN',
       format_config: getTournamentFormatPreset('AMERICAN_MULTI_ZONE_2'),
@@ -43,6 +43,7 @@ describe('tournament-format-policy', () => {
 
     expect(shouldWrapLegacyEndpointsWithCanonicalFlow(wrappedMZ2)).toBe(true)
     expect(shouldWrapLegacyEndpointsWithCanonicalFlow(wrappedMZ3)).toBe(true)
+    expect(shouldWrapLegacyEndpointsWithCanonicalFlow(wrappedLong)).toBe(true)
     expect(shouldWrapLegacyEndpointsWithCanonicalFlow({ type: 'AMERICAN', format_config: null })).toBe(false)
   })
 
@@ -72,3 +73,7 @@ describe('tournament-format-policy', () => {
     expect(isFormatStatusAllowedForRuntimeSwitch('CANCELED')).toBe(false)
   })
 })
+    const wrappedLong = {
+      type: 'LONG',
+      format_config: getTournamentFormatPreset('LONG_SINGLE_ZONE_BRACKET'),
+    }

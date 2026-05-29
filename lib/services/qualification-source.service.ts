@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { StandingsCalculatorService } from '@/lib/services/standings-calculator.service'
 import { TournamentFormatRulesService } from '@/lib/services/tournament-format-rules.service'
 import { DefinitivePositionService } from '@/lib/services/definitive-position.service'
+import { selectQualifiedEntries } from '@/lib/services/qualification-policy.service'
 import type { BracketKey } from '@/types/tournament-format-v2'
 
 export interface QualifiedEntry {
@@ -17,13 +18,6 @@ export interface QualifiedEntry {
 const getZoneLetter = (zoneName: string | null | undefined, fallbackIndex: number) => {
   const match = (zoneName || '').match(/([A-Z])$/i)
   return (match?.[1] || String.fromCharCode(65 + fallbackIndex)).toUpperCase()
-}
-
-const getAdvanceLimit = (kind: string, count: number, bracketKey: BracketKey) => {
-  if (kind === 'SINGLE') return count
-  if (kind === 'GOLD_SILVER' && bracketKey === 'GOLD') return count
-  if (kind === 'GOLD_SILVER' && bracketKey === 'SILVER') return count
-  return count
 }
 
 export class QualificationSourceService {
@@ -49,13 +43,13 @@ export class QualificationSourceService {
     if (rules.qualificationSource === 'GLOBAL_STANDINGS') {
       const entries = await this.getGlobalStandingEntries(tournamentId, rules)
       return shouldApplyAdvancementLimit
-        ? this.applyAdvanceLimit(entries, rules.resolvedFormat.effectiveAdvancementConfig, bracketKey)
+        ? selectQualifiedEntries(entries, rules.resolvedFormat.effectiveAdvancementConfig, bracketKey)
         : entries
     }
 
     const entries = await this.getZonePositionEntries(tournamentId)
     return shouldApplyAdvancementLimit
-      ? this.applyAdvanceLimit(entries, rules.resolvedFormat.effectiveAdvancementConfig, bracketKey)
+      ? selectQualifiedEntries(entries, rules.resolvedFormat.effectiveAdvancementConfig, bracketKey)
       : entries
   }
 
@@ -157,26 +151,4 @@ export class QualificationSourceService {
     })
   }
 
-  private static applyAdvanceLimit(
-    entries: QualifiedEntry[],
-    advancementConfig: { kind: string; advanceCount?: number; goldCount?: number; silverCount?: number },
-    bracketKey: BracketKey
-  ): QualifiedEntry[] {
-    if (advancementConfig.kind === 'SINGLE' && advancementConfig.advanceCount) {
-      return entries.slice(0, getAdvanceLimit('SINGLE', advancementConfig.advanceCount, bracketKey))
-    }
-
-    if (advancementConfig.kind === 'GOLD_SILVER') {
-      if (bracketKey === 'GOLD' && advancementConfig.goldCount) {
-        return entries.slice(0, advancementConfig.goldCount)
-      }
-
-      if (bracketKey === 'SILVER' && advancementConfig.silverCount) {
-        const offset = advancementConfig.goldCount || 0
-        return entries.slice(offset, offset + advancementConfig.silverCount)
-      }
-    }
-
-    return entries
-  }
 }

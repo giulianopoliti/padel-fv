@@ -32,10 +32,24 @@ function isTournamentFormatConfigV2(value: any): value is TournamentFormatConfig
 
 function hydrateFormatConfig(value: TournamentFormatConfigV2): TournamentFormatConfigV2 {
   const preset = getTournamentFormatPreset(value.presetId)
+  const isLegacyRedirect = value.presetId !== preset.presetId
+  const shouldUsePresetAdvancementConfig = (
+    isLegacyRedirect ||
+    (
+      (preset.presetId === 'AMERICAN_MULTI_ZONE_2' || preset.presetId === 'AMERICAN_MULTI_ZONE_3') &&
+      value.advancementConfig?.kind !== 'PER_ZONE_TOP'
+    )
+  )
 
   return {
     ...preset,
     ...structuredClone(value),
+    presetId: preset.presetId,
+    baseType: preset.baseType,
+    zoneMode: preset.zoneMode,
+    zoneStage: preset.zoneStage,
+    targetMatchesPerCouple: isLegacyRedirect ? preset.targetMatchesPerCouple : value.targetMatchesPerCouple,
+    bracketMode: preset.bracketMode,
     zoneRules: {
       ...preset.zoneRules,
       ...(value.zoneRules || {}),
@@ -44,11 +58,15 @@ function hydrateFormatConfig(value: TournamentFormatConfigV2): TournamentFormatC
       ...preset.display,
       ...(value.display || {}),
     },
-    advancementConfig: structuredClone(value.advancementConfig || preset.advancementConfig),
-    rankingScope: value.rankingScope || preset.rankingScope,
-    rankingPolicyId: value.rankingPolicyId || preset.rankingPolicyId,
-    qualificationSource: value.qualificationSource || preset.qualificationSource,
-    bracketSeedingStrategy: value.bracketSeedingStrategy || preset.bracketSeedingStrategy,
+    advancementConfig: structuredClone(
+      shouldUsePresetAdvancementConfig
+        ? preset.advancementConfig
+        : value.advancementConfig || preset.advancementConfig
+    ),
+    rankingScope: isLegacyRedirect ? preset.rankingScope : value.rankingScope || preset.rankingScope,
+    rankingPolicyId: isLegacyRedirect ? preset.rankingPolicyId : value.rankingPolicyId || preset.rankingPolicyId,
+    qualificationSource: isLegacyRedirect ? preset.qualificationSource : value.qualificationSource || preset.qualificationSource,
+    bracketSeedingStrategy: isLegacyRedirect ? preset.bracketSeedingStrategy : value.bracketSeedingStrategy || preset.bracketSeedingStrategy,
   }
 }
 
@@ -107,7 +125,7 @@ export class TournamentFormatResolver {
       baseConfig.zoneMode === 'MULTI_ZONE' &&
       baseConfig.targetMatchesPerCouple === 3
     ) {
-      notes.push('Las zonas de 3 parejas juegan 2 partidos por pareja por excepcion del formato.')
+      notes.push('MZ3 requiere 3 partidos por pareja en zonas de 4; zonas de 3 juegan 2 por pareja.')
     }
 
     return {

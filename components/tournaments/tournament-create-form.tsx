@@ -57,7 +57,7 @@ import {
 } from '@/lib/services/tournament-category-config';
 import { cn } from '@/lib/utils';
 import { MAX_TOURNAMENT_PRICE } from '@/lib/constants/tournaments';
-import type { TournamentFormatPresetId } from '@/types/tournament-format-v2';
+import type { CouplesPerZone, TournamentFormatPresetId } from '@/types/tournament-format-v2';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 
@@ -130,6 +130,7 @@ const tournamentSchema = z.object({
   extra_club_ids: z.array(z.string()).default([]),
   price: z.number().int('El precio debe ser un numero entero').min(0, 'El precio no puede ser negativo').max(MAX_TOURNAMENT_PRICE, 'El precio es demasiado alto').optional(),
   award: z.string().optional(),
+  american_couples_per_zone: z.enum(['2', '3', 'ALL']).optional(),
   single_bracket_advance_count: z.number().int().min(2, 'Minimo 2 parejas').optional(),
   gold_count: z.number().int().min(0, 'No puede ser negativo').optional(),
   silver_count: z.number().int().min(0, 'No puede ser negativo').optional(),
@@ -329,6 +330,7 @@ export default function TournamentCreateForm() {
       extra_club_ids: [],
       price: undefined,
       award: '',
+      american_couples_per_zone: 'ALL',
       single_bracket_advance_count: 8,
       gold_count: 4,
       silver_count: 4,
@@ -465,6 +467,9 @@ export default function TournamentCreateForm() {
       if (preset?.advancementConfig.kind === 'SINGLE') {
         form.setValue('single_bracket_advance_count', preset.advancementConfig.advanceCount);
       }
+      if (preset?.advancementConfig.kind === 'PER_ZONE_TOP') {
+        form.setValue('american_couples_per_zone', String(preset.advancementConfig.couplesPerZone) as '2' | '3' | 'ALL');
+      }
       if (preset?.advancementConfig.kind === 'GOLD_SILVER') {
         form.setValue('gold_count', preset.advancementConfig.goldCount);
         form.setValue('silver_count', preset.advancementConfig.silverCount);
@@ -478,6 +483,10 @@ export default function TournamentCreateForm() {
 
     if (selectedPreset.advancementConfig.kind === 'SINGLE') {
       form.setValue('single_bracket_advance_count', selectedPreset.advancementConfig.advanceCount);
+    }
+
+    if (selectedPreset.advancementConfig.kind === 'PER_ZONE_TOP') {
+      form.setValue('american_couples_per_zone', String(selectedPreset.advancementConfig.couplesPerZone) as '2' | '3' | 'ALL');
     }
 
     if (selectedPreset.advancementConfig.kind === 'GOLD_SILVER') {
@@ -611,6 +620,10 @@ export default function TournamentCreateForm() {
         baseFields.push('single_bracket_advance_count');
       }
 
+      if (selectedPreset?.advancementConfig.kind === 'PER_ZONE_TOP') {
+        baseFields.push('american_couples_per_zone');
+      }
+
       if (selectedPreset?.advancementConfig.kind === 'GOLD_SILVER') {
         baseFields.push('gold_count', 'silver_count', 'eliminated_count');
       }
@@ -711,6 +724,11 @@ export default function TournamentCreateForm() {
         type: data.type as 'LONG' | 'AMERICAN',
         format_config: buildTournamentFormatConfig({
           presetId: data.format_preset as TournamentFormatPresetId,
+          couplesPerZone: data.american_couples_per_zone
+            ? data.american_couples_per_zone === 'ALL'
+              ? 'ALL'
+              : Number(data.american_couples_per_zone) as CouplesPerZone
+            : undefined,
           singleAdvanceCount: data.single_bracket_advance_count,
           goldCount: data.gold_count,
           silverCount: data.silver_count,
@@ -1301,6 +1319,34 @@ export default function TournamentCreateForm() {
                                     </FormControl>
                                     <FormDescription className="text-slate-500">
                                       Ajusta cuantas parejas pasan a la etapa final.
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
+                            {selectedPreset.advancementConfig.kind === 'PER_ZONE_TOP' && (
+                              <FormField
+                                control={form.control}
+                                name="american_couples_per_zone"
+                                render={({ field }) => (
+                                  <FormItem className="max-w-xs">
+                                    <FormLabel className="font-medium text-slate-700">Parejas que pasan por zona</FormLabel>
+                                    <Select value={field.value ?? 'ALL'} onValueChange={field.onChange}>
+                                      <FormControl>
+                                        <SelectTrigger className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900">
+                                          <SelectValue placeholder="Selecciona cuantas pasan" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="2">2 por zona</SelectItem>
+                                        <SelectItem value="3">3 por zona</SelectItem>
+                                        <SelectItem value="ALL">Todas por zona</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormDescription className="text-slate-500">
+                                      La llave se arma tomando primero esta cantidad en cada zona.
                                     </FormDescription>
                                     <FormMessage />
                                   </FormItem>

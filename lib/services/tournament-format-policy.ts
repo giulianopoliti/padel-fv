@@ -53,6 +53,7 @@ export function shouldWrapLegacyEndpointsWithCanonicalFlow(
   return (
     resolved.presetId === 'AMERICAN_MULTI_ZONE_2' ||
     resolved.presetId === 'AMERICAN_MULTI_ZONE_3' ||
+    resolved.presetId === 'LONG_SINGLE_ZONE_BRACKET' ||
     resolved.presetId === 'LONG_SINGLE_ZONE_GOLD_SILVER'
   )
 }

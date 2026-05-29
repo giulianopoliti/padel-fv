@@ -1,5 +1,7 @@
 import { createClientServiceRole } from '@/utils/supabase/server'
 import { TournamentConfigService } from '@/lib/services/tournament-config.service'
+import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
+import { getZoneStageAndMatchesPerCouple } from '@/lib/services/zone-fixture-planner.service'
 import { getZonesFormatIdFromTournament } from '@/lib/services/zones-format-utils'
 import type { BracketKey } from '@/types/tournament-format-v2'
 
@@ -138,6 +140,11 @@ export function resolveEffectiveRoundsPerCoupleForValidation(
   },
   couplesInZone: number
 ): number {
+  if ((tournament as any)?.format_config?.version === 2) {
+    const resolved = TournamentFormatResolver.getResolvedFormat(tournament, { totalCouples: couplesInZone })
+    return getZoneStageAndMatchesPerCouple(couplesInZone, resolved).matchesPerCouple
+  }
+
   const formatId = getZonesFormatIdFromTournament(tournament, { totalCouples: couplesInZone })
   const canonicalRoundsPerCouple = TournamentConfigService.getMatchesPerCouple(formatId, couplesInZone)
   const persistedRoundsPerCouple = zone.rounds_per_couple

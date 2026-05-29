@@ -35,7 +35,7 @@ const match = (
 })
 
 describe('ranking scalability services', () => {
-  it('resolves format-aware tournament rules including global ranking presets', () => {
+  it('resolves format-aware tournament rules for operational presets', () => {
     const american2 = TournamentFormatRulesService.resolve({
       tournament: { format_config: getTournamentFormatPreset('AMERICAN_MULTI_ZONE_2') },
       coupleCount: 4,
@@ -44,16 +44,16 @@ describe('ranking scalability services', () => {
       tournament: { format_config: getTournamentFormatPreset('AMERICAN_MULTI_ZONE_3') },
       coupleCount: 4,
     })
-    const global = TournamentFormatRulesService.resolve({
-      tournament: { format_config: getTournamentFormatPreset('AMERICAN_MULTI_ZONE_GLOBAL_STANDINGS') },
+    const longGoldSilver = TournamentFormatRulesService.resolve({
+      tournament: { format_config: getTournamentFormatPreset('LONG_SINGLE_ZONE_GOLD_SILVER') },
       coupleCount: 4,
     })
 
     expect(american2.matchesPerCouple).toBe(2)
     expect(american3.matchesPerCouple).toBe(3)
-    expect(global.rankingScope).toBe('GLOBAL')
-    expect(global.qualificationSource).toBe('GLOBAL_STANDINGS')
-    expect(global.bracketSeedingStrategy).toBe('GLOBAL_RANKING')
+    expect(longGoldSilver.rankingScope).toBe('PER_ZONE')
+    expect(longGoldSilver.qualificationSource).toBe('ZONE_POSITIONS')
+    expect(longGoldSilver.bracketSeedingStrategy).toBe('SERPENTINE_BY_ZONE')
   })
 
   it('calculates per-zone and global standings with the same ranking engine', () => {

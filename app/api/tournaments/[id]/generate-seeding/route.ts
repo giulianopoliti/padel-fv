@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { generateCanonicalSeeding } from '@/lib/services/bracket-generation-orchestrator'
+import { shouldWrapLegacyEndpointsWithCanonicalFlow } from '@/lib/services/tournament-format-policy'
 import { generateTournamentSeeding } from '@/utils/bracket-seeding-algorithm'
 import { createClient } from '@/utils/supabase/server'
 
@@ -27,6 +29,30 @@ export async function POST(
 
     // Crear cliente autenticado
     const supabase = await createClient()
+
+    const { data: tournament } = await supabase
+      .from('tournaments')
+      .select('type, format_type, format_config')
+      .eq('id', tournamentId)
+      .single()
+
+    if (tournament && shouldWrapLegacyEndpointsWithCanonicalFlow(tournament)) {
+      const canonical = await generateCanonicalSeeding(tournamentId)
+      if (!canonical.success) {
+        return NextResponse.json(canonical, { status: 400 })
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: canonical.message,
+        totalCouples: canonical.data.totalSeeds,
+        bracketSize: canonical.data.seeds.length,
+        byes: 0,
+        algorithm: 'canonical-placeholder-serpentine',
+        strategy: 'format-config-v2',
+        couplesRanked: canonical.data.seeds,
+      })
+    }
     
     // Usar el algoritmo perfecto con cliente autenticado y auto-detección de estrategia
     const result = await generateTournamentSeeding(tournamentId, supabase)

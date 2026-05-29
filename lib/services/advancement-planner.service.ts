@@ -1,4 +1,5 @@
 import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
+import { selectQualifiedEntries } from '@/lib/services/qualification-policy.service'
 import type {
   AdvancementResult,
   BracketKey,
@@ -41,6 +42,16 @@ export class AdvancementPlanner {
       }
     }
 
+    if (resolved.effectiveBracketMode === 'SINGLE' && resolved.effectiveAdvancementConfig.kind === 'PER_ZONE_TOP') {
+      const couplesPerZone = resolved.effectiveAdvancementConfig.couplesPerZone
+      if (couplesPerZone !== 2 && couplesPerZone !== 3 && couplesPerZone !== 'ALL') {
+        return {
+          isValid: false,
+          error: 'La llave por zonas solo admite 2, 3 o todas las parejas por zona.',
+        }
+      }
+    }
+
     return { isValid: true }
   }
 
@@ -58,6 +69,18 @@ export class AdvancementPlanner {
         silver: [],
         eliminated: rankedEntries.slice(1),
         championCoupleId: rankedEntries[0],
+      }
+    }
+
+    if (resolved.effectiveBracketMode === 'SINGLE' && resolved.effectiveAdvancementConfig.kind === 'PER_ZONE_TOP') {
+      return {
+        gold: selectQualifiedEntries(
+          rankedEntries as Array<T & { localPosition: number | null; zoneId: string | null }>,
+          resolved.effectiveAdvancementConfig,
+          'MAIN'
+        ) as T[],
+        silver: [],
+        eliminated: [],
       }
     }
 

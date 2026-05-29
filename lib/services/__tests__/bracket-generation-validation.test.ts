@@ -4,6 +4,7 @@ import {
   findCouplesBelowRequiredMatches,
   resolveEffectiveRoundsPerCoupleForValidation,
 } from '@/lib/services/bracket-generation-validation'
+import { getTournamentFormatPreset } from '@/config/tournament-format-presets'
 
 describe('bracket-generation-validation', () => {
   describe('calculateExpectedZoneMatches', () => {
@@ -35,6 +36,22 @@ describe('bracket-generation-validation', () => {
         },
         {
           rounds_per_couple: 3,
+        },
+        3
+      )
+
+      expect(rounds).toBe(2)
+    })
+
+    it('allows v2 AMERICAN_MULTI_ZONE_3 zones of 3 to play 2 matches per couple', () => {
+      const rounds = resolveEffectiveRoundsPerCoupleForValidation(
+        {
+          type: 'AMERICAN',
+          format_type: 'AMERICAN_3',
+          format_config: getTournamentFormatPreset('AMERICAN_MULTI_ZONE_3'),
+        },
+        {
+          rounds_per_couple: 2,
         },
         3
       )

@@ -11,18 +11,15 @@ describe('Tournament format v2', () => {
     expect(resolved.zoneMode).toBe('MULTI_ZONE')
   })
 
-  it('applies the 5-couple single-zone american override', () => {
+  it('keeps american single-zone as round-robin champion', () => {
     const resolved = TournamentFormatResolver.getResolvedFormat(
-      { format_config: getTournamentFormatPreset('AMERICAN_SINGLE_ZONE_3_BRACKET') },
+      { format_config: getTournamentFormatPreset('AMERICAN_SINGLE_ZONE_ROUND_ROBIN_CHAMPION') },
       { totalCouples: 5 }
     )
 
     expect(resolved.effectiveZoneStage).toBe('ROUND_ROBIN')
-    expect(resolved.effectiveTargetMatchesPerCouple).toBe(4)
-    expect(resolved.effectiveAdvancementConfig.kind).toBe('SINGLE')
-    if (resolved.effectiveAdvancementConfig.kind === 'SINGLE') {
-      expect(resolved.effectiveAdvancementConfig.advanceCount).toBe(4)
-    }
+    expect(resolved.effectiveBracketMode).toBe('NONE')
+    expect(resolved.effectiveAdvancementConfig.kind).toBe('NONE')
   })
 
   it('plans american multi-zone 3-match tournaments with 3 and 4-couple zones only', () => {
@@ -30,7 +27,25 @@ describe('Tournament format v2', () => {
 
     expect(plan.isValid).toBe(true)
     expect(plan.zones.map((zone) => zone.size)).toEqual([4, 4, 3])
+    expect(plan.zones[0].matchesPerCouple).toBe(3)
     expect(plan.zones[2].matchesPerCouple).toBe(2)
+  })
+
+  it('normalizes old american multi-zone SINGLE configs to per-zone ALL', () => {
+    const legacyConfig = {
+      ...getTournamentFormatPreset('AMERICAN_MULTI_ZONE_2'),
+      advancementConfig: { kind: 'SINGLE' as const, advanceCount: 8 },
+    }
+
+    const resolved = TournamentFormatResolver.getResolvedFormat({
+      type: 'AMERICAN',
+      format_config: legacyConfig,
+    })
+
+    expect(resolved.effectiveAdvancementConfig).toEqual({
+      kind: 'PER_ZONE_TOP',
+      couplesPerZone: 'ALL',
+    })
   })
 
   it('rejects invalid gold/silver splits', () => {
@@ -47,7 +62,7 @@ describe('Tournament format v2', () => {
   })
 
   it('splits gold, silver and eliminated couples from ranking order', () => {
-    const config = getTournamentFormatPreset('AMERICAN_SINGLE_ZONE_ROUND_ROBIN_GOLD_SILVER')
+    const config = getTournamentFormatPreset('LONG_SINGLE_ZONE_GOLD_SILVER')
     if (config.advancementConfig.kind === 'GOLD_SILVER') {
       config.advancementConfig.goldCount = 4
       config.advancementConfig.silverCount = 4

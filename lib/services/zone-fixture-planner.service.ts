@@ -63,9 +63,9 @@ export function getZoneStageAndMatchesPerCouple(
   }
 
   if (config.baseType === 'AMERICAN' && config.zoneMode === 'MULTI_ZONE' && config.targetMatchesPerCouple === 3 && zoneSize === 3) {
-    notes.push('Excepcion valida: zona de 3 juega 2 partidos por pareja.')
+    notes.push('Excepcion valida: zona de 3 juega round robin completo de 2 partidos por pareja.')
     return {
-      stage: 'FIXED_MATCH_COUNT',
+      stage: 'ROUND_ROBIN',
       matchesPerCouple: 2,
       notes,
     }

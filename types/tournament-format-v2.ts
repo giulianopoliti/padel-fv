@@ -1,16 +1,22 @@
 export type BaseTournamentType = 'AMERICAN' | 'LONG'
 
-export type TournamentFormatPresetId =
+export type OperationalTournamentFormatPresetId =
   | 'AMERICAN_MULTI_ZONE_2'
   | 'AMERICAN_MULTI_ZONE_3'
+  | 'AMERICAN_SINGLE_ZONE_ROUND_ROBIN_CHAMPION'
+  | 'LONG_SINGLE_ZONE_BRACKET'
+  | 'LONG_SINGLE_ZONE_GOLD_SILVER'
+
+export type LegacyTournamentFormatPresetId =
   | 'AMERICAN_MULTI_ZONE_GLOBAL_STANDINGS'
   | 'AMERICAN_SINGLE_ZONE_2_BRACKET'
   | 'AMERICAN_SINGLE_ZONE_3_BRACKET'
-  | 'AMERICAN_SINGLE_ZONE_ROUND_ROBIN_CHAMPION'
   | 'AMERICAN_SINGLE_ZONE_ROUND_ROBIN_GOLD_SILVER'
-  | 'LONG_SINGLE_ZONE_BRACKET'
   | 'LONG_SINGLE_ZONE_CHAMPION'
-  | 'LONG_SINGLE_ZONE_GOLD_SILVER'
+
+export type TournamentFormatPresetId =
+  | OperationalTournamentFormatPresetId
+  | LegacyTournamentFormatPresetId
 
 export type ZoneMode = 'MULTI_ZONE' | 'SINGLE_ZONE'
 export type ZoneStage = 'FIXED_MATCH_COUNT' | 'ROUND_ROBIN'
@@ -20,6 +26,12 @@ export type RankingScope = 'PER_ZONE' | 'GLOBAL'
 export type RankingPolicyId = 'STANDARD_PADEL'
 export type QualificationSource = 'ZONE_POSITIONS' | 'GLOBAL_STANDINGS'
 export type BracketSeedingStrategy = 'SERPENTINE_BY_ZONE' | 'GLOBAL_RANKING'
+export type CouplesPerZone = 2 | 3 | 'ALL'
+
+export interface PerZoneTopAdvancementConfig {
+  kind: 'PER_ZONE_TOP'
+  couplesPerZone: CouplesPerZone
+}
 
 export interface SingleBracketAdvancementConfig {
   kind: 'SINGLE'
@@ -38,6 +50,7 @@ export interface NoBracketAdvancementConfig {
 }
 
 export type AdvancementConfig =
+  | PerZoneTopAdvancementConfig
   | SingleBracketAdvancementConfig
   | GoldSilverAdvancementConfig
   | NoBracketAdvancementConfig

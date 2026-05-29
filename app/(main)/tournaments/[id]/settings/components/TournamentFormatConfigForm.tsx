@@ -17,7 +17,7 @@ import { getPresetOptionsByType } from '@/config/tournament-format-presets'
 import { buildTournamentFormatConfig } from '@/lib/services/tournament-format-config-builder'
 import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
 import { updateTournamentFormatConfig } from '../actions'
-import type { TournamentFormatPresetId } from '@/types/tournament-format-v2'
+import type { CouplesPerZone, TournamentFormatPresetId } from '@/types/tournament-format-v2'
 
 interface TournamentFormatConfigFormProps {
   tournamentId: string
@@ -76,6 +76,11 @@ export default function TournamentFormatConfigForm({
       ? getDefaultSingleAdvanceCount(resolvedFormat.advancementConfig.advanceCount)
       : getDefaultSingleAdvanceCount(8)
   )
+  const [couplesPerZone, setCouplesPerZone] = useState<CouplesPerZone>(
+    resolvedFormat.advancementConfig.kind === 'PER_ZONE_TOP'
+      ? resolvedFormat.advancementConfig.couplesPerZone
+      : 'ALL'
+  )
   const [goldCount, setGoldCount] = useState(
     resolvedFormat.advancementConfig.kind === 'GOLD_SILVER' ? resolvedFormat.advancementConfig.goldCount : 4
   )
@@ -118,6 +123,9 @@ export default function TournamentFormatConfigForm({
     if (nextPreset.advancementConfig.kind === 'SINGLE') {
       setSingleAdvanceCount(getDefaultSingleAdvanceCount(nextPreset.advancementConfig.advanceCount))
     }
+    if (nextPreset.advancementConfig.kind === 'PER_ZONE_TOP') {
+      setCouplesPerZone(nextPreset.advancementConfig.couplesPerZone)
+    }
     if (nextPreset.advancementConfig.kind === 'GOLD_SILVER') {
       setGoldCount(nextPreset.advancementConfig.goldCount)
       setSilverCount(nextPreset.advancementConfig.silverCount)
@@ -133,6 +141,7 @@ export default function TournamentFormatConfigForm({
     try {
       const nextConfig = buildTournamentFormatConfig({
         presetId,
+        couplesPerZone,
         singleAdvanceCount,
         goldCount,
         silverCount,
@@ -214,6 +223,28 @@ export default function TournamentFormatConfigForm({
               Máximo permitido: {registeredCouplesCount} (parejas inscriptas).
             </p>
           )}
+        </div>
+      )}
+
+      {selectedPreset?.advancementConfig.kind === 'PER_ZONE_TOP' && (
+        <div className="space-y-2">
+          <Label>Parejas que pasan por zona</Label>
+          <Select
+            value={String(couplesPerZone)}
+            onValueChange={(value) => setCouplesPerZone(value === 'ALL' ? 'ALL' : Number(value) as CouplesPerZone)}
+          >
+            <SelectTrigger className="bg-white">
+              <SelectValue placeholder="Selecciona cuantas pasan" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="2">2 por zona</SelectItem>
+              <SelectItem value="3">3 por zona</SelectItem>
+              <SelectItem value="ALL">Todas por zona</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-slate-500">
+            Se aplica por cada zona antes de armar el orden de seeds.
+          </p>
         </div>
       )}
 
