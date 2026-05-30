@@ -26,6 +26,10 @@ import {
 import { normalizePlayerDni } from '@/lib/utils/player-dni';
 import { findExistingPlayerByIdentity } from '@/lib/utils/player-identity';
 import { ensureLongTournamentGeneralZone } from '@/lib/services/tournaments/long-general-zone';
+import {
+  ensureCanonicalZoneMembership,
+  removeTournamentCoupleMembership,
+} from '@/lib/services/tournament-zone-membership';
 import { MAX_TOURNAMENT_PRICE } from '@/lib/constants/tournaments';
 
 
@@ -3057,6 +3061,63 @@ export async function pairIndividualPlayers(tournamentId: string, player1Id: str
       return { success: false, error: "No se pudo inscribir la pareja." };
     }
 
+    const { data: tournament, error: tournamentError } = await supabase
+      .from('tournaments')
+      .select('type')
+      .eq('id', tournamentId)
+      .single();
+
+    if (tournamentError) {
+      console.error("[pairIndividualPlayers] Error checking tournament type:", tournamentError);
+      await removeTournamentCoupleMembership({
+        supabase,
+        tournamentId,
+        coupleId,
+        deleteInscription: false,
+      });
+      await supabase.from('inscriptions').delete().eq('id', newInscription.id);
+      return { success: false, error: "Error al verificar el tipo de torneo." };
+    }
+
+    if (tournament?.type === 'LONG') {
+      const ensuredZoneResult = await ensureLongTournamentGeneralZone(tournamentId);
+      if (!ensuredZoneResult.success) {
+        await supabase.from('inscriptions').delete().eq('id', newInscription.id);
+        return { success: false, error: ensuredZoneResult.error || "No se pudo preparar la zona del torneo." };
+      }
+
+      const { data: zone, error: zoneError } = await supabase
+        .from('zones')
+        .select('id')
+        .eq('tournament_id', tournamentId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (zoneError || !zone) {
+        console.error('[pairIndividualPlayers] Error finding LONG zone:', zoneError);
+        await supabase.from('inscriptions').delete().eq('id', newInscription.id);
+        return { success: false, error: "No se encontro zona para el torneo LONG." };
+      }
+
+      const membershipResult = await ensureCanonicalZoneMembership({
+        supabase,
+        tournamentId,
+        zoneId: zone.id,
+        coupleId,
+      });
+
+      if (!membershipResult.success) {
+        console.error('[pairIndividualPlayers] Error assigning canonical zone membership:', membershipResult.error);
+        await supabase.from('inscriptions').delete().eq('id', newInscription.id);
+        return { success: false, error: "No se pudo asignar la pareja a la zona del torneo." };
+      }
+
+      if (membershipResult.mirrorWarning) {
+        console.warn('[pairIndividualPlayers] zone_couples mirror warning:', membershipResult.mirrorWarning);
+      }
+    }
+
     // Eliminar las inscripciones individuales de ambos jugadores
     const { error: deleteError } = await supabase
       .from('inscriptions')
@@ -3066,6 +3127,12 @@ export async function pairIndividualPlayers(tournamentId: string, player1Id: str
     if (deleteError) {
       console.error("[pairIndividualPlayers] Error deleting individual inscriptions:", deleteError);
       // Intentar rollback de la inscripción de pareja
+      await removeTournamentCoupleMembership({
+        supabase,
+        tournamentId,
+        coupleId,
+        deleteInscription: false,
+      });
       await supabase.from('inscriptions').delete().eq('id', newInscription.id);
       return { success: false, error: "Error al eliminar las inscripciones individuales." };
     }
@@ -3079,7 +3146,7 @@ export async function pairIndividualPlayers(tournamentId: string, player1Id: str
         .eq('id', tournamentId)
         .single();
       
-      if (!tournamentError && tournament?.type === 'LONG') {
+      if (!tournamentError && tournament?.type === 'LONG' && process.env.NODE_ENV === 'legacy-zone-couples-disabled') {
         console.log('[pairIndividualPlayers] Assigning couple to zone for LONG tournament');
         
         // Find the zone for this tournament
@@ -5935,6 +6002,20 @@ export async function rejectInscription(inscriptionId: string): Promise<{
   const permissions = await checkTournamentPermissions(user.id, inscription.tournament_id);
   if (!permissions.hasPermission) {
     return { success: false, error: permissions.reason || 'No tienes permisos para rechazar esta inscripcion' };
+  }
+
+  if (inscription.couple_id) {
+    const cleanupResult = await removeTournamentCoupleMembership({
+      supabase,
+      tournamentId: inscription.tournament_id,
+      coupleId: inscription.couple_id,
+      deleteInscription: false,
+    });
+
+    if (!cleanupResult.success) {
+      console.error('[rejectInscription] Error limpiando zonas canonicas:', cleanupResult.error);
+      return { success: false, error: 'Error limpiando zonas de la inscripcion' };
+    }
   }
 
   if (inscription.payment_proof_path) {

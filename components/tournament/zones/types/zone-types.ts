@@ -49,6 +49,7 @@ export interface CleanZone {
   id: string
   name: string
   capacity: number
+  maxCouples: number
   couples: SerializableCouple[]
   createdAt: string // ISO string
 }

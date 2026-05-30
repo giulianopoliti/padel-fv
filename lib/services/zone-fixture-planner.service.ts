@@ -44,6 +44,24 @@ export function getZoneStageAndMatchesPerCouple(
 ): { stage: 'FIXED_MATCH_COUNT' | 'ROUND_ROBIN'; matchesPerCouple: number; notes: string[] } {
   const notes: string[] = []
 
+  if (zoneSize <= 1) {
+    notes.push('Con menos de 2 parejas no hay partido oficial posible.')
+    return {
+      stage: 'ROUND_ROBIN',
+      matchesPerCouple: 0,
+      notes,
+    }
+  }
+
+  if (config.baseType === 'AMERICAN' && zoneSize === 2) {
+    notes.push('Zona temporal de 2 parejas: se permite un partido oficial mientras se completa la zona.')
+    return {
+      stage: 'ROUND_ROBIN',
+      matchesPerCouple: 1,
+      notes,
+    }
+  }
+
   if (config.zoneMode === 'SINGLE_ZONE' && config.baseType === 'AMERICAN' && config.bracketMode === 'SINGLE' && zoneSize === 3) {
     notes.push('Con 3 parejas se juega round robin completo de 2 partidos por pareja.')
     return {

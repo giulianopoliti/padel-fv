@@ -19,6 +19,7 @@ export function transformZoneData(rawZone: any): CleanZone {
     id: rawZone.id || '',
     name: rawZone.name || '',
     capacity: rawZone.capacity || 4,
+    maxCouples: rawZone.maxCouples || rawZone.max_couples || rawZone.capacity || 4,
     createdAt: rawZone.created_at || new Date().toISOString(),
     couples: []
   }

@@ -742,8 +742,8 @@ function TournamentZonesMatrixInternal({
             id: zone.id,
             name: zone.name,
             currentSize: zone.couples.length,
-            capacity: zone.capacity,
-            canReceive: zone.couples.length < zone.capacity
+            capacity: zone.maxCouples || zone.capacity,
+            canReceive: zone.couples.length < (zone.maxCouples || zone.capacity)
           }))}
           onMoveToZone={handleMoveToZoneFromSheet}
           onMoveToPool={handleMoveToPoolFromSheet}
@@ -769,8 +769,8 @@ function TournamentZonesMatrixInternal({
             id: zone.id,
             name: zone.name,
             currentSize: zone.couples.length,
-            capacity: zone.capacity,
-            canReceive: zone.couples.length < zone.capacity
+            capacity: zone.maxCouples || zone.capacity,
+            canReceive: zone.couples.length < (zone.maxCouples || zone.capacity)
           }))}
           onMoveToZone={handleMoveToZoneFromSheet}
           onMoveToPool={handleMoveToPoolFromSheet}

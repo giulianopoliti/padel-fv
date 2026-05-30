@@ -102,7 +102,16 @@ export async function generateBracketFromSeeding(tournamentId: string, supabase:
 
   console.log(`[generateBracketFromSeeding] Rounds needed: ${roundsNeeded}, Active rounds:`, activeRounds)
 
-  // 4. Limpiar matches existentes
+  // 4. Limpiar jerarquia y matches existentes
+  const { error: hierarchyDeleteError } = await supabase
+    .from('match_hierarchy')
+    .delete()
+    .eq('tournament_id', tournamentId)
+
+  if (hierarchyDeleteError) {
+    throw new Error(`Error deleting existing match hierarchy: ${hierarchyDeleteError.message}`)
+  }
+
   const { error: deleteError } = await supabase
     .from('matches')
     .delete()
@@ -119,7 +128,7 @@ export async function generateBracketFromSeeding(tournamentId: string, supabase:
 
   // Crear array de posiciones con BYEs
   const positions = Array(P).fill(null)
-  seeds.forEach(seed => {
+  seeds.forEach((seed: any) => {
     positions[seed.bracket_position - 1] = seed.couple_id
   })
 
@@ -224,12 +233,12 @@ export async function generateBracketFromSeeding(tournamentId: string, supabase:
     .update({
       bracket_status: 'BRACKET_GENERATED',
       status: 'BRACKET_PHASE',
-      updated_at: new Date().toISOString()
+      bracket_generated_at: new Date().toISOString()
     })
     .eq('id', tournamentId)
 
   if (updateError) {
-    console.warn('[generateBracketFromSeeding] Warning: Failed to update tournament status:', updateError)
+    throw new Error(`Error updating tournament bracket status: ${updateError.message}`)
   }
 
   console.log(`[generateBracketFromSeeding] 🎉 Success: Hybrid-Serpentino bracket completed`)

@@ -2,6 +2,19 @@ import { getTournamentFormatPreset } from '@/config/tournament-format-presets'
 import { ZoneMatchRulesService } from '@/lib/services/zone-match-rules.service'
 
 describe('ZoneMatchRulesService', () => {
+  it('resolves temporary zones of 2 to 1 match per couple', () => {
+    const rules = ZoneMatchRulesService.resolveRules({
+      tournament: {
+        type: 'AMERICAN',
+        format_config: getTournamentFormatPreset('AMERICAN_MULTI_ZONE_3'),
+      },
+      coupleCount: 2,
+    })
+
+    expect(rules.maxMatchesPerCouple).toBe(1)
+    expect(rules.source).toBe('tournament.format_config')
+  })
+
   it('resolves AMERICAN_MULTI_ZONE_3 zones of 4 to 3 matches per couple', () => {
     const rules = ZoneMatchRulesService.resolveRules({
       tournament: {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/utils/supabase/server"
 import { createApiResponse } from "@/utils/serialization"
+import { ZoneRulesSyncService } from "@/lib/services/zone-rules-sync.service"
 
 // Import shouldTournamentUseNewSystem function
 async function shouldTournamentUseNewSystem(tournamentId: string): Promise<boolean> {
@@ -111,6 +112,14 @@ export async function POST(
         
         console.log(`[remove-couple] ✅ Reordered ${updates.length} positions in zone ${zoneId}`)
       }
+    }
+
+    const syncResult = await ZoneRulesSyncService.syncZoneRulesForZone(supabase, zoneId)
+    if (!syncResult.success) {
+      return NextResponse.json(
+        createApiResponse({ success: false, message: syncResult.error || "Error sincronizando reglas de zona" }),
+        { status: 400 }
+      )
     }
     
     return NextResponse.json(createApiResponse({ success: true, message: "Pareja removida de la zona" }))

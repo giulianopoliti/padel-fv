@@ -12,6 +12,10 @@
 import { BaseRegistrationStrategy } from './registration-strategy.interface'
 import { validateMixedPairGender } from '@/lib/services/tournament-category-config'
 import { ensureLongTournamentGeneralZone } from '@/lib/services/tournaments/long-general-zone'
+import {
+  ensureCanonicalZoneMembership,
+  removeTournamentCoupleMembership,
+} from '@/lib/services/tournament-zone-membership'
 import { normalizePlayerDni } from '@/lib/utils/player-dni'
 import { findExistingPlayerByIdentity } from '@/lib/utils/player-identity'
 import type {
@@ -571,45 +575,24 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
       }
 
       // Verificar si ya está asignada
-      const { data: existingAssignment } = await supabase
-        .from('zone_couples')
-        .select('zone_id')
-        .eq('zone_id', zone.id)
-        .eq('couple_id', coupleId)
-        .maybeSingle()
+      const membershipResult = await ensureCanonicalZoneMembership({
+        supabase,
+        tournamentId,
+        zoneId: zone.id,
+        coupleId,
+      })
 
-      if (existingAssignment) {
-        console.log(`[LongStrategy] Pareja ${coupleId} ya asignada a zona ${zone.id}`)
-        return { success: true, zoneId: zone.id }
-      }
-
-      // Asignar pareja a la zona
-      console.log(`[LongStrategy] Insertando en zone_couples: zone_id=${zone.id}, couple_id=${coupleId}`)
-      
-      const { data: insertResult, error: assignmentError } = await supabase
-        .from('zone_couples')
-        .insert({
-          zone_id: zone.id,
-          couple_id: coupleId
-        })
-        .select('zone_id, couple_id')
-
-      if (assignmentError) {
-        console.error('[LongStrategy] Error asignando pareja a zona:', {
-          error: assignmentError,
-          code: assignmentError.code,
-          message: assignmentError.message,
-          details: assignmentError.details,
-          hint: assignmentError.hint,
+      if (!membershipResult.success) {
+        console.error('[LongStrategy] Error asignando membresia canonica de zona:', {
+          error: membershipResult.error,
           zoneId: zone.id,
-          coupleId: coupleId
+          coupleId,
         })
-        return { success: false, error: `Error al asignar pareja a zona: ${assignmentError.message}` }
+        return { success: false, error: `Error al asignar pareja a zona: ${membershipResult.error}` }
       }
 
-      if (!insertResult || insertResult.length === 0) {
-        console.error('[LongStrategy] Insert succeeded but no data returned')
-        return { success: false, error: 'Insert succeeded but no data returned' }
+      if (membershipResult.mirrorWarning) {
+        console.warn('[LongStrategy] zone_couples mirror warning:', membershipResult.mirrorWarning)
       }
 
       console.log(`✅ [LongStrategy] Pareja ${coupleId} asignada exitosamente a zona ${zone.id}`)
@@ -632,49 +615,29 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
     try {
       console.log(`[LongStrategy] Removiendo pareja ${coupleId} de zonas del torneo ${tournamentId}`)
 
-      // Obtener todas las zonas del torneo
-      const { data: tournamentZones, error: zonesError } = await supabase
-        .from('zones')
-        .select('id')
-        .eq('tournament_id', tournamentId)
+      const removalResult = await removeTournamentCoupleMembership({
+        supabase,
+        tournamentId,
+        coupleId,
+        deleteInscription: false,
+      })
 
-      if (zonesError) {
-        console.error('[LongStrategy] Error obteniendo zonas:', zonesError)
-        return { success: false, error: 'Error obteniendo zonas del torneo' }
-      }
-
-      if (!tournamentZones || tournamentZones.length === 0) {
-        console.log(`[LongStrategy] No hay zonas en el torneo ${tournamentId}`)
-        return { success: true, zonesCount: 0 }
-      }
-
-      // Remover de zone_couples
-      const zoneIds = tournamentZones.map((zone: any) => zone.id)
-      const { error: removalError } = await supabase
-        .from('zone_couples')
-        .delete()
-        .eq('couple_id', coupleId)
-        .in('zone_id', zoneIds)
-
-      if (removalError) {
-        console.error('[LongStrategy] Error removiendo de zone_couples:', removalError)
+      if (!removalResult.success) {
+        console.error('[LongStrategy] Error removiendo membresia de zonas:', removalResult.error)
         return { success: false, error: 'Error eliminando pareja de las zonas' }
       }
 
       // ✅ FIX: Remover de zone_positions también (evita registros huérfanos)
-      const { error: positionsRemovalError } = await supabase
-        .from('zone_positions')
-        .delete()
-        .eq('couple_id', coupleId)
-        .eq('tournament_id', tournamentId)
+      const positionsRemovalError: { message?: string } | null = null
 
       if (positionsRemovalError) {
         console.error('[LongStrategy] Error removiendo de zone_positions:', positionsRemovalError)
         return { success: false, error: 'Error eliminando posiciones de pareja' }
       }
 
+      const zoneIds = { length: removalResult.zonesCount }
       console.log(`✅ [LongStrategy] Pareja ${coupleId} removida de ${zoneIds.length} zonas y zone_positions`)
-      return { success: true, zonesCount: zoneIds.length }
+      return { success: true, zonesCount: removalResult.zonesCount }
 
     } catch (error) {
       console.error('[LongStrategy] Error inesperado removiendo de zonas:', error)

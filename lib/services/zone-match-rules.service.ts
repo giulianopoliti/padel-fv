@@ -1,4 +1,5 @@
 import { TournamentFormatRulesService } from '@/lib/services/tournament-format-rules.service'
+import { ZoneRulesSyncService } from '@/lib/services/zone-rules-sync.service'
 
 type TournamentLike = {
   type?: string | null
@@ -14,6 +15,7 @@ type ZoneLike = {
 
 export type ZoneMatchRulesSource =
   | 'zone.rounds_per_couple'
+  | 'synced-zone-rules'
   | 'tournament.format_config'
   | 'tournament.format_type'
   | 'legacy-couple-count'
@@ -34,6 +36,14 @@ export class ZoneMatchRulesService {
     coupleCount: number
   }): ZoneMatchRules {
     const { tournament, zone, coupleCount } = params
+
+    if (coupleCount <= 1) {
+      return {
+        maxMatchesPerCouple: 0,
+        coupleCount,
+        source: tournament ? 'tournament.format_config' : 'legacy-couple-count',
+      }
+    }
 
     if (isPositiveNumber(zone?.rounds_per_couple)) {
       return {
@@ -65,50 +75,16 @@ export class ZoneMatchRulesService {
   }
 
   static async getRulesForZone(supabase: any, zoneId: string): Promise<ZoneMatchRules> {
-    const { data: zone, error: zoneError } = await supabase
-      .from('zones')
-      .select('id, tournament_id, rounds_per_couple')
-      .eq('id', zoneId)
-      .single()
+    const syncResult = await ZoneRulesSyncService.syncZoneRulesForZone(supabase, zoneId)
 
-    if (zoneError || !zone) {
-      throw new Error('Zona no encontrada')
+    if (!syncResult.success) {
+      throw new Error(syncResult.error || 'No se pudieron resolver las reglas de zona')
     }
 
-    const { data: zonePositions, error: positionsError } = await supabase
-      .from('zone_positions')
-      .select('couple_id')
-      .eq('zone_id', zoneId)
-
-    if (positionsError) {
-      throw new Error('Error al obtener parejas de la zona')
+    return {
+      maxMatchesPerCouple: syncResult.roundsPerCouple ?? 0,
+      coupleCount: syncResult.coupleCount,
+      source: syncResult.changed ? 'synced-zone-rules' : 'zone.rounds_per_couple',
     }
-
-    let coupleCount = zonePositions?.length || 0
-    if (coupleCount === 0) {
-      const { data: zoneCouples } = await supabase
-        .from('zone_couples')
-        .select('couple_id')
-        .eq('zone_id', zoneId)
-
-      coupleCount = zoneCouples?.length || 0
-    }
-
-    let tournament: TournamentLike | null = null
-    if (!isPositiveNumber(zone.rounds_per_couple) && zone.tournament_id) {
-      const { data: tournamentData } = await supabase
-        .from('tournaments')
-        .select('type, format_type, format_config')
-        .eq('id', zone.tournament_id)
-        .single()
-
-      tournament = tournamentData
-    }
-
-    return this.resolveRules({
-      tournament,
-      zone,
-      coupleCount,
-    })
   }
 }
