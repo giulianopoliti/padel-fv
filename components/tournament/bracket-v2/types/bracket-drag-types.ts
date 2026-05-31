@@ -166,7 +166,7 @@ export interface BracketDragDropConfig {
   ownerOnly: boolean
   /** Solo permite intercambios en la misma ronda */
   sameRoundOnly: boolean
-  /** Solo permite intercambios en matches PENDING */
+  /** Solo permite intercambios en estados reordenables (PENDING/WAITING_OPONENT) */
   pendingMatchesOnly: boolean
   /** Máximo número de operaciones pendientes */
   maxPendingOperations: number

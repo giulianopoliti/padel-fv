@@ -40,6 +40,12 @@ export default function TournamentFormatConfigForm({
     }
     return fallback
   }
+  const getDefaultMatchesPerCouple = (fallback?: number | null) => {
+    const maxMatches = Math.max(1, registeredCouplesCount - 1)
+    const nextValue = typeof fallback === 'number' && fallback > 0 ? fallback : 3
+
+    return Math.min(nextValue, maxMatches)
+  }
 
   const resolvedFormat = useMemo(
     () => TournamentFormatResolver.getResolvedFormat({ type: tournamentType, format_config: formatConfig }),
@@ -81,6 +87,9 @@ export default function TournamentFormatConfigForm({
       ? resolvedFormat.advancementConfig.couplesPerZone
       : 'ALL'
   )
+  const [matchesPerCouple, setMatchesPerCouple] = useState(
+    getDefaultMatchesPerCouple(resolvedFormat.effectiveTargetMatchesPerCouple)
+  )
   const [goldCount, setGoldCount] = useState(
     resolvedFormat.advancementConfig.kind === 'GOLD_SILVER' ? resolvedFormat.advancementConfig.goldCount : 4
   )
@@ -120,6 +129,9 @@ export default function TournamentFormatConfigForm({
 
     setBusinessError(null)
     setPresetId(nextPreset.presetId)
+    if (nextPreset.zoneStage === 'FIXED_MATCH_COUNT') {
+      setMatchesPerCouple(getDefaultMatchesPerCouple(nextPreset.targetMatchesPerCouple))
+    }
     if (nextPreset.advancementConfig.kind === 'SINGLE') {
       setSingleAdvanceCount(getDefaultSingleAdvanceCount(nextPreset.advancementConfig.advanceCount))
     }
@@ -143,6 +155,7 @@ export default function TournamentFormatConfigForm({
         presetId,
         couplesPerZone,
         singleAdvanceCount,
+        matchesPerCouple,
         goldCount,
         silverCount,
         eliminatedCount,
@@ -197,6 +210,33 @@ export default function TournamentFormatConfigForm({
         <Alert variant="destructive">
           <AlertDescription>{businessError}</AlertDescription>
         </Alert>
+      )}
+
+      {selectedPreset?.zoneStage === 'FIXED_MATCH_COUNT' && (
+        <div className="space-y-2">
+          <Label htmlFor="matches-per-couple">Partidos por pareja</Label>
+          <Input
+            id="matches-per-couple"
+            type="number"
+            min="1"
+            max={registeredCouplesCount > 1 ? registeredCouplesCount - 1 : undefined}
+            value={matchesPerCouple}
+            onChange={(event) => {
+              const raw = Math.max(1, Number(event.target.value || 1))
+              if (registeredCouplesCount > 1) {
+                setMatchesPerCouple(Math.min(raw, registeredCouplesCount - 1))
+                return
+              }
+              setMatchesPerCouple(raw)
+            }}
+            className="bg-white"
+          />
+          {registeredCouplesCount > 1 && (
+            <p className="text-xs text-slate-500">
+              Maximo permitido: {registeredCouplesCount - 1} por pareja.
+            </p>
+          )}
+        </div>
       )}
 
       {selectedPreset?.advancementConfig.kind === 'SINGLE' && (

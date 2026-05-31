@@ -7,10 +7,9 @@ import { BracketDragDropProvider } from '@/components/tournament/bracket-v2/cont
 import { useBracketData } from '@/components/tournament/bracket-v2/hooks/useBracketData'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertCircle, Trophy } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
 import type { BracketKey } from '@/types/tournament-format-v2'
 
@@ -140,57 +139,27 @@ export default function LongBracketView({ tournamentId, onMatchUpdate }: LongBra
     onMatchUpdate?.()
   }
 
-  const bracketHeader = tournament ? (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="rounded-lg bg-green-100 p-2">
-            <Trophy className="h-4 w-4 text-green-600" />
-          </div>
-          <div className="space-y-1">
-            <h2 className="text-base font-semibold text-slate-900">Llave del torneo</h2>
-            <p className="text-sm text-slate-600">
-              Formato arbol por rounds con la misma gestion operativa de resultados, drag & drop y avance.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {isGoldSilverFormat && (
-            <div className="flex items-center gap-2 rounded-lg border border-slate-200 p-1">
-              <Button
-                type="button"
-                size="sm"
-                variant={activeBracketKey === 'GOLD' ? 'default' : 'ghost'}
-                onClick={() => setActiveBracketKey('GOLD')}
-              >
-                Oro
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={activeBracketKey === 'SILVER' ? 'default' : 'ghost'}
-                onClick={() => setActiveBracketKey('SILVER')}
-              >
-                Plata
-              </Button>
-            </div>
-          )}
-          <Badge variant="default">
-            {tournament.type === 'LONG' ? 'Torneo Largo' : 'Torneo Americano'}
-          </Badge>
-          <Badge variant="outline" className="max-w-full truncate">
-            {tournament.name}
-          </Badge>
-          {hasManagementPermissions && (
-            <Badge variant="outline">
-              <Trophy className="mr-1 h-3 w-3" />
-              {permissions?.source === 'admin' ? 'Admin' :
-               permissions?.source === 'organization_member' ? 'Organizador' :
-               'Owner'}
-            </Badge>
-          )}
-        </div>
+  const bracketHeader = tournament && isGoldSilverFormat ? (
+    <div className="rounded-lg border border-slate-200 bg-white p-1.5">
+      <div className="grid grid-cols-2 gap-1.5">
+        <Button
+          type="button"
+          size="lg"
+          variant={activeBracketKey === 'GOLD' ? 'default' : 'ghost'}
+          className="h-11 text-base font-semibold"
+          onClick={() => setActiveBracketKey('GOLD')}
+        >
+          Oro
+        </Button>
+        <Button
+          type="button"
+          size="lg"
+          variant={activeBracketKey === 'SILVER' ? 'default' : 'ghost'}
+          className="h-11 text-base font-semibold"
+          onClick={() => setActiveBracketKey('SILVER')}
+        >
+          Plata
+        </Button>
       </div>
     </div>
   ) : null
@@ -262,7 +231,7 @@ export default function LongBracketView({ tournamentId, onMatchUpdate }: LongBra
     <div className="space-y-3">
       {bracketHeader}
 
-      <div className="overflow-visible rounded-lg border border-slate-200 bg-white">
+      <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
         <BracketDragDropProvider key={activeBracketKey}>
           <ImprovedBracketRenderer
             key={activeBracketKey}

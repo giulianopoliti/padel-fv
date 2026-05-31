@@ -1,69 +1,31 @@
-/**
- * IMPROVED BRACKET RENDERER - VERSIÓN MEJORADA Y MÁS CLARA
- * 
- * Renderizador de brackets con visualización mejorada, gestión de matches
- * y componentes de gestión integrados.
- * 
- * MEJORAS:
- * - Visualización más clara y organizada
- * - Integración con MatchManagementCard
- * - Layout responsive mejorado
- * - Estados visuales más claros
- * - Drag & drop optimizado
- * 
- * @author Claude Code Assistant
- * @version 3.0.0
- */
-
 'use client'
 
-import React, { useMemo, useState } from 'react'
-import { useToast } from '@/components/ui/use-toast'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { 
-  Grid, 
-  List, 
-  Maximize2, 
-  Minimize2, 
-  Zap, 
-  Users,
-  Trophy,
-  Clock,
-  Filter,
-  Edit3,
-  Save,
-  X
-} from 'lucide-react'
-import { MatchManagementCard } from './MatchManagementCard'
-import { DraggableMatchManagementCard } from './DraggableMatchManagementCard'
+import { Clock3, Edit3, Save, Trophy, Users, X, Zap } from 'lucide-react'
+import {
+  BracketMoveCoupleSheet,
+  type BracketMoveSelection,
+  type BracketMoveTargetOption
+} from './BracketMoveCoupleSheet'
 import { GranularMatchCard } from './GranularMatchCard'
-import { ImprovedMatchResultForm } from './ImprovedMatchResultForm'
-import { useBracketLayout } from '../hooks/useBracketLayout'
+import {
+  BracketMatchActionDialogs,
+  type BracketMatchDialogAction,
+} from './BracketMatchActionDialogs'
 import { useBracketDragDrop } from '../context/bracket-drag-context'
 import { useBracketDragOperations } from '../hooks/useBracketDragOperations'
+import { useBracketTreeLayout, type TreeMatchPosition } from '../hooks/useBracketTreeLayout'
 import { applyPendingOperationsToData, getMatchPreviewInfo } from '../utils/preview-operations'
-import type {
-  BracketData,
-  BracketMatchV2,
-  ParticipantSlot,
-  CoupleData
-} from '../types/bracket-types'
-import type { DragDropConfig, SlotPosition } from '../types/drag-drop-types'
-
-// ============================================================================
-// TIPOS
-// ============================================================================
+import type { BracketData, BracketMatchV2, CoupleData } from '../types/bracket-types'
 
 export interface ImprovedBracketRendererProps {
   bracketData: BracketData
   tournamentId: string
-  tournamentType?: 'AMERICAN' | 'LONG'  // ✅ NUEVO
+  tournamentType?: 'AMERICAN' | 'LONG'
   isOwner?: boolean
   enableDragDrop?: boolean
   onMatchUpdate?: (matchId: string, updatedData: any) => void
@@ -77,60 +39,48 @@ interface RoundGroup {
   displayName: string
   totalMatches: number
   completedMatches: number
-  canPlay: number  // Matches que pueden jugarse (tienen ambas parejas)
+  canPlay: number
 }
 
-interface ViewMode {
-  layout: 'grid' | 'list'
-  compact: boolean
-  showCompleted: boolean
-  filterByStatus?: string
+interface SelectedCoupleForMove {
+  couple: CoupleData
+  match: BracketMatchV2
+  slot: 'slot1' | 'slot2'
 }
 
-// ============================================================================
-// CONSTANTES
-// ============================================================================
-
-// Nombres cortos para tabs (optimizar espacio)
-const SHORT_ROUND_NAMES: Record<string, string> = {
-  '32VOS': '32vos',
-  '16VOS': '16vos',
-  '8VOS': '8vos',
-  '4TOS': '4tos',
-  'SEMIFINAL': 'Semis',
+const ROUND_ORDER = ['32VOS', '16VOS', '8VOS', '4TOS', 'SEMIFINAL', 'FINAL']
+const ROUND_DISPLAY_NAMES: Record<string, string> = {
+  '32VOS': 'Treintaidosavos',
+  '16VOS': 'Dieciseisavos',
+  '8VOS': 'Octavos de Final',
+  '4TOS': 'Cuartos de Final',
+  'SEMIFINAL': 'Semifinales',
   'FINAL': 'Final'
 }
 
-// ============================================================================
-// COMPONENTE PRINCIPAL
-// ============================================================================
+const AUTO_SCROLL_EDGE_PX = 96
+const MAX_VERTICAL_SCROLL_STEP = 28
+const MAX_HORIZONTAL_SCROLL_STEP = 22
 
 export function ImprovedBracketRenderer({
   bracketData,
   tournamentId,
-  tournamentType = 'AMERICAN',  // ✅ DEFAULT AMERICAN
+  tournamentType = 'AMERICAN',
   isOwner = false,
   enableDragDrop = false,
   onMatchUpdate,
   onDataRefresh,
   className
 }: ImprovedBracketRendererProps) {
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [selectedCoupleForMove, setSelectedCoupleForMove] = useState<SelectedCoupleForMove | null>(null)
+  const [isMovePanelOpen, setIsMovePanelOpen] = useState(false)
+  const [matchDialogAction, setMatchDialogAction] = useState<BracketMatchDialogAction | null>(null)
+  const { state: dragState } = useBracketDragDrop()
+  const desktopScrollRef = useRef<HTMLDivElement | null>(null)
+  const autoScrollFrameRef = useRef<number | null>(null)
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
 
-  // Estados locales
-  const [viewMode, setViewMode] = useState<ViewMode>({
-    layout: 'grid',
-    compact: false,
-    showCompleted: true
-  })
-  const [selectedRound, setSelectedRound] = useState<string>('all')
-  const [expandedMatch, setExpandedMatch] = useState<string | null>(null)
-  const [isEditMode, setIsEditMode] = useState<boolean>(false)
-  const { toast } = useToast()
-
-  // Hook del contexto de drag & drop para obtener operaciones pendientes
-  const { state: dragState, actions: dragActions } = useBracketDragDrop()
-  
-  // Hook para operaciones de drag & drop (guardar, cancelar)
   const dragOperations = useBracketDragOperations({
     tournamentId,
     isOwner,
@@ -141,82 +91,41 @@ export function ImprovedBracketRenderer({
       maxPendingOperations: 10
     }
   })
-  
-  // ✅ FIXED: Stabilize preview data calculation with deep comparison
-  const previewData = useMemo(() => {
-    // Only recalculate if there are actual pending operations or bracket data changed
-    if (dragState.pendingOperations.length === 0) {
-      return bracketData; // No operations pending, return original data
-    }
-    return applyPendingOperationsToData(bracketData, dragState.pendingOperations);
-  }, [
-    bracketData,
-    bracketData.matches.length, // ✅ Use length instead of full array
-    bracketData.seeds.length,   // ✅ Use length instead of full array  
-    dragState.pendingOperations.length, // ✅ Use length for comparison
-    // ✅ Add operation IDs for deep change detection
-    dragState.pendingOperations.map(op => op.operationId).join(',')
-  ])
 
-  // Agrupar matches por round (usando preview data)
-  const roundGroups = useMemo(() => {
-    // ✅ FIXED: Only log in development and reduce frequency
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`🔄 [ImprovedBracketRenderer] Recalculando roundGroups:`, {
-        previewMatches: previewData.matches.length,
-        pendingOperations: dragState.pendingOperations.length
-      })
+  const previewData = useMemo(() => {
+    if (dragState.pendingOperations.length === 0) {
+      return bracketData
     }
-    
-    // ✅ FIXED: Only check for duplicates in development
-    if (process.env.NODE_ENV === 'development') {
-      const matchIds = previewData.matches.map(m => m.id)
-      const uniqueIds = new Set(matchIds)
-      if (matchIds.length !== uniqueIds.size) {
-        console.error(`❌ [ImprovedBracketRenderer] MATCHES DUPLICADOS DETECTADOS:`, {
-          totalMatches: matchIds.length,
-          uniqueIds: uniqueIds.size
-        })
-      }
-    }
-    
+
+    return applyPendingOperationsToData(bracketData, dragState.pendingOperations)
+  }, [bracketData, dragState.pendingOperations])
+
+  const roundGroups = useMemo<RoundGroup[]>(() => {
     const groups = new Map<string, BracketMatchV2[]>()
-    
+
     previewData.matches.forEach(match => {
-      if (!groups.has(match.round)) {
-        groups.set(match.round, [])
-      }
-      groups.get(match.round)!.push(match)
+      const current = groups.get(match.round) ?? []
+      current.push(match)
+      groups.set(match.round, current)
     })
 
-    // Convertir a array con estadísticas - Orden cronológico del torneo
-    const roundOrder = ['32VOS', '16VOS', '8VOS', '4TOS', 'SEMIFINAL', 'FINAL']
-    const roundDisplayNames: Record<string, string> = {
-      '8VOS': 'Octavos de Final',
-      '4TOS': 'Cuartos de Final',
-      'SEMIFINAL': 'Semifinales',
-      'FINAL': 'Final',
-      '16VOS': 'Dieciseisavos',
-      '32VOS': 'Treintaidosavos'
-    }
-
     return Array.from(groups.entries())
-      .sort(([a], [b]) => {
-        const indexA = roundOrder.indexOf(a)
-        const indexB = roundOrder.indexOf(b)
+      .sort(([roundA], [roundB]) => {
+        const indexA = ROUND_ORDER.indexOf(roundA)
+        const indexB = ROUND_ORDER.indexOf(roundB)
         return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB)
       })
-      .map(([round, matches]): RoundGroup => {
-        const sortedMatches = matches.sort((a, b) => (a.order_in_round || 0) - (b.order_in_round || 0))
-        const completedMatches = sortedMatches.filter(m => m.status === 'FINISHED').length
-        const canPlay = sortedMatches.filter(m => 
-          m.participants?.slot1?.couple && m.participants?.slot2?.couple
+      .map(([round, matches]) => {
+        const sortedMatches = [...matches].sort((a, b) => (a.order_in_round ?? 0) - (b.order_in_round ?? 0))
+        const completedMatches = sortedMatches.filter(match => match.status === 'FINISHED').length
+        const canPlay = sortedMatches.filter(
+          match => match.participants?.slot1?.couple && match.participants?.slot2?.couple
         ).length
 
         return {
           round,
           matches: sortedMatches,
-          displayName: roundDisplayNames[round] || round,
+          displayName: ROUND_DISPLAY_NAMES[round] ?? round,
           totalMatches: sortedMatches.length,
           completedMatches,
           canPlay
@@ -224,190 +133,406 @@ export function ImprovedBracketRenderer({
       })
   }, [previewData.matches])
 
-  // Estadísticas generales (usando preview data)
   const stats = useMemo(() => {
     const total = previewData.matches.length
-    const completed = previewData.matches.filter(m => m.status === 'FINISHED').length
-    const inProgress = previewData.matches.filter(m => m.status === 'IN_PROGRESS').length
-    const canPlay = previewData.matches.filter(m => 
-      m.participants?.slot1?.couple && m.participants?.slot2?.couple && m.status === 'PENDING'
+    const completed = previewData.matches.filter(match => match.status === 'FINISHED').length
+    const inProgress = previewData.matches.filter(match => match.status === 'IN_PROGRESS').length
+    const canPlay = previewData.matches.filter(
+      match =>
+        match.status === 'PENDING' &&
+        match.participants?.slot1?.couple &&
+        match.participants?.slot2?.couple
     ).length
 
     return { total, completed, inProgress, canPlay }
   }, [previewData.matches])
 
-  // Filtrar matches según configuración
-  const filteredRounds = useMemo(() => {
-    let filtered = roundGroups
+  const { layout } = useBracketTreeLayout({
+    tournamentId,
+    roundGroups,
+    tournamentType
+  })
 
-    if (selectedRound !== 'all') {
-      filtered = filtered.filter(group => group.round === selectedRound)
+  const moveSelectionDetails = useMemo<BracketMoveSelection | null>(() => {
+    if (!selectedCoupleForMove) {
+      return null
     }
 
-    if (!viewMode.showCompleted) {
-      filtered = filtered.map(group => ({
-        ...group,
-        matches: group.matches.filter(m => m.status !== 'FINISHED')
-      })).filter(group => group.matches.length > 0)
+    return {
+      coupleId: selectedCoupleForMove.couple.id,
+      coupleName: selectedCoupleForMove.couple.name || [
+        `${selectedCoupleForMove.couple.player1_details?.first_name || ''} ${selectedCoupleForMove.couple.player1_details?.last_name || ''}`.trim(),
+        `${selectedCoupleForMove.couple.player2_details?.first_name || ''} ${selectedCoupleForMove.couple.player2_details?.last_name || ''}`.trim()
+      ].filter(Boolean).join(' / '),
+      sourceMatchId: selectedCoupleForMove.match.id,
+      sourceMatchLabel: `${ROUND_DISPLAY_NAMES[selectedCoupleForMove.match.round] ?? selectedCoupleForMove.match.round} - Match ${selectedCoupleForMove.match.order_in_round || 'N/A'}`,
+      sourceSlot: selectedCoupleForMove.slot,
+      round: ROUND_DISPLAY_NAMES[selectedCoupleForMove.match.round] ?? selectedCoupleForMove.match.round
+    }
+  }, [selectedCoupleForMove])
+
+  const moveTargetGroups = useMemo(() => {
+    if (!selectedCoupleForMove || !isEditMode) {
+      return []
     }
 
-    return filtered
-  }, [roundGroups, selectedRound, viewMode.showCompleted])
+    const sameRoundGroup = roundGroups.find(group => group.round === selectedCoupleForMove.match.round)
+    if (!sameRoundGroup) {
+      return []
+    }
 
-  // Handlers de modo edición
+    return sameRoundGroup.matches
+      .map(match => {
+        const slotOptions = (['slot1', 'slot2'] as const)
+          .map(slot => {
+            const validation = dragOperations.canQueueOperationFromSelection(
+              selectedCoupleForMove.couple,
+              selectedCoupleForMove.match,
+              selectedCoupleForMove.slot,
+              match,
+              slot
+            )
+
+            if (!validation.canDrop) {
+              return null
+            }
+
+            const operationType = dragOperations.determineOperationType(match, slot)
+            const participant = match.participants?.[slot]
+            const occupantName = participant?.type === 'couple' && participant.couple
+              ? participant.couple.name || [
+                  `${participant.couple.player1_details?.first_name || ''} ${participant.couple.player1_details?.last_name || ''}`.trim(),
+                  `${participant.couple.player2_details?.first_name || ''} ${participant.couple.player2_details?.last_name || ''}`.trim()
+                ].filter(Boolean).join(' / ')
+              : null
+            const placeholderLabel = participant?.type === 'placeholder'
+              ? participant.placeholder?.display || null
+              : null
+
+            const option: BracketMoveTargetOption = {
+              key: `${match.id}-${slot}`,
+              matchId: match.id,
+              matchLabel: `${ROUND_DISPLAY_NAMES[match.round] ?? match.round} - Match ${match.order_in_round || 'N/A'}`,
+              slot,
+              slotLabel: slot === 'slot1' ? 'Slot 1' : 'Slot 2',
+              round: match.round,
+              operationType,
+              occupantName,
+              placeholderLabel,
+              statusLabel: match.status === 'PENDING' ? 'Pendiente' : match.status
+            }
+
+            return option
+          })
+          .filter((option): option is BracketMoveTargetOption => option !== null)
+
+        if (slotOptions.length === 0) {
+          return null
+        }
+
+        return {
+          matchId: match.id,
+          matchLabel: `${ROUND_DISPLAY_NAMES[match.round] ?? match.round} - Match ${match.order_in_round || 'N/A'}`,
+          statusLabel: match.status === 'PENDING' ? 'Pendiente' : match.status,
+          slotOptions
+        }
+      })
+      .filter((group): group is {
+        matchId: string
+        matchLabel: string
+        statusLabel: string
+        slotOptions: BracketMoveTargetOption[]
+      } => group !== null)
+  }, [dragOperations, isEditMode, roundGroups, selectedCoupleForMove])
+
+  const moveTargetKeySet = useMemo(() => new Set(
+    moveTargetGroups.flatMap(group => group.slotOptions.map(option => option.key))
+  ), [moveTargetGroups])
+
+  useEffect(() => {
+    if (!isEditMode || !dragState.isDragging) {
+      lastPointerRef.current = null
+      if (autoScrollFrameRef.current !== null) {
+        cancelAnimationFrame(autoScrollFrameRef.current)
+        autoScrollFrameRef.current = null
+      }
+      return
+    }
+
+    const updatePointer = (event: DragEvent) => {
+      lastPointerRef.current = {
+        x: event.clientX,
+        y: event.clientY
+      }
+    }
+
+    const stopAutoScroll = () => {
+      lastPointerRef.current = null
+      if (autoScrollFrameRef.current !== null) {
+        cancelAnimationFrame(autoScrollFrameRef.current)
+        autoScrollFrameRef.current = null
+      }
+    }
+
+    const computeVelocity = (distance: number, maxDistance: number, maxStep: number) => {
+      const ratio = Math.max(0, Math.min(1, distance / maxDistance))
+      return Math.ceil(maxStep * ratio)
+    }
+
+    const tick = () => {
+      const pointer = lastPointerRef.current
+
+      if (pointer) {
+        let verticalDelta = 0
+
+        if (pointer.y < AUTO_SCROLL_EDGE_PX) {
+          verticalDelta = -computeVelocity(AUTO_SCROLL_EDGE_PX - pointer.y, AUTO_SCROLL_EDGE_PX, MAX_VERTICAL_SCROLL_STEP)
+        } else if (pointer.y > window.innerHeight - AUTO_SCROLL_EDGE_PX) {
+          verticalDelta = computeVelocity(
+            pointer.y - (window.innerHeight - AUTO_SCROLL_EDGE_PX),
+            AUTO_SCROLL_EDGE_PX,
+            MAX_VERTICAL_SCROLL_STEP
+          )
+        }
+
+        if (verticalDelta !== 0) {
+          window.scrollBy({
+            top: verticalDelta,
+            behavior: 'auto'
+          })
+        }
+
+        const horizontalContainer = desktopScrollRef.current
+        if (horizontalContainer) {
+          const rect = horizontalContainer.getBoundingClientRect()
+          let horizontalDelta = 0
+
+          if (pointer.x > rect.left && pointer.x < rect.right) {
+            if (pointer.x < rect.left + AUTO_SCROLL_EDGE_PX) {
+              horizontalDelta = -computeVelocity(
+                rect.left + AUTO_SCROLL_EDGE_PX - pointer.x,
+                AUTO_SCROLL_EDGE_PX,
+                MAX_HORIZONTAL_SCROLL_STEP
+              )
+            } else if (pointer.x > rect.right - AUTO_SCROLL_EDGE_PX) {
+              horizontalDelta = computeVelocity(
+                pointer.x - (rect.right - AUTO_SCROLL_EDGE_PX),
+                AUTO_SCROLL_EDGE_PX,
+                MAX_HORIZONTAL_SCROLL_STEP
+              )
+            }
+          }
+
+          if (horizontalDelta !== 0) {
+            horizontalContainer.scrollLeft += horizontalDelta
+          }
+        }
+      }
+
+      autoScrollFrameRef.current = requestAnimationFrame(tick)
+    }
+
+    window.addEventListener('dragover', updatePointer)
+    window.addEventListener('drop', stopAutoScroll)
+    window.addEventListener('dragend', stopAutoScroll)
+    autoScrollFrameRef.current = requestAnimationFrame(tick)
+
+    return () => {
+      window.removeEventListener('dragover', updatePointer)
+      window.removeEventListener('drop', stopAutoScroll)
+      window.removeEventListener('dragend', stopAutoScroll)
+      stopAutoScroll()
+    }
+  }, [dragState.isDragging, isEditMode])
+
   const handleEnterEditMode = () => {
     setIsEditMode(true)
   }
 
+  const closeMovePanel = () => {
+    setIsMovePanelOpen(false)
+    setSelectedCoupleForMove(null)
+  }
+
   const handleExitEditMode = () => {
-    // Limpiar operaciones pendientes al salir
+    closeMovePanel()
     dragOperations.clearPendingOperations()
     setIsEditMode(false)
   }
 
   const handleSaveChanges = async () => {
-    if (dragState.pendingOperations.length === 0) return
-    
+    if (dragState.pendingOperations.length === 0) {
+      return
+    }
+
     const result = await dragOperations.saveAllOperations()
     if (result.success) {
+      closeMovePanel()
       setIsEditMode(false)
       onDataRefresh?.()
     }
   }
 
+  const handleSelectCoupleForMove = (couple: CoupleData, match: BracketMatchV2, slot: 'slot1' | 'slot2') => {
+    if (!isEditMode) {
+      return
+    }
 
-  // Renderizar match individual con nuevo sistema granular
-  const renderMatch = (match: BracketMatchV2, index: number) => {
-    const isExpanded = expandedMatch === match.id
-    
-    // Información de preview para este match
+    const validation = dragOperations.canDragCouple(couple, match, slot)
+    if (!validation.canDrag) {
+      return
+    }
+
+    setSelectedCoupleForMove({ couple, match, slot })
+    setIsMovePanelOpen(true)
+  }
+
+  const handleSelectMoveTarget = (target: BracketMoveTargetOption) => {
+    if (!selectedCoupleForMove) {
+      return
+    }
+
+    const targetMatch = previewData.matches.find(match => match.id === target.matchId)
+    if (!targetMatch) {
+      return
+    }
+
+    const didQueue = dragOperations.queueOperationFromSelection(
+      selectedCoupleForMove.couple,
+      selectedCoupleForMove.match,
+      selectedCoupleForMove.slot,
+      targetMatch,
+      target.slot
+    )
+
+    if (didQueue) {
+      closeMovePanel()
+    }
+  }
+
+  const renderMatchCard = (match: BracketMatchV2, variant: 'tree' | 'stack') => {
     const previewInfo = getMatchPreviewInfo(match.id, dragState.pendingOperations)
     const hasChanges = previewInfo.hasChanges
-    
-    // ✅ FIXED: Reduce excessive logging - only in development and only for errors
-    if (process.env.NODE_ENV === 'development' && hasChanges) {
-      console.log(`🎯 [ImprovedBracketRenderer] Match with changes:`, {
-        matchId: match.id,
-        round: match.round
-      })
-    }
-    
-    // Handler para carga de resultados (ya no se usa - el formulario es inline)
-    const handleResultClick = (matchData: BracketMatchV2) => {
-      console.log('🎯 [ImprovedBracketRenderer] Click en resultado (inline form handles this)')
-      // Ya no expandimos - el GranularMatchCard maneja esto inline
-    }
+    const containerStyle = variant === 'tree'
+      ? { height: layout.cardSize.height }
+      : undefined
 
     return (
       <div
         key={match.id}
         className={cn(
-          'transition-all duration-200 relative',
-          isExpanded && 'scale-105 z-10 relative shadow-lg',
-          hasChanges && 'ring-2 ring-blue-300 ring-opacity-50 shadow-blue-100'
+          'relative transition-all duration-200',
+          variant === 'tree' ? 'w-full' : 'w-full max-w-full',
+          hasChanges && 'ring-2 ring-blue-300 ring-opacity-60 rounded-xl'
         )}
+        style={containerStyle}
       >
-        {/* Indicador de cambios pendientes */}
         {hasChanges && (
           <div className="absolute -top-2 -right-2 z-30">
-            <div className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-bold text-white shadow-lg">
               {previewInfo.operationsCount}
             </div>
           </div>
         )}
-        
-        {/* Componente granular con drag & drop preciso */}
+
         <GranularMatchCard
           match={match}
           tournamentId={tournamentId}
-          tournamentType={tournamentType}  // ✅ NUEVO
+          tournamentType={tournamentType}
           isOwner={isOwner}
           isEditMode={isEditMode}
-          seeds={bracketData.seeds}  // ✅ NUEVO: Pasar seeds para resolver couple IDs
+          seeds={previewData.seeds}
           onMatchUpdate={onMatchUpdate}
-          onResultClick={handleResultClick}
+          onRequestStartMatch={(targetMatch) => setMatchDialogAction({ type: 'start', match: targetMatch })}
+          onRequestLoadResult={(targetMatch) => setMatchDialogAction({ type: 'result', match: targetMatch })}
+          onRequestModifyResult={(targetMatch) =>
+            setMatchDialogAction({ type: 'result', match: targetMatch, isModify: true })
+          }
+          onSelectForMove={handleSelectCoupleForMove}
+          selectedMoveSlot={
+            selectedCoupleForMove?.match.id === match.id
+              ? selectedCoupleForMove.slot
+              : null
+          }
+          moveTargetSlots={{
+            slot1: moveTargetKeySet.has(`${match.id}-slot1`),
+            slot2: moveTargetKeySet.has(`${match.id}-slot2`)
+          }}
           className={cn(
-            'hover:shadow-md transition-shadow',
-            viewMode.compact && 'text-sm',
+            'w-full border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-lg',
+            variant === 'tree' && 'h-full',
             hasChanges && 'ring-1 ring-blue-200 shadow-blue-50'
           )}
         />
-        
-        {/* Ya no usamos panel expandido - todo es inline en las cards */}
       </div>
     )
   }
 
-  // Renderizar grid de round
-  const renderRoundGrid = (group: RoundGroup) => {
-    return (
-      <div className="space-y-4">
-        {/* Header del round */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">
-              {group.displayName}
-            </h3>
-          </div>
-          
-          {/* Badge de progreso */}
-          <Badge 
-            variant={group.completedMatches === group.totalMatches ? "default" : "secondary"}
-            className={cn(
-              group.completedMatches === group.totalMatches && "bg-green-600"
-            )}
-          >
-            {group.completedMatches}/{group.totalMatches}
-          </Badge>
-        </div>
+  const renderDesktopTreeMatch = (position: TreeMatchPosition) => (
+    <div
+      key={position.match.id}
+      className="absolute"
+      style={{
+        left: position.x,
+        top: position.y,
+        width: position.width
+      }}
+    >
+      {renderMatchCard(position.match, 'tree')}
+    </div>
+  )
 
-        {/* Grid de matches */}
-        <div className={cn(
-          'grid gap-4',
-          viewMode.layout === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'
-        )}>
-          {group.matches.map((match, index) => renderMatch(match, index))}
-        </div>
-      </div>
-    )
-  }
-
-  // Renderizar controles
   const renderControls = () => (
-    <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-white border-b">
-      
-      {/* Botón de modo edición y controles */}
-      {isOwner && enableDragDrop && (
-        <div className="flex items-center gap-3">
-          {!isEditMode ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={handleEnterEditMode}
-                    variant="outline"
-                    size="sm"
-                    className="border-blue-300 text-blue-700 hover:bg-blue-50"
-                  >
-                    <Edit3 className="h-4 w-4 mr-2" />
-                    🔄 Reorganizar Parejas
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Arrastra parejas de un partido a otro para modificar la llave</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : (
-            <div className="flex items-center gap-2">
-              {dragState.pendingOperations.length > 0 ? (
+    <div className="border-b border-slate-200 bg-white">
+      <div className="flex flex-col gap-3 p-3 lg:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+            <div className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1">
+              <Users className="h-3.5 w-3.5" />
+              {stats.total} partidos
+            </div>
+            <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
+              <Trophy className="h-3.5 w-3.5" />
+              {stats.completed} completados
+            </div>
+            <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-blue-700">
+              <Clock3 className="h-3.5 w-3.5" />
+              {stats.inProgress} en curso
+            </div>
+            <div className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+              <Zap className="h-3.5 w-3.5" />
+              {stats.canPlay} listos
+            </div>
+          </div>
+
+          {isOwner && enableDragDrop && (
+              !isEditMode ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={handleEnterEditMode}
+                        variant="outline"
+                        size="sm"
+                        className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                      >
+                        <Edit3 className="mr-2 h-4 w-4" />
+                        Reorganizar parejas
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Arrastra o hace click en una pareja para moverla dentro de la misma ronda.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : dragState.pendingOperations.length > 0 ? (
                 <>
                   <Button
                     onClick={handleSaveChanges}
                     size="sm"
-                    className="bg-green-600 hover:bg-green-700 text-white"
+                    className="bg-green-600 text-white hover:bg-green-700"
                   >
-                    <Save className="h-4 w-4 mr-2" />
+                    <Save className="mr-2 h-4 w-4" />
                     Guardar {dragState.pendingOperations.length} cambio(s)
                   </Button>
                   <Button
@@ -416,7 +541,7 @@ export function ImprovedBracketRenderer({
                     size="sm"
                     className="border-red-300 text-red-700 hover:bg-red-50"
                   >
-                    <X className="h-4 w-4 mr-2" />
+                    <X className="mr-2 h-4 w-4" />
                     Cancelar
                   </Button>
                 </>
@@ -427,162 +552,149 @@ export function ImprovedBracketRenderer({
                   size="sm"
                   className="border-gray-300"
                 >
-                  <X className="h-4 w-4 mr-2" />
-                  ✅ Editando Llave
+                  <X className="mr-2 h-4 w-4" />
+                  Editando llave
                 </Button>
-              )}
-            </div>
+              )
           )}
         </div>
-      )}
 
-
-      {/* Indicador de operaciones pendientes */}
-      {dragState.pendingOperations.length > 0 && (
-        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-          <span className="text-sm text-blue-800 font-medium">
-            {dragState.pendingOperations.length} intercambio(s) pendiente(s)
-          </span>
-          <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-            No guardado
-          </Badge>
-        </div>
-      )}
-    
-    <div className="flex-1 flex flex-wrap items-center justify-end gap-4">
-
-      {/* Controles de vista */}
-      <div className="flex items-center gap-2">
-        {/* Filtro por round */}
-        <select
-          value={selectedRound}
-          onChange={(e) => setSelectedRound(e.target.value)}
-          className="px-3 py-1 border rounded text-sm"
-        >
-          <option value="all">Todas las rondas</option>
-          {roundGroups.map(group => (
-            <option key={group.round} value={group.round}>
-              {group.displayName}
-            </option>
-          ))}
-        </select>
-
-        {/* Toggle layout */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setViewMode(prev => ({ 
-            ...prev, 
-            layout: prev.layout === 'grid' ? 'list' : 'grid' 
-          }))}
-        >
-          {viewMode.layout === 'grid' ? <List className="h-4 w-4" /> : <Grid className="h-4 w-4" />}
-        </Button>
-
-        {/* Toggle compacto */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setViewMode(prev => ({ ...prev, compact: !prev.compact }))}
-        >
-          {viewMode.compact ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
-        </Button>
-
+        {dragState.pendingOperations.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+            <div className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+            <span className="font-medium">
+              {dragState.pendingOperations.length} intercambio(s) pendiente(s)
+            </span>
+            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+              No guardado
+            </Badge>
+          </div>
+        )}
       </div>
-    </div>
     </div>
   )
 
+  if (roundGroups.length === 0) {
+    return (
+      <div className={cn('rounded-lg border bg-slate-50', className)}>
+        {renderControls()}
+        <div className="px-6 py-16 text-center">
+          <div className="text-lg text-slate-500">No hay matches para mostrar</div>
+          <div className="mt-2 text-sm text-slate-400">Verifica que la llave este generada correctamente.</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className={cn('bg-gray-50 rounded-lg border', className)}>
-      {/* Controles superiores */}
+    <div className={cn('min-w-0 max-w-full overflow-hidden rounded-lg border bg-slate-50', className)}>
       {renderControls()}
 
-      {/* Contenido principal */}
-      <ScrollArea className="h-[calc(100vh-12rem)]">
-        <div className="p-6 space-y-8">
-          {/* Tabs por round para mejor organización */}
-          <Tabs value={selectedRound} onValueChange={setSelectedRound}>
-            <ScrollArea className="w-full">
-              <TabsList className="inline-flex w-max min-w-full">
-                <TabsTrigger value="all" className="min-w-[100px]">Todas</TabsTrigger>
-                {roundGroups.map(group => (
-                  <TabsTrigger
-                    key={group.round}
-                    value={group.round}
-                    className="min-w-[100px]"
-                  >
-                    {SHORT_ROUND_NAMES[group.round] || group.round}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-
-            <TabsContent value="all" className="space-y-8 mt-6">
-              {filteredRounds.map(group => (
-                <div key={group.round}>
-                  {renderRoundGrid(group)}
+      <div className="lg:hidden">
+        <div className="space-y-6 p-4">
+          {roundGroups.map(group => (
+            <section key={group.round} className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">{group.displayName}</h3>
+                  <p className="text-xs text-slate-500">{group.canPlay} listos para jugar</p>
                 </div>
-              ))}
-            </TabsContent>
-
-            {roundGroups.map(group => (
-              <TabsContent key={group.round} value={group.round} className="mt-6">
-                {renderRoundGrid(group)}
-              </TabsContent>
-            ))}
-          </Tabs>
-
-          {/* Mensaje si no hay matches */}
-          {filteredRounds.length === 0 && (
-            <div className="text-center py-12">
-              <div className="text-gray-500 text-lg">
-                No hay matches para mostrar
+                <Badge
+                  variant={group.completedMatches === group.totalMatches ? 'default' : 'secondary'}
+                  className={cn(group.completedMatches === group.totalMatches && 'bg-emerald-600')}
+                >
+                  {group.completedMatches}/{group.totalMatches}
+                </Badge>
               </div>
-              <div className="text-gray-400 text-sm mt-2">
-                Ajusta los filtros o verifica que el bracket esté generado
+              <div className="space-y-3">
+                {group.matches.map(match => renderMatchCard(match, 'stack'))}
               </div>
-            </div>
-          )}
+            </section>
+          ))}
         </div>
-        <ScrollBar orientation="vertical" />
-      </ScrollArea>
+      </div>
 
-      {/* Información de drag & drop según modo */}
-      {enableDragDrop && isOwner && (
-        <div className={cn(
-          "p-3 border-t transition-colors",
-          isEditMode ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200"
-        )}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm">
-              {isEditMode ? (
-                <>
-                  <Zap className="h-4 w-4 text-blue-600" />
-                  <span className="text-blue-800">
-                    <strong>Modo Edición Activo:</strong> Arrastra parejas entre matches de la misma ronda
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Edit3 className="h-4 w-4 text-gray-600" />
-                  <span className="text-gray-700">
-                    Drag & Drop disponible. Toca "Modo Edición" para reorganizar parejas
-                  </span>
-                </>
-              )}
-            </div>
-            {isEditMode && dragState.pendingOperations.length > 0 && (
-              <div className="text-xs text-blue-600">
-                {dragState.pendingOperations.length} operación(es) pendiente(s) • 
-                <span className="font-medium"> Toca "Guardar" para aplicar</span>
+      <div className="hidden lg:block">
+        <div ref={desktopScrollRef} className="max-w-full overflow-x-auto overflow-y-hidden px-3 pb-4 pt-3 lg:px-4">
+          <div
+            className="relative"
+            style={{
+              width: Math.max(layout.canvasSize.width, 1100),
+              height: layout.canvasSize.height
+            }}
+          >
+            <svg
+              className="absolute inset-0 pointer-events-none"
+              width={Math.max(layout.canvasSize.width, 1100)}
+              height={layout.canvasSize.height}
+            >
+              {layout.connectors.map(connector => (
+                <path
+                  key={connector.id}
+                  d={connector.d}
+                  fill="none"
+                  stroke="#0f766e"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="0.9"
+                />
+              ))}
+            </svg>
+
+            {layout.columns.map(column => (
+              <div
+                key={column.round}
+                className="absolute top-3"
+                style={{
+                  left: column.x,
+                  width: column.width
+                }}
+              >
+                <div className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Round</p>
+                      <h3 className="text-sm font-semibold text-slate-900">{column.displayName}</h3>
+                    </div>
+                    <Badge
+                      variant={column.completedMatches === column.totalMatches ? 'default' : 'secondary'}
+                      className={cn(column.completedMatches === column.totalMatches && 'bg-emerald-600')}
+                    >
+                      {column.completedMatches}/{column.totalMatches}
+                    </Badge>
+                  </div>
+                </div>
               </div>
-            )}
+            ))}
+
+            {layout.positions.map(renderDesktopTreeMatch)}
           </div>
         </div>
-      )}
+      </div>
+
+      <BracketMoveCoupleSheet
+        open={isMovePanelOpen}
+        onOpenChange={(open) => {
+          setIsMovePanelOpen(open)
+          if (!open) {
+            setSelectedCoupleForMove(null)
+          }
+        }}
+        selectedCouple={moveSelectionDetails}
+        targetGroups={moveTargetGroups}
+        onSelectTarget={handleSelectMoveTarget}
+      />
+      <BracketMatchActionDialogs
+        tournamentId={tournamentId}
+        tournamentType={tournamentType}
+        action={matchDialogAction}
+        onClose={() => setMatchDialogAction(null)}
+        onMatchUpdate={onMatchUpdate}
+        onDataRefresh={onDataRefresh}
+      />
     </div>
   )
 }
+
+export default ImprovedBracketRenderer

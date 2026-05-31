@@ -3,6 +3,7 @@ import { TournamentConfigService } from '@/lib/services/tournament-config.servic
 import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
 import { getZoneStageAndMatchesPerCouple } from '@/lib/services/zone-fixture-planner.service'
 import { getZonesFormatIdFromTournament } from '@/lib/services/zones-format-utils'
+import { ZoneRulesSyncService } from '@/lib/services/zone-rules-sync.service'
 import type { BracketKey } from '@/types/tournament-format-v2'
 
 export interface BracketArtifactState {
@@ -140,6 +141,18 @@ export function resolveEffectiveRoundsPerCoupleForValidation(
   },
   couplesInZone: number
 ): number {
+  const formatConfig = (tournament as any)?.format_config
+  if (
+    tournament.type === 'LONG' &&
+    formatConfig?.version === 2 &&
+    (formatConfig?.presetId === 'LONG_SINGLE_ZONE_BRACKET' || formatConfig?.presetId === 'LONG_SINGLE_ZONE_GOLD_SILVER') &&
+    typeof formatConfig?.targetMatchesPerCouple === 'number' &&
+    Number.isFinite(formatConfig.targetMatchesPerCouple) &&
+    formatConfig.targetMatchesPerCouple > 0
+  ) {
+    return formatConfig.targetMatchesPerCouple
+  }
+
   if ((tournament as any)?.format_config?.version === 2) {
     const resolved = TournamentFormatResolver.getResolvedFormat(tournament, { totalCouples: couplesInZone })
     return getZoneStageAndMatchesPerCouple(couplesInZone, resolved).matchesPerCouple
@@ -350,10 +363,26 @@ export async function validatePlaceholderBracketGeneration(
       .map((position) => position.couple_id)
       .filter((coupleId): coupleId is string => Boolean(coupleId))
     const couplesInZone = coupleIds.length
+    const syncResult = await ZoneRulesSyncService.syncZoneRulesForZone(supabase, zone.id)
+    if (!syncResult.success) {
+      return {
+        success: false,
+        code: 'ZONE_VALIDATION_ERROR',
+        message: `Error al sincronizar reglas de zona ${zone.name}: ${syncResult.error || 'error desconocido'}`,
+        totalCouples,
+        totalZones: zones?.length || 0,
+        artifacts,
+        tournament
+      }
+    }
+    const syncedZone = {
+      ...zone,
+      rounds_per_couple: syncResult.roundsPerCouple,
+    }
     const matchesInZone = zoneMatches?.length || 0
     const roundsPerCouple = resolveEffectiveRoundsPerCoupleForValidation(
       tournament,
-      zone,
+      syncedZone,
       couplesInZone
     )
     const expectedMatches = calculateExpectedZoneMatches(couplesInZone, roundsPerCouple)

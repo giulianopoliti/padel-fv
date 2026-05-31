@@ -24,9 +24,9 @@ import type {
 } from '../types/bracket-drag-types'
 import type {
   BracketMatchV2,
-  CoupleData,
-  ParticipantSlot
+  CoupleData
 } from '../types/bracket-types'
+import { isBracketMoveAllowedStatus } from '../utils/bracket-move-status'
 
 // ============================================================================
 // CONFIGURACIÓN POR DEFECTO
@@ -83,8 +83,22 @@ interface UseBracketDragOperationsResult {
   /** Validaciones */
   canDragCouple: (couple: CoupleData, match: BracketMatchV2, slot: 'slot1' | 'slot2') => { canDrag: boolean; reason?: string }
   canDropToSlot: (targetMatch: BracketMatchV2, targetSlot: 'slot1' | 'slot2') => { canDrop: boolean; reason?: string }
+  canQueueOperationFromSelection: (
+    couple: CoupleData,
+    sourceMatch: BracketMatchV2,
+    sourceSlot: 'slot1' | 'slot2',
+    targetMatch: BracketMatchV2,
+    targetSlot: 'slot1' | 'slot2'
+  ) => { canDrop: boolean; reason?: string }
   
   /** Operaciones batch */
+  queueOperationFromSelection: (
+    couple: CoupleData,
+    sourceMatch: BracketMatchV2,
+    sourceSlot: 'slot1' | 'slot2',
+    targetMatch: BracketMatchV2,
+    targetSlot: 'slot1' | 'slot2'
+  ) => boolean
   saveAllOperations: () => Promise<BracketSaveResult>
   clearPendingOperations: () => void
   
@@ -165,8 +179,8 @@ export function useBracketDragOperations({
       return { canDrag: false, reason: 'No se pueden mover parejas de matches finalizados' }
     }
     
-    if (config.pendingMatchesOnly && match.status !== 'PENDING') {
-      return { canDrag: false, reason: 'Solo se pueden mover parejas de matches pendientes' }
+    if (config.pendingMatchesOnly && !isBracketMoveAllowedStatus(match.status)) {
+      return { canDrag: false, reason: 'Solo se pueden mover parejas de matches pendientes o esperando rival' }
     }
     
     if (!couple) {
@@ -198,8 +212,8 @@ export function useBracketDragOperations({
       return { canDrop: false, reason: 'No se puede soltar en matches finalizados' }
     }
     
-    if (config.pendingMatchesOnly && targetMatch.status !== 'PENDING') {
-      return { canDrop: false, reason: 'Solo se puede soltar en matches pendientes' }
+    if (config.pendingMatchesOnly && !isBracketMoveAllowedStatus(targetMatch.status)) {
+      return { canDrop: false, reason: 'Solo se puede soltar en matches pendientes o esperando rival' }
     }
     
     // Verificar que no sea la misma posición
@@ -254,6 +268,58 @@ export function useBracketDragOperations({
     
     return { canDrop: true }
   }, [state.draggedItem, state.pendingOperations, config, determineOperationType])
+
+  const canQueueOperationFromSelection = useCallback((
+    couple: CoupleData,
+    sourceMatch: BracketMatchV2,
+    sourceSlot: 'slot1' | 'slot2',
+    targetMatch: BracketMatchV2,
+    targetSlot: 'slot1' | 'slot2'
+  ): { canDrop: boolean; reason?: string } => {
+    const dragValidation = canDragCouple(couple, sourceMatch, sourceSlot)
+
+    if (!dragValidation.canDrag) {
+      return { canDrop: false, reason: dragValidation.reason }
+    }
+
+    if (targetMatch.status === 'FINISHED') {
+      return { canDrop: false, reason: 'No se puede soltar en matches finalizados' }
+    }
+
+    if (config.pendingMatchesOnly && !isBracketMoveAllowedStatus(targetMatch.status)) {
+      return { canDrop: false, reason: 'Solo se puede soltar en matches pendientes o esperando rival' }
+    }
+
+    if (sourceMatch.id === targetMatch.id && sourceSlot === targetSlot) {
+      return { canDrop: false, reason: 'No se puede soltar en la misma posicion' }
+    }
+
+    if (config.sameRoundOnly && sourceMatch.round !== targetMatch.round) {
+      return { canDrop: false, reason: `No se puede mover entre rondas diferentes (${sourceMatch.round} -> ${targetMatch.round})` }
+    }
+
+    const duplicateOperation = state.pendingOperations.find(op =>
+      op.sourceItem.sourceMatchId === sourceMatch.id &&
+      op.sourceItem.sourceSlot === sourceSlot &&
+      op.targetSlot.matchId === targetMatch.id &&
+      op.targetSlot.slot === targetSlot
+    )
+
+    if (duplicateOperation) {
+      return { canDrop: false, reason: 'Este intercambio ya esta pendiente' }
+    }
+
+    const operationType = determineOperationType(targetMatch, targetSlot)
+
+    if (operationType === 'swap') {
+      const targetParticipant = targetMatch.participants?.[targetSlot]
+      if (!targetParticipant?.couple) {
+        return { canDrop: false, reason: 'Error: se esperaba intercambio pero no hay pareja destino' }
+      }
+    }
+
+    return { canDrop: true }
+  }, [canDragCouple, config.pendingMatchesOnly, config.sameRoundOnly, determineOperationType, state.pendingOperations])
   
   // ============================================================================
   // ACCIONES DE DRAG
@@ -422,6 +488,75 @@ export function useBracketDragOperations({
     // Terminar drag
     endDrag()
   }, [state.draggedItem, canDropToSlot, determineOperationType, actions, config, endDrag])
+
+  const queueOperationFromSelection = useCallback((
+    couple: CoupleData,
+    sourceMatch: BracketMatchV2,
+    sourceSlot: 'slot1' | 'slot2',
+    targetMatch: BracketMatchV2,
+    targetSlot: 'slot1' | 'slot2'
+  ): boolean => {
+    const validation = canQueueOperationFromSelection(couple, sourceMatch, sourceSlot, targetMatch, targetSlot)
+
+    if (!validation.canDrop) {
+      toast.error(validation.reason || 'No se puede mover a este destino')
+      return false
+    }
+
+    const operationType = determineOperationType(targetMatch, targetSlot)
+    const dropTarget: BracketDropTarget = {
+      type: 'bracket-slot',
+      matchId: targetMatch.id,
+      slot: targetSlot,
+      round: targetMatch.round,
+      bracketPosition: targetMatch.order_in_round,
+      isValid: true
+    }
+    const targetParticipant = targetMatch.participants?.[targetSlot]
+    const targetCouple = (operationType === 'swap' && targetParticipant?.type === 'couple')
+      ? targetParticipant.couple
+      : null
+    const targetPlaceholder = (operationType === 'move-to-placeholder' && targetParticipant?.type === 'placeholder')
+      ? {
+          originalLabel: targetParticipant.placeholder?.display || '',
+          sourceMatchId: targetParticipant.placeholder?.sourceMatchId || undefined,
+          zoneId: targetParticipant.placeholder?.zoneId || targetParticipant.placeholder?.rule.zoneId || null,
+          zoneName: targetParticipant.placeholder?.zoneName || null,
+          position: targetParticipant.placeholder?.position || targetParticipant.placeholder?.rule.position || null
+        }
+      : null
+
+    const sourceItem: BracketDragItem = {
+      type: 'bracket-couple',
+      coupleId: couple.id,
+      coupleName: `${couple.player1_details?.first_name || ''} & ${couple.player2_details?.first_name || ''}`,
+      sourceMatchId: sourceMatch.id,
+      sourceSlot,
+      sourceRound: sourceMatch.round,
+      sourceBracketPosition: sourceMatch.order_in_round,
+      sourceZoneId: couple.seed?.zone_id || null,
+      sourceZoneName: couple.seed?.zone_name || null
+    }
+
+    const operation: BracketSwapOperation = {
+      type: 'bracket-swap',
+      operationId: `${operationType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      operationType,
+      sourceItem,
+      targetSlot: dropTarget,
+      targetCouple: targetCouple ? {
+        coupleId: targetCouple.id,
+        coupleName: `${targetCouple.player1_details?.first_name || ''} & ${targetCouple.player2_details?.first_name || ''}`
+      } : null,
+      targetPlaceholder,
+      createdAt: new Date().toISOString()
+    }
+
+    actions.addPendingOperation(operation)
+    toast.success(`Operacion programada: ${operation.sourceItem.coupleName}`, { duration: 3000 })
+
+    return true
+  }, [actions, canQueueOperationFromSelection, determineOperationType])
   
   // ============================================================================
   // OPERACIONES BATCH
@@ -624,8 +759,10 @@ export function useBracketDragOperations({
     // Validaciones
     canDragCouple,
     canDropToSlot,
+    canQueueOperationFromSelection,
     
     // Operaciones batch
+    queueOperationFromSelection,
     saveAllOperations,
     clearPendingOperations,
     

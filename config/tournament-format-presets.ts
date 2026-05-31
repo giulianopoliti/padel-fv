@@ -106,8 +106,8 @@ export const TOURNAMENT_FORMAT_PRESETS: Record<OperationalTournamentFormatPreset
     presetId: 'LONG_SINGLE_ZONE_GOLD_SILVER',
     baseType: 'LONG',
     zoneMode: 'SINGLE_ZONE',
-    zoneStage: 'ROUND_ROBIN',
-    targetMatchesPerCouple: null,
+    zoneStage: 'FIXED_MATCH_COUNT',
+    targetMatchesPerCouple: 3,
     bracketMode: 'GOLD_SILVER',
     advancementConfig: { kind: 'GOLD_SILVER', goldCount: 4, silverCount: 4, eliminatedCount: 0 },
     rankingScope: 'PER_ZONE',
@@ -122,7 +122,7 @@ export const TOURNAMENT_FORMAT_PRESETS: Record<OperationalTournamentFormatPreset
     },
     display: {
       name: 'Long zona unica (Oro y Plata)',
-      description: 'Todos contra todos y luego Copa de Oro y Copa de Plata.',
+      description: 'Zona unica con cantidad configurable de partidos por pareja y luego Copa de Oro y Copa de Plata.',
     },
   },
 }

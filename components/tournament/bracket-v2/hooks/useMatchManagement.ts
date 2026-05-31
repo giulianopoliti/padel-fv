@@ -53,6 +53,7 @@ export interface MatchManagementActions {
   // Gestión de resultados
   updateResult: (matchId: string, result: MatchResult, finishMatch?: boolean) => Promise<boolean>
   modifyResult: (matchId: string, newResult: MatchResult) => Promise<boolean>
+  deleteResult: (matchId: string) => Promise<boolean>
   
   // Helpers para construcción de resultados
   createSingleSetResult: (couple1Games: number, couple2Games: number, winnerId: string, duration?: number) => MatchResult
@@ -219,6 +220,43 @@ export function useMatchManagement(
     return updateResult(matchId, newResult, true)
   }, [updateResult])
 
+  const deleteResult = useCallback(async (matchId: string): Promise<boolean> => {
+    updateState({ updatingResult: true, error: undefined })
+
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/matches/${matchId}/update-result`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        handleError(data.error || 'Error desconocido', 'borrado de resultado')
+        return false
+      }
+
+      onMatchUpdate?.(matchId, {
+        result: null,
+        status: 'PENDING',
+        winner_id: null,
+        result_couple1: null,
+        result_couple2: null
+      })
+
+      toast.success('Resultado borrado. El partido vuelve a pendiente')
+      return true
+    } catch (error) {
+      handleError(
+        error instanceof Error ? error.message : 'Error de conexiÃ³n',
+        'borrado de resultado'
+      )
+      return false
+    } finally {
+      updateState({ updatingResult: false })
+    }
+  }, [tournamentId, handleError, updateState, onMatchUpdate])
+
   // Helper: Crear resultado de 1 set
   const createSingleSetResult = useCallback((
     couple1Games: number,
@@ -330,6 +368,7 @@ export function useMatchManagement(
     assignCourt,
     updateResult,
     modifyResult,
+    deleteResult,
     createSingleSetResult,
     createBestOf3Result,
     validateResult,

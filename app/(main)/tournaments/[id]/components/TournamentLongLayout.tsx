@@ -247,7 +247,7 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
       <div className="flex-shrink-0 sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto">
         <SidebarComponent {...sidebarProps} />
       </div>
-      <main className="flex-1 bg-slate-50">
+      <main className="min-w-0 flex-1 overflow-x-hidden bg-slate-50">
         {children}
       </main>
     </div>

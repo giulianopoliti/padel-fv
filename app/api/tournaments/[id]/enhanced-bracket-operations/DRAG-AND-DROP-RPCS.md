@@ -106,4 +106,14 @@ Los RPCs actualizan automáticamente los estados:
 - **`COMPLETED`**: Partido terminado con resultado
 - **`BYE`**: Partido con pase libre
 
+## Regla de Frontend
+
+El frontend debe alinear sus validaciones con estos RPCs:
+
+- Source y target pueden moverse si el match esta en `PENDING` o `WAITING_OPONENT`.
+- La UI tambien acepta `WAITING_OPPONENT` porque algunos adapters normalizan el typo historico de la DB.
+- `FINISHED`, `IN_PROGRESS`, `CANCELED` y `BYE` no son reordenables desde drag & drop.
+- `move-to-placeholder` usa `couple_to_placeholder_swap`; ese RPC mueve la pareja real y preserva/actualiza `match_hierarchy`.
+- Despues de guardar, el backend vuelve a calcular estados: 2 parejas -> `PENDING`; menos de 2 -> `WAITING_OPONENT`.
+
 **Regla clave:** Después de cualquier movimiento, si un partido tiene 2 parejas → `PENDING`, si no → `WAITING_OPONENT`

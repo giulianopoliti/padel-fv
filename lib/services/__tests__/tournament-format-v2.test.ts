@@ -48,6 +48,72 @@ describe('Tournament format v2', () => {
     })
   })
 
+  it('resolves LONG_SINGLE_ZONE_BRACKET to 3 matches per couple by default', () => {
+    const resolved = TournamentFormatResolver.getResolvedFormat(
+      { type: 'LONG', format_config: getTournamentFormatPreset('LONG_SINGLE_ZONE_BRACKET') },
+      { totalCouples: 10 }
+    )
+
+    expect(resolved.effectiveZoneStage).toBe('FIXED_MATCH_COUNT')
+    expect(resolved.effectiveTargetMatchesPerCouple).toBe(3)
+  })
+
+  it('normalizes stale LONG_SINGLE_ZONE_BRACKET round-robin configs to the current fixed match preset', () => {
+    const staleConfig = {
+      ...getTournamentFormatPreset('LONG_SINGLE_ZONE_BRACKET'),
+      zoneStage: 'ROUND_ROBIN' as const,
+      targetMatchesPerCouple: null,
+      display: {
+        name: 'Long zona unica + llave',
+        description: 'Zona unica todos contra todos y luego llave unica.',
+      },
+    }
+
+    const resolved = TournamentFormatResolver.getResolvedFormat(
+      { type: 'LONG', format_config: staleConfig },
+      { totalCouples: 10 }
+    )
+
+    expect(resolved.effectiveZoneStage).toBe('FIXED_MATCH_COUNT')
+    expect(resolved.effectiveTargetMatchesPerCouple).toBe(3)
+  })
+
+  it('keeps explicit LONG_SINGLE_ZONE_BRACKET matches per couple overrides', () => {
+    const customConfig = {
+      ...getTournamentFormatPreset('LONG_SINGLE_ZONE_BRACKET'),
+      targetMatchesPerCouple: 4,
+    }
+
+    const resolved = TournamentFormatResolver.getResolvedFormat(
+      { type: 'LONG', format_config: customConfig },
+      { totalCouples: 10 }
+    )
+
+    expect(resolved.effectiveZoneStage).toBe('FIXED_MATCH_COUNT')
+    expect(resolved.effectiveTargetMatchesPerCouple).toBe(4)
+  })
+
+  it('normalizes stale LONG_SINGLE_ZONE_GOLD_SILVER round-robin configs to the current fixed match preset', () => {
+    const staleConfig = {
+      ...getTournamentFormatPreset('LONG_SINGLE_ZONE_GOLD_SILVER'),
+      zoneStage: 'ROUND_ROBIN' as const,
+      targetMatchesPerCouple: null,
+      display: {
+        name: 'Long zona unica (Oro y Plata)',
+        description: 'Todos contra todos y luego Copa de Oro y Copa de Plata.',
+      },
+    }
+
+    const resolved = TournamentFormatResolver.getResolvedFormat(
+      { type: 'LONG', format_config: staleConfig },
+      { totalCouples: 10 }
+    )
+
+    expect(resolved.effectiveZoneStage).toBe('FIXED_MATCH_COUNT')
+    expect(resolved.effectiveTargetMatchesPerCouple).toBe(3)
+    expect(resolved.effectiveBracketMode).toBe('GOLD_SILVER')
+  })
+
   it('rejects invalid gold/silver splits', () => {
     const config = getTournamentFormatPreset('LONG_SINGLE_ZONE_GOLD_SILVER')
     if (config.advancementConfig.kind === 'GOLD_SILVER') {

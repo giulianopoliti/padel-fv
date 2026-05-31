@@ -45,6 +45,23 @@ const sameNullableNumber = (left: number | null | undefined, right: number | nul
   return (left ?? null) === (right ?? null)
 }
 
+const getExplicitLongMatchesPerCouple = (tournament?: TournamentLike | null): number | null => {
+  const config = tournament?.format_config as any
+
+  if (
+    tournament?.type === 'LONG' &&
+    config?.version === 2 &&
+    (config?.presetId === 'LONG_SINGLE_ZONE_BRACKET' || config?.presetId === 'LONG_SINGLE_ZONE_GOLD_SILVER') &&
+    typeof config?.targetMatchesPerCouple === 'number' &&
+    Number.isFinite(config.targetMatchesPerCouple) &&
+    config.targetMatchesPerCouple > 0
+  ) {
+    return config.targetMatchesPerCouple
+  }
+
+  return null
+}
+
 export class ZoneRulesSyncService {
   static async countCanonicalZoneCouples(
     supabase: SupabaseClientLike,
@@ -94,7 +111,9 @@ export class ZoneRulesSyncService {
       }
 
       if (coupleCount >= 2) {
-        roundsPerCouple = getZoneStageAndMatchesPerCouple(coupleCount, resolvedFormat).matchesPerCouple
+        roundsPerCouple =
+          getExplicitLongMatchesPerCouple(tournament) ??
+          getZoneStageAndMatchesPerCouple(coupleCount, resolvedFormat).matchesPerCouple
       }
     } else if (coupleCount >= 2) {
       const rules = TournamentFormatRulesService.resolve({

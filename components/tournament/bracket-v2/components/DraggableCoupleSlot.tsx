@@ -46,8 +46,14 @@ export interface DraggableCoupleSlotProps {
   canReceiveDrop: boolean
   /** Si hay drag hover sobre este slot */
   isDragHover: boolean
+  /** Si este slot esta seleccionado para mover por click */
+  isSelectedForMove?: boolean
+  /** Si este slot es un destino posible para mover por click */
+  isMoveTarget?: boolean
   /** Resultado de este slot (W, L, null) */
   result?: 'W' | 'L' | null
+  /** Games por set para este slot en torneos largos */
+  setScores?: number[]
   /** Handlers */
   onDragStart: (couple: CoupleData, match: BracketMatchV2, slot: 'slot1' | 'slot2') => void
   onDragEnd: () => void
@@ -56,6 +62,8 @@ export interface DraggableCoupleSlotProps {
   onDrop: (match: BracketMatchV2, slot: 'slot1' | 'slot2') => void
   /** Click handler para carga de resultados */
   onClick?: (couple: CoupleData | null, match: BracketMatchV2, slot: 'slot1' | 'slot2') => void
+  /** Layout compacto para cards del bracket */
+  compact?: boolean
   /** Clase CSS adicional */
   className?: string
 }
@@ -75,13 +83,17 @@ export function DraggableCoupleSlot({
   isDragging,
   canReceiveDrop,
   isDragHover,
+  isSelectedForMove = false,
+  isMoveTarget = false,
   result,
+  setScores,
   onDragStart,
   onDragEnd,
   onDragEnter,
   onDragLeave,
   onDrop,
   onClick,
+  compact = false,
   className
 }: DraggableCoupleSlotProps) {
 
@@ -262,9 +274,13 @@ export function DraggableCoupleSlot({
   // ESTILOS DINÁMICOS
   // ============================================================================
 
+  const formatPlayerName = (first?: string | null, last?: string | null) =>
+    `${first || ''} ${last || ''}`.trim() || 'Jugador'
+
   const slotClasses = cn(
     // Base styles
-    'relative transition-all duration-200 rounded-lg border-2 p-3 min-h-[4rem]',
+    'relative transition-all duration-200 rounded-lg border-2',
+    compact ? 'p-1.5 min-h-[2.5rem]' : 'p-3 min-h-[4rem]',
     
     // Estado normal
     !isEditMode && 'border-gray-200 hover:border-gray-300 cursor-pointer',
@@ -282,6 +298,10 @@ export function DraggableCoupleSlot({
     
     // Estado drag hover
     isDragHover && canReceiveDrop && 'border-green-500 bg-green-100 shadow-lg scale-105',
+
+    // Estado click-to-move
+    isSelectedForMove && 'border-blue-500 bg-blue-100 shadow-md ring-2 ring-blue-200',
+    isMoveTarget && !isSelectedForMove && 'border-violet-300 bg-violet-50 hover:border-violet-400 hover:bg-violet-100',
     
     // Estado de match
     match.status === 'FINISHED' && 'opacity-90',
@@ -346,21 +366,35 @@ export function DraggableCoupleSlot({
           <GripVertical className="h-4 w-4 text-blue-600" />
         </div>
       )}
+
+      {isSelectedForMove && (
+        <div className="absolute -top-2 -left-2 z-20">
+          <Badge variant="secondary" className="bg-blue-600 text-white text-xs">
+            Origen
+          </Badge>
+        </div>
+      )}
+
+      {isMoveTarget && !isSelectedForMove && !isDragHover && (
+        <div className="absolute -top-2 -left-2 z-20">
+          <Badge variant="secondary" className="bg-violet-600 text-white text-xs">
+            Destino
+          </Badge>
+        </div>
+      )}
       
       {/* Contenido principal */}
       {couple ? (
-        <div className="space-y-2">
-          {/* Nombres de jugadores */}
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-gray-500 flex-shrink-0" />
-            <div className="text-sm font-medium truncate">
-              <span className="text-gray-900">
-                {couple.player1_details?.first_name} {couple.player1_details?.last_name || 'Player 1'}
-              </span>
-              <span className="text-gray-600 mx-1">&</span>
-              <span className="text-gray-900">
-                {couple.player2_details?.first_name} {couple.player2_details?.last_name || 'Player 2'}
-              </span>
+        <div className={cn('space-y-1', compact && 'space-y-0.5')}>
+          <div className={cn('flex items-start gap-1.5', compact && 'gap-1')}>
+            {!compact && <Users className="h-4 w-4 text-gray-500 flex-shrink-0 mt-0.5" />}
+            <div className={cn('min-w-0 font-medium text-gray-900', compact ? 'text-[11px] leading-snug' : 'text-sm')}>
+              <div className="break-words">
+                {formatPlayerName(couple.player1_details?.first_name, couple.player1_details?.last_name)}
+              </div>
+              <div className="break-words text-gray-600">
+                {formatPlayerName(couple.player2_details?.first_name, couple.player2_details?.last_name)}
+              </div>
             </div>
           </div>
           
@@ -374,6 +408,22 @@ export function DraggableCoupleSlot({
                 </span>
               </div>
               <WinnerBadge isWinner={isSlotWinner} />
+            </div>
+          )}
+
+          {match.status === 'FINISHED' && setScores && setScores.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-0.5">
+              {setScores.map((score, index) => (
+                <span
+                  key={`${slotPosition}-set-${index}`}
+                  className={cn(
+                    'inline-flex min-w-5 justify-center rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-700',
+                    compact && 'text-[9px]'
+                  )}
+                >
+                  {score}
+                </span>
+              ))}
             </div>
           )}
         </div>

@@ -40,6 +40,11 @@ function hydrateFormatConfig(value: TournamentFormatConfigV2): TournamentFormatC
       value.advancementConfig?.kind !== 'PER_ZONE_TOP'
     )
   )
+  const isFixedMatchCountPreset = preset.zoneStage === 'FIXED_MATCH_COUNT'
+  const hasExplicitTargetMatchesPerCouple =
+    typeof value.targetMatchesPerCouple === 'number' &&
+    Number.isFinite(value.targetMatchesPerCouple) &&
+    value.targetMatchesPerCouple > 0
 
   return {
     ...preset,
@@ -48,7 +53,9 @@ function hydrateFormatConfig(value: TournamentFormatConfigV2): TournamentFormatC
     baseType: preset.baseType,
     zoneMode: preset.zoneMode,
     zoneStage: preset.zoneStage,
-    targetMatchesPerCouple: isLegacyRedirect ? preset.targetMatchesPerCouple : value.targetMatchesPerCouple,
+    targetMatchesPerCouple: isFixedMatchCountPreset
+      ? (hasExplicitTargetMatchesPerCouple ? value.targetMatchesPerCouple : preset.targetMatchesPerCouple)
+      : (isLegacyRedirect ? preset.targetMatchesPerCouple : value.targetMatchesPerCouple),
     bracketMode: preset.bracketMode,
     zoneRules: {
       ...preset.zoneRules,

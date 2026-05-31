@@ -89,7 +89,7 @@ export default function BracketContainer({
 
   // Bracket activo o finalizado: mostrar interfaz de gestión
   return (
-    <div>
+    <div className="min-w-0 overflow-x-hidden">
       {/* Banner de puntos (solo cuando el torneo está finalizado y hay puntos pendientes) */}
       {isOwner && finalization.canShowPointsCalculation && (
         <div className="px-4 lg:px-6 pt-3">
@@ -138,13 +138,6 @@ export default function BracketContainer({
               </div>
 
               <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2">
-                <div className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
-                  tournament.type === 'LONG'
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-blue-100 text-blue-800'
-                }`}>
-                  {tournament.type === 'LONG' ? 'Torneo Largo' : 'Torneo Americano'}
-                </div>
                 {viewMode === 'schedule' && (
                   <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs sm:text-sm font-medium">
                     Vista Matriz
@@ -157,8 +150,8 @@ export default function BracketContainer({
       </div>
 
       {/* Content */}
-      <div className="px-4 lg:px-6 py-3 lg:py-4">
-        <div className="max-w-none lg:max-w-7xl lg:mx-auto">
+      <div className="px-4 py-3 lg:px-6 lg:py-4">
+        <div className="mx-auto min-w-0 max-w-none lg:max-w-7xl xl:pr-[max(1.5rem,calc((100vw-80rem)/2+1.5rem))]">
           {viewMode === 'bracket' ? (
             <LongBracketView
               tournamentId={tournamentId}

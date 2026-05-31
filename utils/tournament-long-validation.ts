@@ -2,6 +2,7 @@ import { AdvancementPlanner } from '@/lib/services/advancement-planner.service'
 import { hasFormatConfigV2 } from '@/lib/services/tournament-format-policy'
 import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
 import { getZoneStageAndMatchesPerCouple } from '@/lib/services/zone-fixture-planner.service'
+import { ZoneRulesSyncService } from '@/lib/services/zone-rules-sync.service'
 import { createClient } from '@/utils/supabase/server'
 
 export interface LongTournamentValidationResult {
@@ -73,10 +74,29 @@ export async function validateLongTournamentForBracket(
     const resolvedFormat = TournamentFormatResolver.getResolvedFormat(tournament, {
       totalCouples: couples.length,
     })
-    const requiredMatchesPerCouple = getZoneStageAndMatchesPerCouple(
+    const formatConfig = tournament.format_config as any
+    const configuredLongMatchesPerCouple =
+      tournament.type === 'LONG' &&
+      formatConfig?.version === 2 &&
+      (formatConfig?.presetId === 'LONG_SINGLE_ZONE_BRACKET' || formatConfig?.presetId === 'LONG_SINGLE_ZONE_GOLD_SILVER') &&
+      typeof formatConfig?.targetMatchesPerCouple === 'number' &&
+      Number.isFinite(formatConfig.targetMatchesPerCouple) &&
+      formatConfig.targetMatchesPerCouple > 0
+        ? formatConfig.targetMatchesPerCouple
+        : null
+    const requiredMatchesPerCouple = configuredLongMatchesPerCouple ?? getZoneStageAndMatchesPerCouple(
       couples.length,
       resolvedFormat
     ).matchesPerCouple
+
+    const { data: zones } = await supabase
+      .from('zones')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+
+    for (const zone of zones || []) {
+      await ZoneRulesSyncService.syncZoneRulesForZone(supabase, zone.id)
+    }
 
     let qualifyingAdvancementEnabled = false
     let couplesAdvance: number | null = null

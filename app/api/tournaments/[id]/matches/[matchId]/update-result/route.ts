@@ -173,13 +173,203 @@ interface UpdateResultResponse {
   error?: string
 }
 
+interface DeleteResultResponse {
+  success: boolean
+  matchId: string
+  status: string
+  parentCleared?: boolean
+  deletedSets?: boolean
+  error?: string
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; matchId: string }> }
+): Promise<NextResponse<DeleteResultResponse>> {
+  const routeParams = await params
+
+  try {
+    void request
+
+    const tournamentId = routeParams.id
+    const matchId = routeParams.matchId
+    const supabase = await createClient()
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({
+        success: false,
+        matchId,
+        status: '',
+        error: 'Unauthorized'
+      }, { status: 401 })
+    }
+
+    const permissionResult = await checkTournamentPermissions(user.id, tournamentId)
+    if (!permissionResult.hasPermission) {
+      return NextResponse.json({
+        success: false,
+        matchId,
+        status: '',
+        error: permissionResult.reason || 'Insufficient permissions'
+      }, { status: 403 })
+    }
+
+    const { data: matchData, error: matchError } = await supabase
+      .from('matches')
+      .select('id, status, winner_id, tournament_id')
+      .eq('id', matchId)
+      .eq('tournament_id', tournamentId)
+      .single()
+
+    if (matchError || !matchData) {
+      return NextResponse.json({
+        success: false,
+        matchId,
+        status: '',
+        error: 'Match not found'
+      }, { status: 404 })
+    }
+
+    let parentCleared = false
+
+    if (matchData.winner_id) {
+      const { data: hierarchy, error: hierarchyError } = await supabase
+        .from('match_hierarchy')
+        .select('parent_match_id, parent_slot')
+        .eq('child_match_id', matchId)
+        .eq('tournament_id', tournamentId)
+        .maybeSingle()
+
+      if (hierarchyError) {
+        console.error('Failed to fetch match hierarchy:', hierarchyError)
+        return NextResponse.json({
+          success: false,
+          matchId,
+          status: '',
+          error: 'Failed to validate parent match'
+        }, { status: 500 })
+      }
+
+      if (hierarchy?.parent_match_id) {
+        const { data: parentMatch, error: parentError } = await supabase
+          .from('matches')
+          .select('id, status, couple1_id, couple2_id')
+          .eq('id', hierarchy.parent_match_id)
+          .eq('tournament_id', tournamentId)
+          .single()
+
+        if (parentError || !parentMatch) {
+          return NextResponse.json({
+            success: false,
+            matchId,
+            status: '',
+            error: 'Parent match not found'
+          }, { status: 404 })
+        }
+
+        const slotField = hierarchy.parent_slot === 1 ? 'couple1_id' : 'couple2_id'
+        const winnerIsInParentSlot = parentMatch[slotField] === matchData.winner_id
+
+        if (winnerIsInParentSlot) {
+          if (parentMatch.status === 'FINISHED') {
+            return NextResponse.json({
+              success: false,
+              matchId,
+              status: matchData.status,
+              error: 'Primero borra el resultado del partido siguiente, porque ya usa este ganador.'
+            }, { status: 409 })
+          }
+
+          const nextParentState = {
+            [slotField]: null,
+            status: 'WAITING_OPONENT'
+          }
+
+          const { error: clearParentError } = await supabase
+            .from('matches')
+            .update(nextParentState)
+            .eq('id', parentMatch.id)
+            .eq('tournament_id', tournamentId)
+
+          if (clearParentError) {
+            console.error('Failed to clear parent match slot:', clearParentError)
+            return NextResponse.json({
+              success: false,
+              matchId,
+              status: '',
+              error: 'Failed to clear advanced winner'
+            }, { status: 500 })
+          }
+
+          parentCleared = true
+        }
+      }
+    }
+
+    const { error: deleteSetsError } = await supabase
+      .from('set_matches')
+      .delete()
+      .eq('match_id', matchId)
+
+    if (deleteSetsError) {
+      console.error('Failed to delete set_matches:', deleteSetsError)
+      return NextResponse.json({
+        success: false,
+        matchId,
+        status: '',
+        error: 'Failed to delete set details'
+      }, { status: 500 })
+    }
+
+    const { error: resetMatchError } = await supabase
+      .from('matches')
+      .update({
+        status: 'PENDING',
+        winner_id: null,
+        result_couple1: null,
+        result_couple2: null
+      })
+      .eq('id', matchId)
+      .eq('tournament_id', tournamentId)
+
+    if (resetMatchError) {
+      console.error('Failed to reset match result:', resetMatchError)
+      return NextResponse.json({
+        success: false,
+        matchId,
+        status: '',
+        error: 'Failed to reset match result'
+      }, { status: 500 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      matchId,
+      status: 'PENDING',
+      parentCleared,
+      deletedSets: true
+    })
+  } catch (error) {
+    console.error('Delete result error:', error)
+    return NextResponse.json({
+      success: false,
+      matchId: routeParams.matchId,
+      status: '',
+      error: 'Internal server error'
+    }, { status: 500 })
+  }
+}
+
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string; matchId: string } }
+  { params }: { params: Promise<{ id: string; matchId: string }> }
 ): Promise<NextResponse<UpdateResultResponse>> {
+  const routeParams = await params
+
   try {
-    const tournamentId = params.id
-    const matchId = params.matchId
+    const tournamentId = routeParams.id
+    const matchId = routeParams.matchId
     const body: UpdateResultRequest = await request.json()
     
     const { result, finishMatch = true } = body
@@ -705,7 +895,7 @@ export async function POST(
     console.error('Update result error:', error)
     return NextResponse.json({
       success: false,
-      matchId: params.matchId,
+      matchId: routeParams.matchId,
       result: {} as MatchResult,
       status: '',
       error: 'Internal server error'
