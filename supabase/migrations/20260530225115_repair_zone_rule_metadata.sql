@@ -1,4 +1,4 @@
-create schema if not exists maintenance;
+/* create schema if not exists maintenance;
 
 create table if not exists maintenance.zone_integrity_repair_audit (
   id uuid primary key default gen_random_uuid(),
@@ -110,3 +110,4 @@ set
   rounds_per_couple = cr.new_rounds_per_couple
 from changed_rules cr
 where z.id = cr.zone_id;
+ */
