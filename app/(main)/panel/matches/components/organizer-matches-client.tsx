@@ -1,11 +1,13 @@
 'use client'
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { format, parseISO } from "date-fns"
 import { es } from "date-fns/locale"
 import { Download, ExternalLink, CalendarDays, Clock3, MapPin, Trophy, History } from "lucide-react"
-import MatchFilters, { type MatchFiltersState } from "@/components/matches/match-filters"
+import OrganizerMatchFilters, {
+  type OrganizerMatchFiltersState,
+} from "@/app/(main)/panel/matches/components/organizer-match-filters"
 import StatusBadge from "@/components/matches/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,7 +19,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { getRoundLabel } from "@/lib/organizer-matches-shared"
+import {
+  getDefaultOrganizerMatchesFilters,
+  getRoundLabel,
+} from "@/lib/organizer-matches-shared"
 
 interface OrganizerMatchRow {
   matchId: string
@@ -44,9 +49,10 @@ interface OrganizerMatchesClientProps {
   matches: OrganizerMatchRow[]
   clubs: OrganizerClubOption[]
   initialFilters: {
-    date?: string
-    startTime?: string
-    endTime?: string
+    fromDate: string
+    fromTime: string
+    toDate: string
+    toTime: string
     clubId?: string
     status?: string
     includePast?: boolean
@@ -56,11 +62,16 @@ interface OrganizerMatchesClientProps {
   totalCount: number
 }
 
-const buildFilterState = (filters: OrganizerMatchesClientProps["initialFilters"]): MatchFiltersState => ({
-  selectedDate: filters.date ? parseISO(`${filters.date}T12:00:00`) : undefined,
+const defaultOrganizerFilters = getDefaultOrganizerMatchesFilters()
+
+const buildFilterState = (
+  filters: OrganizerMatchesClientProps["initialFilters"],
+): OrganizerMatchFiltersState => ({
+  fromDate: filters.fromDate,
+  fromTime: filters.fromTime,
+  toDate: filters.toDate,
+  toTime: filters.toTime,
   selectedStatus: filters.status ?? "all",
-  startTime: filters.startTime ?? "",
-  endTime: filters.endTime ?? "",
   selectedClubId: filters.clubId ?? "all",
 })
 
@@ -88,35 +99,57 @@ export default function OrganizerMatchesClient({
 }: OrganizerMatchesClientProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const filters = buildFilterState(initialFilters)
+  const defaultFilterState = buildFilterState(defaultOrganizerFilters)
 
-  const syncFiltersToUrl = (nextFilters: MatchFiltersState) => {
-    const params = new URLSearchParams()
+  const currentIncludePast = searchParams.get("includePast") === "true" || Boolean(initialFilters.includePast)
 
-    if (nextFilters.selectedDate) {
-      params.set("date", format(nextFilters.selectedDate, "yyyy-MM-dd"))
-    }
+  const buildUrlSearchParams = ({
+    nextFilters = filters,
+    includePast = currentIncludePast,
+    page,
+  }: {
+    nextFilters?: OrganizerMatchFiltersState
+    includePast?: boolean
+    page?: number
+  } = {}) => {
+    const params = new URLSearchParams(searchParams.toString())
 
-    if (nextFilters.startTime) {
-      params.set("startTime", nextFilters.startTime)
-    }
-
-    if (nextFilters.endTime) {
-      params.set("endTime", nextFilters.endTime)
-    }
+    params.set("fromDate", nextFilters.fromDate)
+    params.set("fromTime", nextFilters.fromTime)
+    params.set("toDate", nextFilters.toDate)
+    params.set("toTime", nextFilters.toTime)
 
     if (nextFilters.selectedClubId !== "all") {
       params.set("clubId", nextFilters.selectedClubId)
+    } else {
+      params.delete("clubId")
     }
 
     if (nextFilters.selectedStatus !== "all") {
       params.set("status", nextFilters.selectedStatus)
+    } else {
+      params.delete("status")
     }
 
-    if (initialFilters.includePast) {
+    if (includePast) {
       params.set("includePast", "true")
+    } else {
+      params.delete("includePast")
     }
 
+    if (page && page > 1) {
+      params.set("page", String(page))
+    } else {
+      params.delete("page")
+    }
+
+    return params
+  }
+
+  const syncFiltersToUrl = (nextFilters: OrganizerMatchFiltersState) => {
+    const params = buildUrlSearchParams({ nextFilters })
     const queryString = params.toString()
     router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
   }
@@ -124,44 +157,27 @@ export default function OrganizerMatchesClient({
   const exportHref = (() => {
     const params = new URLSearchParams()
 
-    if (initialFilters.date) params.set("date", initialFilters.date)
-    if (initialFilters.startTime) params.set("startTime", initialFilters.startTime)
-    if (initialFilters.endTime) params.set("endTime", initialFilters.endTime)
+    params.set("fromDate", initialFilters.fromDate)
+    params.set("fromTime", initialFilters.fromTime)
+    params.set("toDate", initialFilters.toDate)
+    params.set("toTime", initialFilters.toTime)
     if (initialFilters.clubId) params.set("clubId", initialFilters.clubId)
     if (initialFilters.status) params.set("status", initialFilters.status)
     if (initialFilters.includePast) params.set("includePast", "true")
 
-    const queryString = params.toString()
-    return queryString ? `/api/panel/matches/export?${queryString}` : "/api/panel/matches/export"
+    return `/api/panel/matches/export?${params.toString()}`
   })()
 
   const toggleIncludePast = () => {
-    const params = new URLSearchParams()
-
-    if (initialFilters.date) params.set("date", initialFilters.date)
-    if (initialFilters.startTime) params.set("startTime", initialFilters.startTime)
-    if (initialFilters.endTime) params.set("endTime", initialFilters.endTime)
-    if (initialFilters.clubId) params.set("clubId", initialFilters.clubId)
-    if (initialFilters.status) params.set("status", initialFilters.status)
-    if (!initialFilters.includePast) params.set("includePast", "true")
-
+    const params = buildUrlSearchParams({ includePast: !currentIncludePast })
     const queryString = params.toString()
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+    router.replace(`${pathname}?${queryString}`, { scroll: false })
   }
 
   const navigateToPage = (page: number) => {
-    const params = new URLSearchParams()
-
-    if (initialFilters.date) params.set("date", initialFilters.date)
-    if (initialFilters.startTime) params.set("startTime", initialFilters.startTime)
-    if (initialFilters.endTime) params.set("endTime", initialFilters.endTime)
-    if (initialFilters.clubId) params.set("clubId", initialFilters.clubId)
-    if (initialFilters.status) params.set("status", initialFilters.status)
-    if (initialFilters.includePast) params.set("includePast", "true")
-    if (page > 1) params.set("page", String(page))
-
+    const params = buildUrlSearchParams({ page })
     const queryString = params.toString()
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+    router.replace(`${pathname}?${queryString}`, { scroll: false })
   }
 
   return (
@@ -173,9 +189,9 @@ export default function OrganizerMatchesClient({
             Agenda de partidos
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Partidos de mi organización</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Partidos de mi organizacion</h1>
             <p className="text-sm text-muted-foreground">
-              Filtrá partidos de todos tus torneos por fecha, rango horario y club efectivo.
+              Filtra partidos de todos tus torneos por rango de fecha y horario, estado y club efectivo.
             </p>
           </div>
         </div>
@@ -205,18 +221,19 @@ export default function OrganizerMatchesClient({
         <CardContent className="space-y-6">
           <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-slate-700">
-              {initialFilters.includePast
-                ? "Mostrando también partidos históricos."
-                : "Mostrando por defecto sólo partidos desde hoy en adelante."}
+              {currentIncludePast
+                ? "Mostrando tambien partidos historicos dentro del rango elegido."
+                : "Mostrando solo partidos desde hoy en adelante dentro del rango elegido."}
             </div>
             <Button type="button" variant="outline" onClick={toggleIncludePast}>
               <History className="h-4 w-4" />
-              {initialFilters.includePast ? "Ocultar históricos" : "Incluir históricos"}
+              {currentIncludePast ? "Ocultar historicos" : "Incluir historicos"}
             </Button>
           </div>
 
-          <MatchFilters
+          <OrganizerMatchFilters
             filters={filters}
+            defaultFilters={defaultFilterState}
             onFiltersChange={syncFiltersToUrl}
             matchCount={totalCount}
             clubes={clubs}
@@ -227,7 +244,7 @@ export default function OrganizerMatchesClient({
               <Trophy className="mx-auto mb-4 h-10 w-10 text-slate-400" />
               <h2 className="text-lg font-semibold text-slate-900">No hay partidos para esos filtros</h2>
               <p className="mt-2 text-sm text-slate-600">
-                Ajustá fecha, horario o club para encontrar los partidos programados de tu organización.
+                Ajusta el rango, estado o club para encontrar los partidos programados de tu organizacion.
               </p>
             </div>
           ) : (
@@ -295,7 +312,7 @@ export default function OrganizerMatchesClient({
               {totalPages > 1 && (
                 <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-slate-600">
-                    Página {currentPage} de {totalPages}. Mostrando {matches.length} partidos en esta página, {totalCount} en total.
+                    Pagina {currentPage} de {totalPages}. Mostrando {matches.length} partidos en esta pagina, {totalCount} en total.
                   </p>
                   <div className="flex items-center gap-2">
                     <Button

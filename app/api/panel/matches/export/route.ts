@@ -45,7 +45,10 @@ export async function GET(request: NextRequest) {
 
   const matches = await getOrganizationScheduledMatches(orgMember.organizacion_id, filters)
   const csvContent = buildOrganizerMatchesCsv(matches)
-  const filenameDate = filters.date || new Date().toISOString().split("T")[0]
+  const filenameDate =
+    filters.fromDate === filters.toDate
+      ? filters.fromDate
+      : `${filters.fromDate}_a_${filters.toDate}`
 
   return new NextResponse(csvContent, {
     status: 200,

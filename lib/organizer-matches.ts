@@ -1,6 +1,8 @@
 import { createClient } from "@/utils/supabase/server"
 import {
   applyOrganizerMatchesFilters,
+  getDefaultOrganizerMatchesFilters,
+  isOrganizerMatchesRangeInvalid,
   type OrganizerClubOption,
   type OrganizerMatchRow,
   type OrganizerMatchesFilters,
@@ -91,7 +93,7 @@ export async function getOrganizationClubs(organizationId: string): Promise<Orga
 
 export async function getOrganizationScheduledMatches(
   organizationId: string,
-  filters: OrganizerMatchesFilters = {},
+  filters: OrganizerMatchesFilters = getDefaultOrganizerMatchesFilters(),
 ): Promise<OrganizerMatchRow[]> {
   const result = await getOrganizationScheduledMatchesPage(organizationId, filters, {
     page: 1,
@@ -103,7 +105,7 @@ export async function getOrganizationScheduledMatches(
 
 export async function getOrganizationScheduledMatchesPage(
   organizationId: string,
-  filters: OrganizerMatchesFilters = {},
+  filters: OrganizerMatchesFilters = getDefaultOrganizerMatchesFilters(),
   pagination?: {
     page?: number
     pageSize?: number
@@ -113,6 +115,16 @@ export async function getOrganizationScheduledMatchesPage(
   const page = Math.max(1, pagination?.page ?? 1)
   const pageSize = Math.min(5000, Math.max(10, pagination?.pageSize ?? 25))
   const today = new Date().toLocaleDateString("en-CA")
+
+  if (isOrganizerMatchesRangeInvalid(filters)) {
+    return {
+      matches: [],
+      totalCount: 0,
+      page,
+      pageSize,
+      totalPages: 0,
+    }
+  }
 
   const { data: tournamentsData, error: tournamentsError } = await supabase
     .from("tournaments")
@@ -197,25 +209,17 @@ export async function getOrganizationScheduledMatchesPage(
           last_name
         )
       )
-    `, { count: "exact" })
+    `)
     .in("tournament_id", tournaments.map((tournament) => tournament.id))
 
-  if (filters.date) {
-    matchesQuery = matchesQuery.eq("fecha_matches.scheduled_date", filters.date)
-  } else if (!filters.includePast) {
-    matchesQuery = matchesQuery.gte("fecha_matches.scheduled_date", today)
-  }
+  const effectiveFromDate = !filters.includePast && filters.fromDate < today ? today : filters.fromDate
+
+  matchesQuery = matchesQuery
+    .gte("fecha_matches.scheduled_date", effectiveFromDate)
+    .lte("fecha_matches.scheduled_date", filters.toDate)
 
   if (filters.status) {
     matchesQuery = matchesQuery.eq("status", filters.status)
-  }
-
-  if (filters.startTime) {
-    matchesQuery = matchesQuery.gte("fecha_matches.scheduled_start_time", filters.startTime)
-  }
-
-  if (filters.endTime) {
-    matchesQuery = matchesQuery.lte("fecha_matches.scheduled_start_time", filters.endTime)
   }
 
   if (filters.clubId) {
@@ -232,13 +236,9 @@ export async function getOrganizationScheduledMatchesPage(
     }
   }
 
-  const from = (page - 1) * pageSize
-  const to = from + pageSize - 1
-
-  const { data: matchesData, error: matchesError, count } = await matchesQuery
+  const { data: matchesData, error: matchesError } = await matchesQuery
     .order("scheduled_date", { foreignTable: "fecha_matches", ascending: true })
     .order("scheduled_start_time", { foreignTable: "fecha_matches", ascending: true, nullsFirst: false })
-    .range(from, to)
 
   if (matchesError) {
     throw new Error(`Error al cargar partidos programados: ${matchesError.message}`)
@@ -309,11 +309,14 @@ export async function getOrganizationScheduledMatchesPage(
     })
   }
 
-  const totalCount = count ?? 0
+  const filteredRows = applyOrganizerMatchesFilters(rows, filters).sort(compareOrganizerMatches)
+  const totalCount = filteredRows.length
   const totalPages = totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0
+  const from = (page - 1) * pageSize
+  const paginatedMatches = filteredRows.slice(from, from + pageSize)
 
   return {
-    matches: applyOrganizerMatchesFilters(rows, filters).sort(compareOrganizerMatches),
+    matches: paginatedMatches,
     totalCount,
     page,
     pageSize,

@@ -1,7 +1,8 @@
 export interface OrganizerMatchesFilters {
-  date?: string
-  startTime?: string
-  endTime?: string
+  fromDate: string
+  fromTime: string
+  toDate: string
+  toTime: string
   clubId?: string
   status?: string
   includePast?: boolean
@@ -59,6 +60,48 @@ const normalizeFilterValue = (value?: string | null): string | undefined => {
   return normalized
 }
 
+const getTodayDate = (): string => new Date().toLocaleDateString("en-CA")
+
+export const getDefaultOrganizerMatchesFilters = (): OrganizerMatchesFilters => {
+  const today = getTodayDate()
+
+  return {
+    fromDate: today,
+    fromTime: "00:00",
+    toDate: today,
+    toTime: "23:59",
+    includePast: false,
+  }
+}
+
+const normalizeTimeValue = (value?: string | null, fallback = "00:00"): string => {
+  const normalized = normalizeFilterValue(value)
+  if (!normalized) return fallback
+
+  return normalized.length >= 5 ? normalized.slice(0, 5) : normalized
+}
+
+const buildComparableDateTime = (date: string, time: string): string => `${date}T${time.slice(0, 5)}`
+
+const getMatchComparableDateTime = (match: OrganizerMatchRow): string | null => {
+  if (!match.scheduledDate || !match.scheduledStartTime) return null
+  return buildComparableDateTime(match.scheduledDate, match.scheduledStartTime)
+}
+
+const resolveOrganizerMatchesFilters = (
+  filters: Partial<OrganizerMatchesFilters>,
+): OrganizerMatchesFilters => ({
+  ...getDefaultOrganizerMatchesFilters(),
+  ...filters,
+})
+
+export const isOrganizerMatchesRangeInvalid = (filters: Partial<OrganizerMatchesFilters>): boolean => {
+  const resolvedFilters = resolveOrganizerMatchesFilters(filters)
+
+  return buildComparableDateTime(resolvedFilters.fromDate, resolvedFilters.fromTime) >
+    buildComparableDateTime(resolvedFilters.toDate, resolvedFilters.toTime)
+}
+
 export const parseOrganizerMatchesFilters = (
   rawFilters: Record<string, string | string[] | undefined>,
 ): OrganizerMatchesFilters => {
@@ -67,10 +110,13 @@ export const parseOrganizerMatchesFilters = (
     return Array.isArray(value) ? value[0] : value
   }
 
+  const defaults = getDefaultOrganizerMatchesFilters()
+
   return {
-    date: normalizeFilterValue(getSingleValue("date")),
-    startTime: normalizeFilterValue(getSingleValue("startTime")),
-    endTime: normalizeFilterValue(getSingleValue("endTime")),
+    fromDate: normalizeFilterValue(getSingleValue("fromDate")) ?? defaults.fromDate,
+    fromTime: normalizeTimeValue(getSingleValue("fromTime"), defaults.fromTime),
+    toDate: normalizeFilterValue(getSingleValue("toDate")) ?? defaults.toDate,
+    toTime: normalizeTimeValue(getSingleValue("toTime"), defaults.toTime),
     clubId: normalizeFilterValue(getSingleValue("clubId")),
     status: normalizeFilterValue(getSingleValue("status")),
     includePast: getSingleValue("includePast") === "true",
@@ -79,18 +125,27 @@ export const parseOrganizerMatchesFilters = (
 
 export const applyOrganizerMatchesFilters = (
   matches: OrganizerMatchRow[],
-  filters: OrganizerMatchesFilters,
+  rawFilters: Partial<OrganizerMatchesFilters>,
 ): OrganizerMatchRow[] => {
-  const today = new Date().toLocaleDateString("en-CA")
+  const filters = resolveOrganizerMatchesFilters(rawFilters)
+  const today = getTodayDate()
+  const fromDateTime = buildComparableDateTime(filters.fromDate, filters.fromTime)
+  const toDateTime = buildComparableDateTime(filters.toDate, filters.toTime)
+
+  if (fromDateTime > toDateTime) {
+    return []
+  }
 
   return matches.filter((match) => {
     if (!match.scheduledDate) return false
+    if (!match.scheduledStartTime) return false
 
     if (!filters.includePast && match.scheduledDate < today) {
       return false
     }
 
-    if (filters.date && match.scheduledDate !== filters.date) {
+    const matchDateTime = getMatchComparableDateTime(match)
+    if (!matchDateTime) {
       return false
     }
 
@@ -102,11 +157,11 @@ export const applyOrganizerMatchesFilters = (
       return false
     }
 
-    if (filters.startTime && match.scheduledStartTime && match.scheduledStartTime < filters.startTime) {
+    if (matchDateTime < fromDateTime) {
       return false
     }
 
-    if (filters.endTime && match.scheduledStartTime && match.scheduledStartTime > filters.endTime) {
+    if (matchDateTime > toDateTime) {
       return false
     }
 
