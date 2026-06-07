@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { registerCoupleForTournament } from "@/app/api/tournaments/actions"
 import { createPlayerForCoupleService } from "@/lib/services/players/create-player-for-couple"
-import { getImportPlayerKey, type CommitImportRow, type ImportPlayerDecision, type ParsedImportPlayer } from "@/lib/services/imports/tournament-inscriptions-import"
+import {
+  buildAlreadyInscribedMessage,
+  getImportPlayerKey,
+  type CommitImportRow,
+  type ImportPlayerDecision,
+  type ParsedImportPlayer,
+} from "@/lib/services/imports/tournament-inscriptions-import"
 import { registerIndividualPlayer } from "@/lib/services/registration"
 import { createClient } from "@/utils/supabase/server"
 import { checkTournamentAccess } from "@/utils/tournament-permissions"
@@ -16,6 +22,11 @@ interface ResolvedPlayerResult {
   playerId?: string
   created?: boolean
   error?: string
+}
+
+interface PlayerMembershipCheck {
+  playerId: string
+  name: string
 }
 
 const getDirectOrCoupleInscription = async (
@@ -97,8 +108,8 @@ const resolveImportPlayer = async ({
     return { success: true, playerId: decision.playerId, created: false }
   }
 
-  if (!player.firstName || !player.lastName) {
-    return { success: false, error: `Faltan nombre o apellido para ${player.fullName}.` }
+  if (!player.firstName) {
+    return { success: false, error: `Falta el nombre para ${player.fullName}.` }
   }
 
   const cacheKey = getImportPlayerKey(player)
@@ -110,7 +121,7 @@ const resolveImportPlayer = async ({
     tournamentId,
     playerData: {
       first_name: player.firstName,
-      last_name: player.lastName,
+      last_name: player.lastName || "",
       gender: player.gender,
       dni: player.dni,
       forceCreateNew: true,
@@ -128,9 +139,30 @@ const resolveImportPlayer = async ({
   return { success: true, playerId: createResult.playerId, created: true }
 }
 
+const getAlreadyInscribedPlayers = async (
+  supabase: any,
+  tournamentId: string,
+  players: PlayerMembershipCheck[],
+): Promise<{ success: boolean; players: PlayerMembershipCheck[]; error?: string }> => {
+  const alreadyInscribedPlayers: PlayerMembershipCheck[] = []
+
+  for (const player of players) {
+    const membership = await getDirectOrCoupleInscription(supabase, tournamentId, player.playerId)
+    if (membership.error) {
+      return { success: false, players: [], error: membership.error }
+    }
+
+    if (membership.exists) {
+      alreadyInscribedPlayers.push(player)
+    }
+  }
+
+  return { success: true, players: alreadyInscribedPlayers }
+}
+
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const resolvedParams = await params
@@ -164,6 +196,41 @@ export async function POST(
     }> = []
 
     for (const row of rows) {
+      const selectedExistingPlayers: PlayerMembershipCheck[] = [
+        row.decisions?.player1?.action === "use" && row.decisions.player1.playerId
+          ? { playerId: row.decisions.player1.playerId, name: row.player1?.fullName || "Jugador 1" }
+          : null,
+        row.decisions?.player2?.action === "use" && row.decisions.player2.playerId
+          ? { playerId: row.decisions.player2.playerId, name: row.player2?.fullName || "Jugador 2" }
+          : null,
+      ].filter(Boolean) as PlayerMembershipCheck[]
+
+      const existingSelectedMembership = await getAlreadyInscribedPlayers(supabase, tournamentId, selectedExistingPlayers)
+
+      if (!existingSelectedMembership.success) {
+        results.push({
+          rowId: row.id,
+          rowNumber: row.rowNumber,
+          status: "error",
+          type: row.player1 && row.player2 ? "couple" : "individual",
+          message: `No se pudo verificar si el jugador ya estaba inscripto: ${existingSelectedMembership.error}`,
+          createdPlayers: 0,
+        })
+        continue
+      }
+
+      if (existingSelectedMembership.players.length > 0) {
+        results.push({
+          rowId: row.id,
+          rowNumber: row.rowNumber,
+          status: "skipped",
+          type: row.player1 && row.player2 ? "couple" : "individual",
+          message: buildAlreadyInscribedMessage(existingSelectedMembership.players.map((player) => player.name)),
+          createdPlayers: 0,
+        })
+        continue
+      }
+
       const player1Result = await resolveImportPlayer({
         supabase,
         tournamentId,
@@ -210,6 +277,35 @@ export async function POST(
 
       if (resolvedPlayerIds.length === 2) {
         const [player1Id, player2Id] = resolvedPlayerIds
+        const alreadyInscribedPlayers = await getAlreadyInscribedPlayers(supabase, tournamentId, [
+          { playerId: player1Id, name: row.player1?.fullName || "Jugador 1" },
+          { playerId: player2Id, name: row.player2?.fullName || "Jugador 2" },
+        ])
+
+        if (!alreadyInscribedPlayers.success) {
+          results.push({
+            rowId: row.id,
+            rowNumber: row.rowNumber,
+            status: "error",
+            type: "couple",
+            message: `No se pudo verificar si la pareja ya estaba inscripta: ${alreadyInscribedPlayers.error}`,
+            createdPlayers,
+          })
+          continue
+        }
+
+        if (alreadyInscribedPlayers.players.length > 0) {
+          results.push({
+            rowId: row.id,
+            rowNumber: row.rowNumber,
+            status: "skipped",
+            type: "couple",
+            message: buildAlreadyInscribedMessage(alreadyInscribedPlayers.players.map((player) => player.name)),
+            createdPlayers,
+          })
+          continue
+        }
+
         const registrationResult = await registerCoupleForTournament(tournamentId, player1Id, player2Id, true)
 
         results.push({
@@ -246,9 +342,11 @@ export async function POST(
         results.push({
           rowId: row.id,
           rowNumber: row.rowNumber,
-          status: "error",
+          status: "skipped",
           type: "individual",
-          message: "El jugador ya esta inscripto en este torneo.",
+          message: buildAlreadyInscribedMessage([
+            row.player1?.fullName || row.player2?.fullName || "Jugador",
+          ]),
           playerId,
           createdPlayers,
         })

@@ -140,7 +140,7 @@ export const parseImportPlayer = (
   const warnings: string[] = []
 
   if (!lastName) {
-    warnings.push("No se pudo detectar apellido.")
+    warnings.push("Se importara sin apellido.")
   }
 
   if (!normalizedDni.dni && cleanCellText(dniCell)) {
@@ -247,4 +247,17 @@ export const getDefaultDecisionForPlayer = (player: PreviewImportPlayer | null):
   }
 
   return { action: "create" }
+}
+
+export const buildAlreadyInscribedMessage = (playerNames: string[]): string => {
+  const cleanNames = playerNames.map(cleanCellText).filter(Boolean)
+  if (cleanNames.length === 0) {
+    return "Uno de los jugadores ya estaba inscripto. Fila omitida."
+  }
+
+  if (cleanNames.length === 1) {
+    return `${cleanNames[0]} ya estaba inscripto. Fila omitida.`
+  }
+
+  return `${cleanNames.join(" / ")} ya estaban inscriptos. Fila omitida.`
 }

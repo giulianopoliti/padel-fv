@@ -22,6 +22,8 @@ interface IdentityCandidate {
   confidence: number
   score?: number | null
   category_name?: string | null
+  alreadyInscribed?: boolean
+  inscriptionLabel?: string | null
 }
 
 interface PreviewPlayer {
@@ -111,8 +113,12 @@ export default function ImportInscriptionsExcelDialog({
     const candidates = rows.reduce((total, row) => {
       return total + (row.player1?.candidates.length ? 1 : 0) + (row.player2?.candidates.length ? 1 : 0)
     }, 0)
+    const alreadyInscribedRows = rows.filter((row) => {
+      return row.player1?.candidates.some((candidate) => candidate.alreadyInscribed) ||
+        row.player2?.candidates.some((candidate) => candidate.alreadyInscribed)
+    }).length
 
-    return { couples, individuals, candidates }
+    return { couples, individuals, candidates, alreadyInscribedRows }
   }, [rows])
 
   const resetState = () => {
@@ -197,6 +203,24 @@ export default function ImportInscriptionsExcelDialog({
     }))
   }
 
+  const getSelectedCandidate = (row: PreviewRow, slot: "player1" | "player2") => {
+    const player = row[slot]
+    const decision = decisions[getDecisionKey(row.id, slot)]
+
+    if (!player || decision?.action !== "use" || !decision.playerId) {
+      return null
+    }
+
+    return player.candidates.find((candidate) => candidate.id === decision.playerId) || null
+  }
+
+  const rowWillBeSkipped = (row: PreviewRow) => {
+    return !!(
+      getSelectedCandidate(row, "player1")?.alreadyInscribed ||
+      getSelectedCandidate(row, "player2")?.alreadyInscribed
+    )
+  }
+
   const handleCommit = async () => {
     setIsCommitting(true)
 
@@ -227,6 +251,7 @@ export default function ImportInscriptionsExcelDialog({
         title: "Importacion finalizada",
         description: `${payload.summary.couples} parejas y ${payload.summary.individuals} jugadores sueltos importados.`,
       })
+      setOpen(false)
     } catch (error) {
       toast({
         title: "Error al importar",
@@ -245,13 +270,25 @@ export default function ImportInscriptionsExcelDialog({
 
     const decision = decisions[getDecisionKey(row.id, slot)] || { action: "create" }
     const candidate = player.primaryCandidate
+    const selectedDecisionValue = decision.action === "use" && decision.playerId
+      ? `use:${decision.playerId}`
+      : decision.action
+
+    const handleDecisionChange = (value: string) => {
+      if (value.startsWith("use:")) {
+        updateDecision(row.id, slot, { action: "use", playerId: value.replace("use:", "") })
+        return
+      }
+
+      updateDecision(row.id, slot, { action: "create" })
+    }
 
     return (
       <div className="space-y-2">
         <div>
           <p className="font-medium text-slate-900">{player.fullName}</p>
           <p className="text-xs text-slate-500">
-            {player.firstName} / {player.lastName || "Sin apellido"} · DNI {player.dni || "sin DNI"}
+            {player.firstName} / {player.lastName || "Sin apellido"} - DNI {player.dni || "sin DNI"}
           </p>
         </div>
 
@@ -262,29 +299,31 @@ export default function ImportInscriptionsExcelDialog({
         {candidate ? (
           <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
             <p className="text-xs font-medium text-slate-700">
-              Posible match por {candidate.matchedBy === "dni" ? "DNI" : "nombre"}:
+              Posibles coincidencias:
             </p>
-            <p className="text-sm text-slate-900">
-              {formatCandidateName(candidate)} · DNI {candidate.dni || "-"}
+            <Select value={selectedDecisionValue} onValueChange={handleDecisionChange} disabled={isCommitting}>
+              <SelectTrigger className="mt-2 bg-white">
+                <SelectValue placeholder="Elegir accion" />
+              </SelectTrigger>
+              <SelectContent>
+                {player.candidates.map((candidateOption) => (
+                  <SelectItem key={candidateOption.id} value={`use:${candidateOption.id}`}>
+                    Si, usar {formatCandidateName(candidateOption)} - DNI {candidateOption.dni || "-"}
+                    {candidateOption.alreadyInscribed ? " - ya inscripto, se omitira" : ""}
+                  </SelectItem>
+                ))}
+                <SelectItem value="create">No, crear jugador nuevo</SelectItem>
+              </SelectContent>
+            </Select>
+            {decision.action === "use" && decision.playerId && getSelectedCandidate(row, slot)?.alreadyInscribed && (
+              <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                {getSelectedCandidate(row, slot)?.inscriptionLabel || "Ya inscripto"}.
+                Esta fila no se volvera a inscribir si confirmas usando este jugador.
+              </div>
+            )}
+            <p className="mt-1 text-xs text-slate-500">
+              Match principal por {candidate.matchedBy === "dni" ? "DNI" : "nombre"}.
             </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={decision.action === "use" ? "default" : "outline"}
-                onClick={() => updateDecision(row.id, slot, { action: "use", playerId: candidate.id })}
-              >
-                Si es el mismo jugador
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={decision.action === "create" ? "default" : "outline"}
-                onClick={() => updateDecision(row.id, slot, { action: "create" })}
-              >
-                No, crear nuevo
-              </Button>
-            </div>
           </div>
         ) : (
           <Badge variant="secondary">Crear jugador nuevo</Badge>
@@ -348,6 +387,11 @@ export default function ImportInscriptionsExcelDialog({
               <Badge variant="outline">{stats.couples} parejas</Badge>
               <Badge variant="outline">{stats.individuals} jugadores sueltos</Badge>
               <Badge variant="outline">{stats.candidates} posibles matches</Badge>
+              {stats.alreadyInscribedRows > 0 && (
+                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
+                  {stats.alreadyInscribedRows} ya inscriptos
+                </Badge>
+              )}
             </div>
           )}
 
@@ -373,6 +417,11 @@ export default function ImportInscriptionsExcelDialog({
                           <Badge variant={row.player1 && row.player2 ? "default" : "secondary"}>
                             {row.player1 && row.player2 ? "Pareja" : "Jugador suelto"}
                           </Badge>
+                          {rowWillBeSkipped(row) && (
+                            <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
+                              Ya inscripto: se omitira
+                            </Badge>
+                          )}
                           {row.warnings.length > 0 && (
                             <p className="text-xs text-amber-700">{row.warnings.join(" ")}</p>
                           )}
