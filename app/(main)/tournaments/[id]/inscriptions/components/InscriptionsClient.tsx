@@ -13,6 +13,7 @@ import TournamentCouplesTab from '@/components/tournament/tournament-couples-tab
 import TournamentPlayersTab from '@/components/tournament/tournament-players-tab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Gender } from '@/types';
+import ImportInscriptionsExcelDialog from './ImportInscriptionsExcelDialog';
 
 /**
  * 🎯 CLIENT COMPONENT SIMPLIFICADO
@@ -227,6 +228,16 @@ const InscriptionsClient: React.FC<InscriptionsClientProps> = ({
                   <Link href={`/tournaments/${tournamentId}`}>Ir al torneo</Link>
                 </Button>
               </div>
+            </div>
+          )}
+
+          {isOwner && (
+            <div className="mt-6 flex justify-end">
+              <ImportInscriptionsExcelDialog
+                tournamentId={tournamentId}
+                disabled={permissionsLoading}
+                onImported={handleRefresh}
+              />
             </div>
           )}
 

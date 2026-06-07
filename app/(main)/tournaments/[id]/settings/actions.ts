@@ -125,14 +125,14 @@ function canSwitchLongSingleZoneBracketMode(
   )
 }
 
-const adjustDateForArgentina = (dateString: string): string => {
+const toArgentinaNoonISOString = (dateString: string): string => {
   const argentinaDate = new Date(`${dateString}T12:00:00-03:00`)
 
-  const year = argentinaDate.getFullYear()
-  const month = String(argentinaDate.getMonth() + 1).padStart(2, '0')
-  const day = String(argentinaDate.getDate()).padStart(2, '0')
+  if (Number.isNaN(argentinaDate.getTime())) {
+    throw new Error('Fecha invalida')
+  }
 
-  return `${year}-${month}-${day}`
+  return argentinaDate.toISOString()
 }
 
 function revalidateTournamentSettingsPaths(tournamentId: string) {
@@ -575,11 +575,11 @@ export async function updateTournamentBasicInfo(
     }
 
     if (params.start_date !== undefined) {
-      updateData.start_date = params.start_date ? adjustDateForArgentina(params.start_date) : null
+      updateData.start_date = params.start_date ? toArgentinaNoonISOString(params.start_date) : null
     }
 
     if (params.end_date !== undefined) {
-      updateData.end_date = params.end_date ? adjustDateForArgentina(params.end_date) : null
+      updateData.end_date = params.end_date ? toArgentinaNoonISOString(params.end_date) : null
     }
 
     // Update tournament

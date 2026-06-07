@@ -11,6 +11,30 @@ import { Loader2, Save, FileText, Users, AlertCircle, Tag } from 'lucide-react'
 import { updateTournamentBasicInfo } from '../actions'
 import { MAX_TOURNAMENT_PRICE } from '@/lib/constants/tournaments'
 
+const ARGENTINA_TIME_ZONE = 'America/Argentina/Buenos_Aires'
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+const toInputDate = (value?: string | null) => {
+  if (!value) return ''
+
+  if (DATE_ONLY_PATTERN.test(value)) {
+    return value
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: ARGENTINA_TIME_ZONE,
+    year: 'numeric',
+  }).formatToParts(date)
+
+  const dateParts = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${dateParts.year}-${dateParts.month}-${dateParts.day}`
+}
+
 interface TournamentBasicInfoFormProps {
   tournamentId: string
   initialData: {
@@ -29,10 +53,8 @@ export default function TournamentBasicInfoForm({
   initialData,
   inscriptionsCount
 }: TournamentBasicInfoFormProps) {
-  const toInputDate = (value?: string | null) => {
-    if (!value) return ''
-    return value.slice(0, 10)
-  }
+  const initialStartDate = toInputDate(initialData.start_date)
+  const initialEndDate = toInputDate(initialData.end_date)
 
   const [isLoading, setIsLoading] = useState(false)
   const [name, setName] = useState(initialData.name)
@@ -43,8 +65,8 @@ export default function TournamentBasicInfoForm({
   const [price, setPrice] = useState<number | ''>(
     initialData.price ?? ''
   )
-  const [startDate, setStartDate] = useState(toInputDate(initialData.start_date))
-  const [endDate, setEndDate] = useState(toInputDate(initialData.end_date))
+  const [startDate, setStartDate] = useState(initialStartDate)
+  const [endDate, setEndDate] = useState(initialEndDate)
   const [hasChanges, setHasChanges] = useState(false)
   const { toast } = useToast()
 
@@ -67,15 +89,23 @@ export default function TournamentBasicInfoForm({
     setIsLoading(true)
 
     try {
-      const result = await updateTournamentBasicInfo({
+      const updatePayload: Parameters<typeof updateTournamentBasicInfo>[0] = {
         tournamentId,
         name: name.trim(),
         description: description.trim() || null,
         max_participants: maxParticipants === '' ? null : Number(maxParticipants),
         price: price === '' ? null : Number(price),
-        start_date: startDate || null,
-        end_date: endDate || null,
-      })
+      }
+
+      if (startDate !== initialStartDate) {
+        updatePayload.start_date = startDate || null
+      }
+
+      if (endDate !== initialEndDate) {
+        updatePayload.end_date = endDate || null
+      }
+
+      const result = await updateTournamentBasicInfo(updatePayload)
 
       if (result.success) {
         toast({
@@ -113,8 +143,8 @@ export default function TournamentBasicInfoForm({
     setDescription(initialData.description || '')
     setMaxParticipants(initialData.max_participants || '')
     setPrice(initialData.price ?? '')
-    setStartDate(toInputDate(initialData.start_date))
-    setEndDate(toInputDate(initialData.end_date))
+    setStartDate(initialStartDate)
+    setEndDate(initialEndDate)
     setHasChanges(false)
   }
 
