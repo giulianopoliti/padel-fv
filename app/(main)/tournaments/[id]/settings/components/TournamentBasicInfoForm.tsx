@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Save, FileText, Users, AlertCircle, Tag } from 'lucide-react'
+import { Loader2, Save, FileText, Users, AlertCircle, Tag, Clock3 } from 'lucide-react'
 import { updateTournamentBasicInfo } from '../actions'
 import { MAX_TOURNAMENT_PRICE } from '@/lib/constants/tournaments'
 
@@ -24,7 +24,7 @@ const toInputDate = (value?: string | null) => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
 
-  const parts = new Intl.DateTimeFormat('en-US', {
+  const parts = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: '2-digit',
     timeZone: ARGENTINA_TIME_ZONE,
@@ -33,6 +33,28 @@ const toInputDate = (value?: string | null) => {
 
   const dateParts = Object.fromEntries(parts.map((part) => [part.type, part.value]))
   return `${dateParts.year}-${dateParts.month}-${dateParts.day}`
+}
+
+const toInputTime = (value?: string | null) => {
+  if (!value || !value.includes('T')) return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    hour12: false,
+    minute: '2-digit',
+    timeZone: ARGENTINA_TIME_ZONE,
+  }).formatToParts(date)
+
+  const timeParts = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${timeParts.hour}:${timeParts.minute}`
+}
+
+const toArgentinaDateTimeISOString = (date: string, time: string) => {
+  const normalizedTime = time.length === 5 ? `${time}:00` : time
+  return `${date}T${normalizedTime}-03:00`
 }
 
 interface TournamentBasicInfoFormProps {
@@ -44,6 +66,7 @@ interface TournamentBasicInfoFormProps {
     price?: number | null
     start_date?: string | null
     end_date?: string | null
+    type?: string | null
   }
   inscriptionsCount: number
 }
@@ -54,7 +77,9 @@ export default function TournamentBasicInfoForm({
   inscriptionsCount
 }: TournamentBasicInfoFormProps) {
   const initialStartDate = toInputDate(initialData.start_date)
+  const initialStartTime = toInputTime(initialData.start_date)
   const initialEndDate = toInputDate(initialData.end_date)
+  const isAmericanTournament = initialData.type === 'AMERICAN' || initialData.type === 'AMERICANO'
 
   const [isLoading, setIsLoading] = useState(false)
   const [name, setName] = useState(initialData.name)
@@ -66,6 +91,7 @@ export default function TournamentBasicInfoForm({
     initialData.price ?? ''
   )
   const [startDate, setStartDate] = useState(initialStartDate)
+  const [startTime, setStartTime] = useState(initialStartTime)
   const [endDate, setEndDate] = useState(initialEndDate)
   const [hasChanges, setHasChanges] = useState(false)
   const { toast } = useToast()
@@ -97,8 +123,12 @@ export default function TournamentBasicInfoForm({
         price: price === '' ? null : Number(price),
       }
 
-      if (startDate !== initialStartDate) {
-        updatePayload.start_date = startDate || null
+      if (startDate !== initialStartDate || startTime !== initialStartTime) {
+        updatePayload.start_date = startDate
+          ? startTime
+            ? toArgentinaDateTimeISOString(startDate, startTime)
+            : startDate
+          : null
       }
 
       if (endDate !== initialEndDate) {
@@ -144,6 +174,7 @@ export default function TournamentBasicInfoForm({
     setMaxParticipants(initialData.max_participants || '')
     setPrice(initialData.price ?? '')
     setStartDate(initialStartDate)
+    setStartTime(initialStartTime)
     setEndDate(initialEndDate)
     setHasChanges(false)
   }
@@ -163,6 +194,10 @@ export default function TournamentBasicInfoForm({
   const areDatesValid = () => {
     if (!startDate || !endDate) return true
     return startDate <= endDate
+  }
+
+  const isStartTimeValid = () => {
+    return !isAmericanTournament || !startDate || Boolean(startTime)
   }
 
   return (
@@ -253,7 +288,7 @@ export default function TournamentBasicInfoForm({
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="tournament-start-date" className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-sky-600" />
@@ -271,6 +306,37 @@ export default function TournamentBasicInfoForm({
             className="w-full"
           />
           <p className="text-xs text-muted-foreground">Opcional. Se usa en listados y resumenes del torneo.</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="tournament-start-time" className="flex items-center gap-2">
+            <Clock3 className="h-4 w-4 text-sky-600" />
+            Hora de inicio
+          </Label>
+          <Input
+            id="tournament-start-time"
+            type="time"
+            value={startTime}
+            onChange={(e) => {
+              setStartTime(e.target.value)
+              handleInputChange()
+            }}
+            disabled={isLoading || !startDate}
+            className="w-full"
+          />
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">
+              {isAmericanTournament ? 'Obligatoria para torneos americanos.' : 'Opcional. Conserva el horario publico del torneo.'}
+            </p>
+            {!isStartTimeValid() && (
+              <Alert variant="destructive" className="py-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  La hora de inicio es obligatoria para torneos americanos.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -345,7 +411,7 @@ export default function TournamentBasicInfoForm({
       <div className="flex gap-3 pt-4 border-t">
         <Button
           type="submit"
-          disabled={isLoading || !hasChanges || !isMaxParticipantsValid() || !isPriceValid() || !areDatesValid()}
+          disabled={isLoading || !hasChanges || !isMaxParticipantsValid() || !isPriceValid() || !areDatesValid() || !isStartTimeValid()}
           className="flex-1"
         >
           {isLoading ? (

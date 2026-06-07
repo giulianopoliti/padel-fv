@@ -65,6 +65,7 @@ export default async function SettingsDatosPage({ params }: SettingsDatosPagePro
               price: tournament.price,
               start_date: (tournament as any).start_date ?? null,
               end_date: (tournament as any).end_date ?? null,
+              type: tournament.type ?? null,
             }}
             inscriptionsCount={inscriptionsCount}
           />
