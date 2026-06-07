@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { FileSpreadsheet, Loader2, Upload, CheckCircle2, AlertCircle } from "lucide-react"
+import { FileSpreadsheet, Loader2, Upload, CheckCircle2, AlertCircle, Download } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -356,6 +356,24 @@ export default function ImportInscriptionsExcelDialog({
         </DialogHeader>
 
         <div className="grid gap-4">
+          <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1 text-sm text-blue-950">
+                <p className="font-medium">Formato esperado</p>
+                <p>Cada hoja equivale a un torneo/categoria. Usar columnas A-D:</p>
+                <p className="text-xs text-blue-800">
+                  Nombre y Apellido | DNI | Nombre y Apellido | DNI. Si falta el jugador 2, dejar las ultimas dos columnas vacias.
+                </p>
+              </div>
+              <Button asChild type="button" variant="outline" className="shrink-0 gap-2 border-blue-300 bg-white text-blue-900 hover:bg-blue-100">
+                <a href="/templates/modelo-inscripciones-torneo.xlsx" download>
+                  <Download className="h-4 w-4" />
+                  Descargar modelo
+                </a>
+              </Button>
+            </div>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
             <Input type="file" accept=".xlsx,.xls" onChange={handleFileChange} disabled={isPreviewing || isCommitting} />
 
