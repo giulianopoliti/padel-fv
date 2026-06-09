@@ -45,6 +45,7 @@ const ADMIN_LOGIN_PATH = "/admin-login"
 const ONBOARDING_PATH = "/complete-google-profile"
 const AUTH_CALLBACK_PATH = "/auth/callback"
 const AUTH_PAGE_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"]
+const AUTH_REDIRECT_PATHS = ["/login", "/register", "/forgot-password"]
 const PROTECTED_ROUTES = [DASHBOARD_PATH, "/panel-cpa", "/edit-profile", "/profile"]
 const ADMIN_ROUTES = [ADMIN_DASHBOARD_PATH] // Routes that require ADMIN role
 
@@ -207,6 +208,9 @@ export async function updateSession(request: NextRequest) {
     const isOnboardingPath = currentPath === ONBOARDING_PATH || currentPath.startsWith(`${ONBOARDING_PATH}/`)
     const isAuthCallbackPath = currentPath === AUTH_CALLBACK_PATH || currentPath.startsWith(`${AUTH_CALLBACK_PATH}/`)
     const isAuthPage = AUTH_PAGE_PATHS.some((path) => currentPath === path || currentPath.startsWith(`${path}/`))
+    const shouldRedirectAuthenticatedAuthPage = AUTH_REDIRECT_PATHS.some(
+      (path) => currentPath === path || currentPath.startsWith(`${path}/`),
+    )
 
     if (user && userRecordMissing && !isOnboardingPath && !isAuthCallbackPath) {
       const url = request.nextUrl.clone()
@@ -222,7 +226,7 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Redirect authenticated users with a completed profile away from auth pages
-    if (user && userRole && isAuthPage) {
+    if (user && userRole && shouldRedirectAuthenticatedAuthPage) {
       const url = request.nextUrl.clone()
       url.pathname = DASHBOARD_PATH
       return NextResponse.redirect(url, { headers })
