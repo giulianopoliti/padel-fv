@@ -10,6 +10,7 @@ import Link from "next/link"
 import { ArrowLeft, Mail, CheckCircle } from "lucide-react"
 import CPALogo from "@/components/ui/cpa-logo"
 import { createClient } from "@/utils/supabase/client"
+import { getURL } from "@/utils/supabase/helpers"
 
 export default function ForgotPasswordPage() {
   const { toast } = useToast()
@@ -31,9 +32,10 @@ export default function ForgotPasswordPage() {
 
     try {
       const supabase = createClient()
+      const redirectTo = getURL("/auth/callback?type=recovery&next=/reset-password")
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?type=recovery&next=/reset-password`,
+        redirectTo,
       })
 
       if (error) {

@@ -91,6 +91,8 @@ export function checkRoutePermission(path: string, role?: Role | null): boolean 
     "/login",
     "/auth/callback",
     "/register",
+    "/forgot-password",
+    "/reset-password",
     "/clubes",
     "/coaches",
     "/players",

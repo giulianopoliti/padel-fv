@@ -26,25 +26,62 @@ export default function ResetPasswordPage() {
   const [isValidSession, setIsValidSession] = useState<boolean | null>(null)
 
   useEffect(() => {
+    let isMounted = true
+    const supabase = createClient()
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return
+
+      if (event === "PASSWORD_RECOVERY" || session) {
+        setIsValidSession(true)
+      }
+    })
+
     const checkSession = async () => {
       try {
-        const supabase = createClient()
+        const code = new URLSearchParams(window.location.search).get("code")
+
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+          window.history.replaceState(null, "", window.location.pathname)
+
+          if (exchangeError) {
+            console.error("Error exchanging recovery code:", exchangeError)
+            if (isMounted) {
+              setIsValidSession(false)
+              setError("El link de recuperacion es invalido o ya expiro.")
+            }
+            return
+          }
+        }
+
         const { data: { session }, error } = await supabase.auth.getSession()
         
         if (error || !session) {
           console.log("No valid session found")
-          setIsValidSession(false)
+          if (isMounted) {
+            setIsValidSession(false)
+          }
           return
         }
         
-        setIsValidSession(true)
+        if (isMounted) {
+          setIsValidSession(true)
+        }
       } catch (err) {
         console.error("Error checking session:", err)
-        setIsValidSession(false)
+        if (isMounted) {
+          setIsValidSession(false)
+        }
       }
     }
 
     checkSession()
+
+    return () => {
+      isMounted = false
+      authListener.subscription.unsubscribe()
+    }
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,6 +124,7 @@ export default function ResetPasswordPage() {
           variant: "destructive",
         })
       } else {
+        await supabase.auth.signOut({ scope: "local" })
         setIsPasswordReset(true)
         toast({
           title: "Contraseña actualizada",

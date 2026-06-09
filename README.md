@@ -124,6 +124,20 @@ En cada proyecto Supabase configurar:
 - proveedor Google si el tenant lo usa
 - recovery/reset password para el dominio del cliente
 
+Para recovery/reset password, el codigo envia a Supabase un `redirectTo` hacia:
+
+```txt
+<NEXT_PUBLIC_SITE_URL>/auth/callback?type=recovery&next=/reset-password
+```
+
+Por tenant, asegurar que la allowlist de Supabase Auth incluya el callback del dominio correspondiente:
+
+```txt
+https://<dominio-fv>/auth/callback**
+https://<dominio-elite>/auth/callback**
+http://localhost:3000/auth/callback**
+```
+
 ## Datos por tenant
 
 Cada Supabase tiene sus propios datos. Si se necesita migrar informacion entre tenants, hacerlo de forma explicita y cuidando:
