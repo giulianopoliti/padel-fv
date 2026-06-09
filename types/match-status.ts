@@ -6,6 +6,7 @@ export const MATCH_STATUS = {
   BYE: 'BYE',
   WAITING_OPONENT: 'WAITING_OPONENT'
 } as const;
+ 
 
 export type MatchStatus = typeof MATCH_STATUS[keyof typeof MATCH_STATUS];
 

@@ -154,7 +154,7 @@ const hydrateAuthUsers = async (userIds) => {
 }
 
 const normalizeAuthUser = (user) => ({
-  instance_id: null,
+  instance_id: "00000000-0000-0000-0000-000000000000",
   id: user.id,
   aud: user.aud ?? "authenticated",
   role: user.role ?? "authenticated",
