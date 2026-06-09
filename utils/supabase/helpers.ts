@@ -1,15 +1,23 @@
 export const getURL = (path: string = "") => {
+    const browserOrigin =
+      typeof window !== "undefined" ? window.location.origin : null;
+
     // Check if NEXT_PUBLIC_SITE_URL is set and non-empty. Set this to your site URL in production env.
-    let url =
-      process?.env?.NEXT_PUBLIC_SITE_URL &&
-      process.env.NEXT_PUBLIC_SITE_URL.trim() !== ""
-        ? process.env.NEXT_PUBLIC_SITE_URL
-        : // If not set, check for NEXT_PUBLIC_VERCEL_URL, which is automatically set by Vercel.
-        process?.env?.NEXT_PUBLIC_VERCEL_URL &&
-          process.env.NEXT_PUBLIC_VERCEL_URL.trim() !== ""
-        ? process.env.NEXT_PUBLIC_VERCEL_URL
-        : // If neither is set, default to localhost for local development.
-          "http://localhost:3000/"; // Defaulting to port 3000 for typical Next.js dev
+    let url = process?.env?.NEXT_PUBLIC_SITE_URL?.trim() || "";
+
+    if (!url && browserOrigin) {
+      url = browserOrigin;
+    }
+
+    // If not set, check for NEXT_PUBLIC_VERCEL_URL, which is automatically set by Vercel.
+    if (!url) {
+      url = process?.env?.NEXT_PUBLIC_VERCEL_URL?.trim() || "";
+    }
+
+    // If neither is set, default to localhost for local development.
+    if (!url) {
+      url = "http://localhost:3000/";
+    }
   
     // Trim the URL and remove trailing slash if exists.
     url = url.replace(/\/+$/, "");
@@ -21,4 +29,3 @@ export const getURL = (path: string = "") => {
     // Concatenate the URL and the path.
     return path ? `${url}/${path}` : url;
   };
-  
