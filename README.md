@@ -127,7 +127,7 @@ En cada proyecto Supabase configurar:
 Para recovery/reset password, el codigo envia a Supabase un `redirectTo` hacia:
 
 ```txt
-<NEXT_PUBLIC_SITE_URL>/auth/callback?type=recovery&next=/reset-password
+<NEXT_PUBLIC_SITE_URL>/auth/callback/recovery
 ```
 
 Por tenant, asegurar que la allowlist de Supabase Auth incluya el callback del dominio correspondiente:

@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
   const type = requestUrl.searchParams.get("type")
   const next = sanitizeNext(requestUrl.searchParams.get("next")) || getStoredNext(request)
   const origin = requestUrl.origin
+  const isRecoveryFlow = type === "recovery" || next === "/reset-password"
 
   if (code) {
     const supabase = await createClient()
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
       return redirectAndClearOAuthNext(`${origin}/login`)
     }
 
-    if (type === "recovery") {
+    if (isRecoveryFlow) {
       return redirectAndClearOAuthNext(`${origin}/reset-password`)
     }
 
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (type === "recovery") {
+  if (isRecoveryFlow) {
     return redirectAndClearOAuthNext(`${origin}/reset-password`)
   }
 
