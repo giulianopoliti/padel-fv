@@ -109,22 +109,26 @@ export default function ResetPasswordPage() {
     }
 
     try {
-      const supabase = createClient()
-      
-      const { error } = await supabase.auth.updateUser({
-        password: password
+      const response = await fetch("/auth/reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          password,
+        }),
       })
+      const result = (await response.json()) as { success?: boolean; error?: string }
 
-      if (error) {
-        console.error("Error updating password:", error)
-        setError("Error al actualizar la contraseña. El link puede haber expirado.")
+      if (!response.ok || result.error) {
+        console.error("Error updating password:", result.error)
+        setError(result.error || "Error al actualizar la contraseña. El link puede haber expirado.")
         toast({
           title: "Error",
-          description: "No se pudo actualizar la contraseña.",
+          description: result.error || "No se pudo actualizar la contraseña.",
           variant: "destructive",
         })
       } else {
-        await supabase.auth.signOut({ scope: "local" })
         setIsPasswordReset(true)
         toast({
           title: "Contraseña actualizada",
