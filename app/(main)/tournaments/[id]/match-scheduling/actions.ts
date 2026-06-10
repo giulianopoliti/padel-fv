@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { checkTournamentPermissions } from "@/utils/tournament-permissions"
 import { updateZonePositionsForTournament } from "@/lib/services/ranking"
 import { getFechaBracketLabel } from "@/lib/services/fecha-bracket-policy"
+import { IncrementalPlaceholderUpdater } from "@/lib/services/incremental-placeholder-updater"
 
 // Types for match scheduling
 export interface SchedulingData {
@@ -719,7 +720,8 @@ export async function updateMatchResult(
         tournaments!inner (
           id,
           type,
-          name
+          name,
+          status
         )
       `)
       .eq('id', matchId)
@@ -845,6 +847,19 @@ export async function updateMatchResult(
           console.warn(`⚠️  Fallback system was used: ${zoneUpdateResult.error}`)
         }
         
+        let placeholderResolution: { resolved: number; definitive: number } | null = null
+        if (tournamentInfo?.status === 'BRACKET_PHASE' && existingMatch.zone_id) {
+          try {
+            const incrementalUpdater = new IncrementalPlaceholderUpdater()
+            placeholderResolution = await incrementalUpdater.analyzeZoneAndResolveDefinitives(
+              existingMatch.tournament_id,
+              existingMatch.zone_id
+            )
+          } catch (placeholderError) {
+            console.error('Error resolving placeholders after match result update:', placeholderError)
+          }
+        }
+
         // Enhanced success message with ranking info
         const rankingInfo = zoneUpdateResult.systemUsed === 'configurable' 
           ? ` Posiciones actualizadas usando sistema configurable.`
@@ -868,7 +883,8 @@ export async function updateMatchResult(
               hasUnresolvedTies: zoneUpdateResult.hasUnresolvedTies,
               fallbackUsed: zoneUpdateResult.fallbackUsed,
               calculationTime: zoneUpdateResult.calculationTime
-            }
+            },
+            placeholderResolution
           }
         }
         

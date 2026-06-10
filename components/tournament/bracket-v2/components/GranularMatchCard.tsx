@@ -228,6 +228,24 @@ export function GranularMatchCard({
     )
   }
 
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'PENDING':
+        return 'Pendiente'
+      case 'IN_PROGRESS':
+        return 'En curso'
+      case 'FINISHED':
+        return 'Finalizado'
+      case 'WAITING_OPPONENT':
+      case 'WAITING_OPONENT':
+        return 'Esperando oponente'
+      case 'BYE':
+        return 'BYE'
+      default:
+        return 'Pendiente'
+    }
+  }
+
   const getMatchStatusInfo = () => {
     switch (match.status) {
       case 'PENDING':
@@ -236,10 +254,11 @@ export function GranularMatchCard({
         return { badge: <Badge className="bg-blue-600 text-[10px]">En curso</Badge>, borderColor: 'border-blue-400' }
       case 'FINISHED':
         return { badge: <Badge className="bg-green-600 text-[10px]">Finalizado</Badge>, borderColor: 'border-green-400' }
+      case 'WAITING_OPPONENT' as BracketMatchV2['status']:
       case 'WAITING_OPONENT' as BracketMatchV2['status']:
-        return { badge: <Badge variant="outline" className="text-[10px]">Esperando</Badge>, borderColor: 'border-orange-300' }
+        return { badge: <Badge variant="outline" className="text-[10px]">Esperando oponente</Badge>, borderColor: 'border-orange-300' }
       default:
-        return { badge: <Badge variant="secondary" className="text-[10px]">{match.status}</Badge>, borderColor: 'border-gray-300' }
+        return { badge: <Badge variant="secondary" className="text-[10px]">{getStatusLabel(match.status)}</Badge>, borderColor: 'border-gray-300' }
     }
   }
 

@@ -194,6 +194,24 @@ export const CompactMatchCard = memo(function CompactMatchCard({
     setShowModifyResult(false)
   }, [])
 
+  const getStatusLabel = useCallback((status: string) => {
+    switch (status) {
+      case 'PENDING':
+        return 'Pendiente'
+      case 'IN_PROGRESS':
+        return 'En curso'
+      case 'FINISHED':
+        return 'Finalizado'
+      case 'WAITING_OPPONENT':
+      case 'WAITING_OPONENT':
+        return 'Esperando oponente'
+      case 'BYE':
+        return 'BYE'
+      default:
+        return 'Pendiente'
+    }
+  }, [])
+
   // ============================================================================
   // ESTADO VISUAL (OPTIMIZADO)
   // ============================================================================
@@ -218,20 +236,21 @@ export const CompactMatchCard = memo(function CompactMatchCard({
           borderColor: 'border-green-400',
           bgColor: 'bg-green-50'
         }
+      case 'WAITING_OPPONENT':
       case 'WAITING_OPONENT':
         return {
-          badge: <Badge variant="outline" className="text-xs">Esperando</Badge>,
+          badge: <Badge variant="outline" className="text-xs">Esperando oponente</Badge>,
           borderColor: 'border-orange-300',
           bgColor: 'bg-orange-50'
         }
       default:
         return {
-          badge: <Badge variant="secondary" className="text-xs">{match.status}</Badge>,
+          badge: <Badge variant="secondary" className="text-xs">{getStatusLabel(match.status)}</Badge>,
           borderColor: 'border-gray-300',
           bgColor: 'bg-white'
         }
     }
-  }, [match.status])
+  }, [getStatusLabel, match.status])
 
   // ============================================================================
   // RENDER OPTIMIZADO - LAYOUT COMPACTO

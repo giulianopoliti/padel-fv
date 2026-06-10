@@ -53,6 +53,54 @@ export const TOURNAMENT_FORMAT_PRESETS: Record<OperationalTournamentFormatPreset
       description: 'Zonas multiples: zonas de 4 juegan 3 partidos por pareja; zonas de 3 juegan round robin completo.',
     },
   },
+  AMERICAN_MULTI_ZONE_GLOBAL_2: {
+    version: 2,
+    presetId: 'AMERICAN_MULTI_ZONE_GLOBAL_2',
+    baseType: 'AMERICAN',
+    zoneMode: 'MULTI_ZONE',
+    zoneStage: 'FIXED_MATCH_COUNT',
+    targetMatchesPerCouple: 2,
+    bracketMode: 'SINGLE',
+    advancementConfig: { kind: 'SINGLE', advanceCount: 64 },
+    rankingScope: 'GLOBAL',
+    rankingPolicyId: 'STANDARD_PADEL',
+    qualificationSource: 'GLOBAL_STANDINGS',
+    bracketSeedingStrategy: 'GLOBAL_RANKING',
+    zoneRules: {
+      minSize: 3,
+      maxSize: 5,
+      idealSize: 4,
+      allowedSizes: [3, 4, 5],
+    },
+    display: {
+      name: 'Americano tabla general (2 partidos)',
+      description: 'Zonas multiples con 2 partidos por pareja y llave sembrada desde una tabla general.',
+    },
+  },
+  AMERICAN_MULTI_ZONE_GLOBAL_3: {
+    version: 2,
+    presetId: 'AMERICAN_MULTI_ZONE_GLOBAL_3',
+    baseType: 'AMERICAN',
+    zoneMode: 'MULTI_ZONE',
+    zoneStage: 'FIXED_MATCH_COUNT',
+    targetMatchesPerCouple: 3,
+    bracketMode: 'SINGLE',
+    advancementConfig: { kind: 'SINGLE', advanceCount: 64 },
+    rankingScope: 'GLOBAL',
+    rankingPolicyId: 'STANDARD_PADEL',
+    qualificationSource: 'GLOBAL_STANDINGS',
+    bracketSeedingStrategy: 'GLOBAL_RANKING',
+    zoneRules: {
+      minSize: 3,
+      maxSize: 4,
+      idealSize: 4,
+      allowedSizes: [3, 4],
+    },
+    display: {
+      name: 'Americano tabla general (3 partidos)',
+      description: 'Zonas multiples: zonas de 4 juegan 3 partidos por pareja; la llave sale de la tabla general.',
+    },
+  },
   AMERICAN_SINGLE_ZONE_ROUND_ROBIN_CHAMPION: {
     version: 2,
     presetId: 'AMERICAN_SINGLE_ZONE_ROUND_ROBIN_CHAMPION',
@@ -128,7 +176,7 @@ export const TOURNAMENT_FORMAT_PRESETS: Record<OperationalTournamentFormatPreset
 }
 
 const LEGACY_PRESET_REDIRECTS: Record<Exclude<TournamentFormatPresetId, OperationalTournamentFormatPresetId>, OperationalTournamentFormatPresetId> = {
-  AMERICAN_MULTI_ZONE_GLOBAL_STANDINGS: 'AMERICAN_MULTI_ZONE_3',
+  AMERICAN_MULTI_ZONE_GLOBAL_STANDINGS: 'AMERICAN_MULTI_ZONE_GLOBAL_3',
   AMERICAN_SINGLE_ZONE_2_BRACKET: 'AMERICAN_SINGLE_ZONE_ROUND_ROBIN_CHAMPION',
   AMERICAN_SINGLE_ZONE_3_BRACKET: 'AMERICAN_SINGLE_ZONE_ROUND_ROBIN_CHAMPION',
   AMERICAN_SINGLE_ZONE_ROUND_ROBIN_GOLD_SILVER: 'AMERICAN_SINGLE_ZONE_ROUND_ROBIN_CHAMPION',

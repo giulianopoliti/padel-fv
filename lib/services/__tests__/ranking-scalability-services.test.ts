@@ -44,6 +44,14 @@ describe('ranking scalability services', () => {
       tournament: { format_config: getTournamentFormatPreset('AMERICAN_MULTI_ZONE_3') },
       coupleCount: 4,
     })
+    const americanGlobal2 = TournamentFormatRulesService.resolve({
+      tournament: { format_config: getTournamentFormatPreset('AMERICAN_MULTI_ZONE_GLOBAL_2') },
+      coupleCount: 4,
+    })
+    const americanGlobal3 = TournamentFormatRulesService.resolve({
+      tournament: { format_config: getTournamentFormatPreset('AMERICAN_MULTI_ZONE_GLOBAL_3') },
+      coupleCount: 4,
+    })
     const longGoldSilver = TournamentFormatRulesService.resolve({
       tournament: { format_config: getTournamentFormatPreset('LONG_SINGLE_ZONE_GOLD_SILVER') },
       coupleCount: 4,
@@ -51,6 +59,11 @@ describe('ranking scalability services', () => {
 
     expect(american2.matchesPerCouple).toBe(2)
     expect(american3.matchesPerCouple).toBe(3)
+    expect(americanGlobal2.matchesPerCouple).toBe(2)
+    expect(americanGlobal3.matchesPerCouple).toBe(3)
+    expect(americanGlobal2.rankingScope).toBe('GLOBAL')
+    expect(americanGlobal2.qualificationSource).toBe('GLOBAL_STANDINGS')
+    expect(americanGlobal2.bracketSeedingStrategy).toBe('GLOBAL_RANKING')
     expect(longGoldSilver.rankingScope).toBe('PER_ZONE')
     expect(longGoldSilver.qualificationSource).toBe('ZONE_POSITIONS')
     expect(longGoldSilver.bracketSeedingStrategy).toBe('SERPENTINE_BY_ZONE')
@@ -83,6 +96,87 @@ describe('ranking scalability services', () => {
     expect(perZone.entries.find((entry) => entry.coupleId === 'a1')?.localPosition).toBe(1)
     expect(perZone.entries.find((entry) => entry.coupleId === 'b1')?.localPosition).toBe(1)
     expect(global.entries[0].coupleId).toBe('b1')
+  })
+
+  it('builds global qualification entries with global placeholders and definitive couples', () => {
+    const snapshot: StandingsSnapshot = {
+      zones: [{ id: 'zone-a', name: 'Zona A' }, { id: 'zone-b', name: 'Zona B' }],
+      couples: [
+        couple('a1', 'zone-a'),
+        couple('a2', 'zone-a'),
+        couple('b1', 'zone-b'),
+        couple('b2', 'zone-b'),
+      ],
+      matches: [
+        match('m1', 'zone-a', 'a1', 'a2', 6, 4, 'a1'),
+        match('m2', 'zone-b', 'b1', 'b2', 6, 0, 'b1'),
+      ],
+    }
+
+    const global = StandingsCalculatorService.calculateFromSnapshot(snapshot, {
+      scope: 'GLOBAL',
+      rankingPolicyId: 'STANDARD_PADEL',
+    })
+    const entries = QualificationSourceService.buildGlobalStandingEntries(global.entries, {
+      scope: 'GLOBAL',
+      zoneResults: [
+        {
+          zoneId: 'zone-a',
+          totalCouples: 2,
+          definitivePositions: 1,
+          totalComputationTime: 0,
+          optimizationsApplied: [],
+          analysis: [
+            {
+              coupleId: 'a1',
+              currentPosition: 2,
+              isDefinitive: false,
+              possiblePositions: [1, 2],
+              analysisMethod: 'BACKTRACKING',
+              analysisDetails: '',
+              confidence: 'HIGH',
+              computationTime: 0,
+            },
+          ],
+        },
+        {
+          zoneId: 'zone-b',
+          totalCouples: 2,
+          definitivePositions: 1,
+          totalComputationTime: 0,
+          optimizationsApplied: [],
+          analysis: [
+            {
+              coupleId: 'b1',
+              currentPosition: 1,
+              isDefinitive: true,
+              possiblePositions: [1],
+              analysisMethod: 'NO_PENDING_MATCHES',
+              analysisDetails: '',
+              confidence: 'HIGH',
+              computationTime: 0,
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(entries[0]).toEqual(expect.objectContaining({
+      label: '#1 general',
+      coupleId: 'b1',
+      globalPosition: 1,
+      localPosition: null,
+      zoneId: null,
+      isDefinitive: true,
+    }))
+    expect(entries[1]).toEqual(expect.objectContaining({
+      label: '#2 general',
+      coupleId: null,
+      globalPosition: 2,
+      localPosition: null,
+      zoneId: null,
+      isDefinitive: false,
+    }))
   })
 
   it('does not mark an AMERICAN 3 0W-2L couple definitive while it has a pending match', () => {

@@ -16,6 +16,47 @@ type ViewMode = 'bracket' | 'schedule'
 
 const ACTIVE_BRACKET_STATUSES = ['BRACKET_PHASE', 'FINISHED_POINTS_PENDING', 'FINISHED_POINTS_CALCULATED']
 
+function BracketInstructions({ showBackToZones }: { showBackToZones: boolean }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+      <h3 className="text-sm font-semibold text-slate-900">Instructivo</h3>
+      <div className="mt-3 space-y-3 text-sm text-slate-700">
+        <p>
+          <strong>Procesar BYE:</strong> usalo cuando un partido tiene una sola pareja real y el otro lado quedo vacio.
+          El sistema marca ese partido como finalizado, asigna la pareja ganadora y la avanza automaticamente a la siguiente ronda.
+        </p>
+        <p>
+          <strong>Desprocesar BYE:</strong> revierte esa accion. El partido vuelve a quedar pendiente y la pareja avanzada se quita del cruce siguiente.
+          Sirve si reorganizaste mal una llave o procesaste un BYE antes de tiempo.
+        </p>
+        <p>
+          <strong>Reorganizar parejas:</strong> en modo edicion podes mover o intercambiar parejas dentro de la misma ronda.
+          Los cambios no se aplican hasta que guardes. Mientras no guardes, podes cancelar todo y volver al estado anterior.
+        </p>
+        <p>
+          <strong>Si te confundiste y queres borrar la llave:</strong> usa el boton <strong>Volver a zonas</strong>.
+          Eso elimina la llave actual y devuelve el torneo a la fase de zonas para que puedas corregir y generar de nuevo.
+          {showBackToZones ? ' Lo vas a encontrar arriba en esta misma pantalla.' : ''}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function BracketInstructionsSection({
+  showBackToZones,
+}: {
+  showBackToZones: boolean
+}) {
+  return (
+    <div className="px-4 pb-4 lg:px-6">
+      <div className="mx-auto min-w-0 max-w-none lg:max-w-7xl xl:pr-[max(1.5rem,calc((100vw-80rem)/2+1.5rem))]">
+        <BracketInstructions showBackToZones={showBackToZones} />
+      </div>
+    </div>
+  )
+}
+
 interface BracketContainerProps {
   tournamentId: string
   isOwner: boolean
@@ -57,14 +98,17 @@ export default function BracketContainer({
 
   if (shouldShowReadOnlyView) {
     return (
-      <div className="px-4 lg:px-6 py-6">
-        <div className="max-w-7xl mx-auto">
-          <ReadOnlyBracketVisualization
-            tournamentId={tournamentId}
-            tournamentStatus={tournament.status}
-            tournamentType={tournament.type || 'LONG'}
-            tournamentFormatConfig={tournament.format_config}
-          />
+      <div className="py-6">
+        <BracketInstructionsSection showBackToZones={false} />
+        <div className="px-4 lg:px-6">
+          <div className="max-w-7xl mx-auto">
+            <ReadOnlyBracketVisualization
+              tournamentId={tournamentId}
+              tournamentStatus={tournament.status}
+              tournamentType={tournament.type || 'LONG'}
+              tournamentFormatConfig={tournament.format_config}
+            />
+          </div>
         </div>
       </div>
     )
@@ -73,15 +117,18 @@ export default function BracketContainer({
   // Para organizadores: Solo mostrar el generador si el bracket nunca fue creado
   if (!isInOrFinishedBracketPhase) {
     return (
-      <div className="px-4 lg:px-6">
-        <div className="max-w-2xl mx-auto">
-          <LongBracketGenerator
-            tournamentId={tournamentId}
-            tournament={tournament}
-            onBracketGenerated={() => {
-              window.location.reload()
-            }}
-          />
+      <div className="py-4">
+        <BracketInstructionsSection showBackToZones={false} />
+        <div className="px-4 lg:px-6">
+          <div className="max-w-2xl mx-auto">
+            <LongBracketGenerator
+              tournamentId={tournamentId}
+              tournament={tournament}
+              onBracketGenerated={() => {
+                window.location.reload()
+              }}
+            />
+          </div>
         </div>
       </div>
     )
@@ -148,6 +195,8 @@ export default function BracketContainer({
           </div>
         </div>
       </div>
+
+      <BracketInstructionsSection showBackToZones={isOwner && tournament.status === 'BRACKET_PHASE'} />
 
       {/* Content */}
       <div className="px-4 py-3 lg:px-6 lg:py-4">

@@ -63,6 +63,16 @@ interface ByeState {
   canShowMenu: boolean
 }
 
+type ByeCompatibleStatus = 'PENDING' | 'IN_PROGRESS' | 'WAITING_OPPONENT' | 'WAITING_OPONENT' | string
+
+const normalizeByeCompatibleStatus = (status: ByeCompatibleStatus) => {
+  if (status === 'WAITING_OPONENT') {
+    return 'WAITING_OPPONENT'
+  }
+
+  return status
+}
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -88,6 +98,7 @@ function detectByeState(match: BracketMatchV2): ByeState {
   const hasCouple2 = !!couple2
   const hasSeed1 = !!seed1Id || !!seed1Info
   const hasSeed2 = !!seed2Id || !!seed2Info
+  const normalizedStatus = normalizeByeCompatibleStatus(match.status)
 
   // BYE Procesado: FINISHED con una sola pareja (el otro slot NULL)
   const isByeProcessed =
@@ -101,7 +112,7 @@ function detectByeState(match: BracketMatchV2): ByeState {
   const side2StructuralBye = hasCouple2 && hasSeed2 && !hasCouple1 && !hasSeed1 && !slot1IsPlaceholder
 
   const isByeProcessable =
-    match.status === 'PENDING' &&
+    (normalizedStatus === 'PENDING' || normalizedStatus === 'WAITING_OPPONENT') &&
     !match.winner_id &&
     (side1StructuralBye || side2StructuralBye)
 
@@ -109,11 +120,11 @@ function detectByeState(match: BracketMatchV2): ByeState {
   // Solo permitir cambio desde IN_PROGRESS o WAITING_OPONENT, y sin winner_id
   const canChangeStatus =
     !match.winner_id &&
-    (match.status === 'IN_PROGRESS' || match.status === 'WAITING_OPONENT')
+    (normalizedStatus === 'IN_PROGRESS' || normalizedStatus === 'WAITING_OPPONENT')
 
   const changeableFromStatus: 'IN_PROGRESS' | 'WAITING_OPONENT' | null =
     canChangeStatus
-      ? (match.status as 'IN_PROGRESS' | 'WAITING_OPONENT')
+      ? (normalizedStatus === 'WAITING_OPPONENT' ? 'WAITING_OPONENT' : 'IN_PROGRESS')
       : null
 
   // Mostrar menú si hay al menos una acción disponible

@@ -243,13 +243,14 @@ const getPresetMeta = (presetId: string) => {
 
   const zoneLabel = preset.zoneMode === 'MULTI_ZONE' ? 'Multiples zonas' : 'Zona unica';
   const stageLabel = preset.zoneStage === 'ROUND_ROBIN' ? 'Todos contra todos' : `${preset.targetMatchesPerCouple ?? 0} partidos por pareja`;
+  const qualificationLabel = preset.qualificationSource === 'GLOBAL_STANDINGS' ? 'Tabla general' : 'Posiciones por zona';
   const bracketLabel = preset.bracketMode === 'SINGLE'
     ? 'Llave unica'
     : preset.bracketMode === 'GOLD_SILVER'
       ? 'Copa Oro y Plata'
       : 'Campeon directo';
 
-  return [zoneLabel, stageLabel, bracketLabel];
+  return [zoneLabel, stageLabel, qualificationLabel, bracketLabel];
 };
 
 const buildCategoryConfigFromFormValues = (

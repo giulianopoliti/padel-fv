@@ -58,6 +58,24 @@ const ROUND_DISPLAY_NAMES: Record<string, string> = {
   'FINAL': 'Final'
 }
 
+const getBracketMatchStatusLabel = (status: string) => {
+  switch (status) {
+    case 'PENDING':
+      return 'Pendiente'
+    case 'IN_PROGRESS':
+      return 'En curso'
+    case 'FINISHED':
+      return 'Finalizado'
+    case 'WAITING_OPPONENT':
+    case 'WAITING_OPONENT':
+      return 'Esperando oponente'
+    case 'BYE':
+      return 'BYE'
+    default:
+      return 'Pendiente'
+  }
+}
+
 const AUTO_SCROLL_EDGE_PX = 96
 const MAX_VERTICAL_SCROLL_STEP = 28
 const MAX_HORIZONTAL_SCROLL_STEP = 22
@@ -219,7 +237,7 @@ export function ImprovedBracketRenderer({
               operationType,
               occupantName,
               placeholderLabel,
-              statusLabel: match.status === 'PENDING' ? 'Pendiente' : match.status
+              statusLabel: getBracketMatchStatusLabel(match.status)
             }
 
             return option
@@ -233,7 +251,7 @@ export function ImprovedBracketRenderer({
         return {
           matchId: match.id,
           matchLabel: `${ROUND_DISPLAY_NAMES[match.round] ?? match.round} - Match ${match.order_in_round || 'N/A'}`,
-          statusLabel: match.status === 'PENDING' ? 'Pendiente' : match.status,
+          statusLabel: getBracketMatchStatusLabel(match.status),
           slotOptions
         }
       })

@@ -6,6 +6,9 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { CorrectedDefinitiveAnalyzer } from './corrected-definitive-analyzer'
+import { getPlaceholderResolverV2 } from './placeholder-resolution-v2'
+import { QualificationSourceService } from './qualification-source.service'
+import { TournamentFormatRulesService } from './tournament-format-rules.service'
 
 export class IncrementalPlaceholderUpdater {
   
@@ -27,8 +30,12 @@ export class IncrementalPlaceholderUpdater {
     
     let resolvedCount = 0
     
-    // PASO 2: Solo si hay posiciones definitivas, resolver placeholders
-    if (zoneResult.definitivePositions > 0) {
+    const shouldResolveGlobal = await this.shouldResolveGlobalPlaceholders(tournamentId)
+
+    // PASO 2: Resolver placeholders segun el scope de clasificacion.
+    if (shouldResolveGlobal) {
+      resolvedCount = await this.resolveGlobalDefinitivePositions(tournamentId)
+    } else if (zoneResult.definitivePositions > 0) {
       resolvedCount = await this.resolveZoneDefinitivePositions(tournamentId, zoneId)
     } else {
       console.log(`📭 [INCREMENTAL-UPDATER] No definitive positions found for zone ${zoneId} after backtracking analysis`)
@@ -40,6 +47,55 @@ export class IncrementalPlaceholderUpdater {
       resolved: resolvedCount,
       definitive: zoneResult.definitivePositions
     }
+  }
+
+  private async shouldResolveGlobalPlaceholders(tournamentId: string): Promise<boolean> {
+    const supabase = await createClient()
+
+    const { data: tournament, error } = await supabase
+      .from('tournaments')
+      .select('type, format_type, format_config')
+      .eq('id', tournamentId)
+      .single()
+
+    if (error || !tournament) {
+      console.error(`[INCREMENTAL-UPDATER] Error loading tournament format: ${error?.message || 'Tournament not found'}`)
+      return false
+    }
+
+    const rules = TournamentFormatRulesService.resolve({ tournament })
+    return rules.qualificationSource === 'GLOBAL_STANDINGS'
+  }
+
+  private async resolveGlobalDefinitivePositions(tournamentId: string): Promise<number> {
+    console.log(`[INCREMENTAL-UPDATER] Resolving definitive global standings for tournament ${tournamentId}`)
+
+    const entries = await QualificationSourceService.getQualifiedEntries(tournamentId)
+    const placeholderResolver = getPlaceholderResolverV2()
+    let totalResolved = 0
+
+    for (const entry of entries) {
+      if (!entry.isDefinitive || !entry.coupleId || !entry.globalPosition) {
+        continue
+      }
+
+      const result = await placeholderResolver.resolveFromGlobalPosition(
+        tournamentId,
+        entry.globalPosition,
+        entry.coupleId
+      )
+
+      if (!result.success) {
+        throw new Error(
+          `Failed to resolve global position ${entry.globalPosition}: ${result.errors?.join(', ') || 'unknown error'}`
+        )
+      }
+
+      totalResolved += result.seedsResolved
+    }
+
+    console.log(`[INCREMENTAL-UPDATER] Completed global placeholder resolution: ${totalResolved} seeds resolved`)
+    return totalResolved
   }
   
   /**

@@ -31,7 +31,7 @@ export interface SeedResolution {
   seed: number
   placeholderLabel: string
   resolvedToCoupleId: string
-  zoneId: string
+  zoneId: string | null
   position: number
   matchesAffected: string[]
 }
@@ -117,6 +117,70 @@ export class PlaceholderResolutionServiceV2 {
   }
 
   /**
+   * Resolve placeholders produced by a GLOBAL_STANDINGS bracket.
+   * Global placeholders have no zone; placeholder_position stores the global rank.
+   */
+  async resolveFromGlobalPosition(
+    tournamentId: string,
+    globalPosition: number,
+    coupleId: string
+  ): Promise<PlaceholderResolutionResult> {
+    console.log(`[PLACEHOLDER-V2] Resolving global position ${globalPosition} for tournament ${tournamentId}`)
+
+    try {
+      const supabase = await createClientServiceRole()
+      const placeholderSeeds = await this.findGlobalPlaceholderSeeds(tournamentId, globalPosition)
+
+      if (placeholderSeeds.length === 0) {
+        console.log(`[PLACEHOLDER-V2] No global placeholder seeds found for position ${globalPosition}`)
+        return {
+          success: true,
+          seedsResolved: 0,
+          matchesUpdated: 0,
+          resolutionDetails: []
+        }
+      }
+
+      console.log(`[PLACEHOLDER-V2] Found ${placeholderSeeds.length} global placeholder seeds to resolve`)
+
+      const resolutions: SeedResolution[] = []
+
+      for (const seed of placeholderSeeds) {
+        const resolution = await this.resolveSeed(supabase, seed, coupleId, null)
+        if (resolution) {
+          resolutions.push(resolution)
+        }
+      }
+
+      let totalMatchesUpdated = 0
+      for (const resolution of resolutions) {
+        const matchesUpdated = await this.propagateToMatches(supabase, resolution.seedId, coupleId)
+        totalMatchesUpdated += matchesUpdated
+        resolution.matchesAffected = await this.getAffectedMatchIds(supabase, resolution.seedId)
+      }
+
+      console.log(`[PLACEHOLDER-V2] Global resolution complete: ${resolutions.length} seeds, ${totalMatchesUpdated} matches`)
+
+      return {
+        success: true,
+        seedsResolved: resolutions.length,
+        matchesUpdated: totalMatchesUpdated,
+        resolutionDetails: resolutions
+      }
+
+    } catch (error) {
+      console.error('[PLACEHOLDER-V2] Global resolution error:', error)
+      return {
+        success: false,
+        seedsResolved: 0,
+        matchesUpdated: 0,
+        resolutionDetails: [],
+        errors: [error instanceof Error ? error.message : 'Unknown error']
+      }
+    }
+  }
+
+  /**
    * Find placeholder seeds that reference a specific zone position
    */
   private async findPlaceholderSeeds(
@@ -141,6 +205,27 @@ export class PlaceholderResolutionServiceV2 {
     return data || []
   }
 
+  private async findGlobalPlaceholderSeeds(
+    tournamentId: string,
+    globalPosition: number
+  ): Promise<any[]> {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('tournament_couple_seeds')
+      .select('id, seed, placeholder_label, placeholder_zone_id, placeholder_position, is_placeholder')
+      .eq('tournament_id', tournamentId)
+      .is('placeholder_zone_id', null)
+      .eq('placeholder_position', globalPosition)
+      .eq('is_placeholder', true)
+
+    if (error) {
+      throw new Error(`Failed to find global placeholder seeds: ${error.message}`)
+    }
+
+    return data || []
+  }
+
   /**
    * Resolve a single placeholder seed
    */
@@ -148,7 +233,7 @@ export class PlaceholderResolutionServiceV2 {
     supabase: any,
     seed: any,
     coupleId: string,
-    zoneId: string
+    zoneId: string | null
   ): Promise<SeedResolution | null> {
     try {
       // Update the tournament_couple_seed to resolve the placeholder
@@ -228,8 +313,8 @@ export class PlaceholderResolutionServiceV2 {
 
       // Update status for matches that are now ready
       const allUpdatedMatchIds = [
-        ...(slot1Matches || []).map(m => m.id),
-        ...(slot2Matches || []).map(m => m.id)
+        ...(slot1Matches || []).map((m: { id: string }) => m.id),
+        ...(slot2Matches || []).map((m: { id: string }) => m.id)
       ]
 
       for (const matchId of allUpdatedMatchIds) {

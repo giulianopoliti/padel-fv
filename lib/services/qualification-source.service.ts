@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
-import { StandingsCalculatorService } from '@/lib/services/standings-calculator.service'
+import { StandingsCalculatorService, type StandingEntry } from '@/lib/services/standings-calculator.service'
 import { TournamentFormatRulesService } from '@/lib/services/tournament-format-rules.service'
-import { DefinitivePositionService } from '@/lib/services/definitive-position.service'
+import { DefinitivePositionService, type DefinitivePositionResult } from '@/lib/services/definitive-position.service'
 import { selectQualifiedEntries } from '@/lib/services/qualification-policy.service'
 import type { BracketKey } from '@/types/tournament-format-v2'
 
@@ -115,6 +115,33 @@ export class QualificationSourceService {
     return entries
   }
 
+  static buildGlobalStandingEntries(
+    standingsEntries: StandingEntry[],
+    definitiveResult: DefinitivePositionResult
+  ): QualifiedEntry[] {
+    const definitiveByCouple = new Map<string, boolean>()
+    for (const zoneResult of definitiveResult.zoneResults) {
+      for (const analysis of zoneResult.analysis) {
+        definitiveByCouple.set(analysis.coupleId, analysis.isDefinitive)
+      }
+    }
+
+    return standingsEntries.map((entry) => {
+      const position = entry.globalPosition || 0
+      const isDefinitive = Boolean(definitiveByCouple.get(entry.coupleId))
+
+      return {
+        key: `global:${position}`,
+        coupleId: isDefinitive ? entry.coupleId : null,
+        zoneId: null,
+        localPosition: null,
+        globalPosition: position,
+        label: `#${position} general`,
+        isDefinitive,
+      }
+    })
+  }
+
   private static async getGlobalStandingEntries(
     tournamentId: string,
     rules: ReturnType<typeof TournamentFormatRulesService.resolve>
@@ -128,27 +155,7 @@ export class QualificationSourceService {
       DefinitivePositionService.analyzeTournament(tournamentId),
     ])
 
-    const definitiveByCouple = new Map<string, boolean>()
-    for (const zoneResult of definitives.zoneResults) {
-      for (const analysis of zoneResult.analysis) {
-        definitiveByCouple.set(analysis.coupleId, analysis.isDefinitive)
-      }
-    }
-
-    return standings.entries.map((entry) => {
-      const position = entry.globalPosition || 0
-      const isDefinitive = Boolean(definitiveByCouple.get(entry.coupleId))
-
-      return {
-        key: `global:${position}`,
-        coupleId: isDefinitive ? entry.coupleId : null,
-        zoneId: entry.zoneId,
-        localPosition: null,
-        globalPosition: position,
-        label: `${position}\u00b0`,
-        isDefinitive,
-      }
-    })
+    return this.buildGlobalStandingEntries(standings.entries, definitives)
   }
 
 }

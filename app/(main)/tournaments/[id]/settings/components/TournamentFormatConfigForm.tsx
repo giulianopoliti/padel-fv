@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner'
 import { getPresetOptionsByType } from '@/config/tournament-format-presets'
 import { buildTournamentFormatConfig } from '@/lib/services/tournament-format-config-builder'
+import { RUNTIME_AMERICAN_MULTI_ZONE_PRESET_IDS } from '@/lib/services/tournament-format-policy'
 import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
 import { updateTournamentFormatConfig } from '../actions'
 import type { CouplesPerZone, TournamentFormatPresetId } from '@/types/tournament-format-v2'
@@ -62,7 +63,9 @@ export default function TournamentFormatConfigForm({
     }
 
     const runtimeOptions = allOptions.filter((preset) =>
-      preset.presetId === 'AMERICAN_MULTI_ZONE_2' || preset.presetId === 'AMERICAN_MULTI_ZONE_3'
+      RUNTIME_AMERICAN_MULTI_ZONE_PRESET_IDS.includes(
+        preset.presetId as (typeof RUNTIME_AMERICAN_MULTI_ZONE_PRESET_IDS)[number]
+      )
     )
     const currentPreset = allOptions.find((preset) => preset.presetId === resolvedFormat.presetId)
 
@@ -112,7 +115,7 @@ export default function TournamentFormatConfigForm({
       case 'BRACKET_ARTIFACTS_EXIST':
         return 'No se puede cambiar el formato porque la llave ya fue generada o hay artefactos de llave persistidos.'
       case 'UNSUPPORTED_RUNTIME_PRESET_TRANSITION':
-        return 'Con el torneo en curso, solo se permite cambiar entre MZ2 y MZ3.'
+        return 'Con el torneo en curso, solo se permite cambiar entre formatos americanos multizona compatibles.'
       case 'ZONE_CAPACITY_EXCEEDED_FOR_MZ3':
       case 'MZ3_TO_MZ2_OVER_LIMIT':
         return fallback || 'Las zonas actuales no son compatibles con el formato seleccionado.'
@@ -201,7 +204,7 @@ export default function TournamentFormatConfigForm({
         )}
         {tournamentType === 'AMERICAN' && tournamentStatus && tournamentStatus !== 'NOT_STARTED' && (
           <p className="text-xs text-slate-500">
-            En torneo iniciado solo se permite cambio runtime entre MZ2 y MZ3.
+            En torneo iniciado solo se permite cambiar entre formatos americanos multizona mientras no exista llave generada.
           </p>
         )}
       </div>

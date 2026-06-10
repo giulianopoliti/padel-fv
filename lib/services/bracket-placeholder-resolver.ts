@@ -13,13 +13,15 @@
  */
 
 import { createClientServiceRole } from '@/utils/supabase/server'
+import { QualificationSourceService } from '@/lib/services/qualification-source.service'
+import { TournamentFormatRulesService } from '@/lib/services/tournament-format-rules.service'
 
 // ============================================================================
 // TYPES AND INTERFACES
 // ============================================================================
 
 export interface DefinitivePosition {
-  zoneId: string
+  zoneId: string | null
   position: number
   coupleId: string
   isDefinitive: boolean
@@ -30,7 +32,7 @@ export interface ResolvedSeed {
   seedNumber: number
   placeholderLabel: string
   coupleId: string
-  zoneId: string
+  zoneId: string | null
   position: number
 }
 
@@ -111,6 +113,47 @@ export async function getNewDefinitivePositions(
   return definitivePositions
 }
 
+async function shouldUseGlobalStandings(tournamentId: string): Promise<boolean> {
+  const supabase = await createClientServiceRole()
+
+  const { data: tournament, error } = await supabase
+    .from('tournaments')
+    .select('type, format_type, format_config')
+    .eq('id', tournamentId)
+    .single()
+
+  if (error || !tournament) {
+    console.error(`[BRACKET-RESOLVER] Error loading tournament format: ${error?.message || 'Tournament not found'}`)
+    return false
+  }
+
+  const rules = TournamentFormatRulesService.resolve({ tournament })
+  return rules.qualificationSource === 'GLOBAL_STANDINGS'
+}
+
+export async function getGlobalDefinitivePositions(
+  tournamentId: string
+): Promise<DefinitivePosition[]> {
+  console.log(`[BRACKET-RESOLVER] Getting definitive global standings positions`)
+
+  const entries = await QualificationSourceService.getQualifiedEntries(tournamentId)
+  const definitivePositions = entries
+    .filter((entry) => entry.isDefinitive && entry.coupleId && entry.globalPosition)
+    .map((entry) => ({
+      zoneId: null,
+      position: entry.globalPosition!,
+      coupleId: entry.coupleId!,
+      isDefinitive: true,
+    }))
+
+  console.log(`[BRACKET-RESOLVER] Found ${definitivePositions.length} definitive global positions`)
+  definitivePositions.forEach((position) => {
+    console.log(`   - Global #${position.position}: couple ${position.coupleId}`)
+  })
+
+  return definitivePositions
+}
+
 /**
  * FUNCIÓN 2: Resolver seeds de placeholders
  */
@@ -132,13 +175,18 @@ export async function resolvePlaceholderSeeds(
     console.log(`🔄 [BRACKET-RESOLVER] Processing zone ${position.zoneId}, position ${position.position}`)
     
     // Buscar seeds que necesitan esta posición
-    const { data: seeds, error: seedsError } = await supabase
+    let seedQuery = supabase
       .from('tournament_couple_seeds')
       .select('id, seed, placeholder_label, placeholder_zone_id, placeholder_position, is_placeholder, couple_id')
       .eq('tournament_id', tournamentId)
-      .eq('placeholder_zone_id', position.zoneId)
       .eq('placeholder_position', position.position)
       .eq('is_placeholder', true)
+
+    seedQuery = position.zoneId
+      ? seedQuery.eq('placeholder_zone_id', position.zoneId)
+      : seedQuery.is('placeholder_zone_id', null)
+
+    const { data: seeds, error: seedsError } = await seedQuery
     
     if (seedsError) {
       console.error(`❌ [BRACKET-RESOLVER] Error fetching seeds for position ${position.position}:`, seedsError)
@@ -265,6 +313,7 @@ export async function updateBracketMatches(
       // Si ambas parejas están presentes, cambiar status a PENDING
       if (bothCouplesPresent) {
         updateData.status = 'PENDING'
+        updateData.winner_id = null
       }
       // 🆕 NUEVO: Si es BYE (solo una pareja), marcar winner_id para poder desprocesar después
       else {
@@ -465,7 +514,9 @@ export class BracketPlaceholderResolver {
     try {
       // PASO 1: Buscar posiciones definitivas de la zona actualizada
       console.log(`📍 [BRACKET-RESOLVER] STEP 1/5: Getting definitive positions`)
-      const definitivePositions = await getNewDefinitivePositions(tournamentId, zoneId)
+      const definitivePositions = await shouldUseGlobalStandings(tournamentId)
+        ? await getGlobalDefinitivePositions(tournamentId)
+        : await getNewDefinitivePositions(tournamentId, zoneId)
       
       if (definitivePositions.length === 0) {
         console.log(`📭 [BRACKET-RESOLVER] No definitive positions found - nothing to resolve`)

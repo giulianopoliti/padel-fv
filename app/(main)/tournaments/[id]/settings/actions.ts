@@ -299,7 +299,9 @@ export async function updateTournamentFormatConfig(
       return {
         success: false,
         code: 'UNSUPPORTED_RUNTIME_PRESET_TRANSITION',
-        error: 'En fase de zonas solo se permite cambiar entre AMERICAN_MULTI_ZONE_2 y AMERICAN_MULTI_ZONE_3.',
+        error:
+          'En fase de zonas solo se permite cambiar entre formatos americanos multizona compatibles, ' +
+          'mientras no exista llave generada.',
       }
     }
 
@@ -361,7 +363,7 @@ export async function updateTournamentFormatConfig(
 
       zoneSnapshots = await getZoneSnapshots(supabase, tournamentId)
 
-      if (nextResolved.presetId === 'AMERICAN_MULTI_ZONE_3') {
+      if (nextResolved.effectiveTargetMatchesPerCouple === 3) {
         const oversizedZone = zoneSnapshots.find((zone) => zone.coupleCount > 4)
         if (oversizedZone) {
           return {
@@ -373,8 +375,8 @@ export async function updateTournamentFormatConfig(
       }
 
       if (
-        currentResolved.presetId === 'AMERICAN_MULTI_ZONE_3' &&
-        nextResolved.presetId === 'AMERICAN_MULTI_ZONE_2'
+        currentResolved.effectiveTargetMatchesPerCouple === 3 &&
+        nextResolved.effectiveTargetMatchesPerCouple === 2
       ) {
         for (const zone of zoneSnapshots) {
           const stageInfo = getZoneStageAndMatchesPerCouple(zone.coupleCount, formatConfig)

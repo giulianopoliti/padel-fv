@@ -1,11 +1,13 @@
+import path from "node:path"
+
 let userConfig = undefined
 try {
   // try to import ESM first
-  userConfig = await import('./v0-user-next.config.mjs')
+  userConfig = await import("./v0-user-next.config.mjs")
 } catch (e) {
   try {
     // fallback to CJS import
-    userConfig = await import("./v0-user-next.config");
+    userConfig = await import("./v0-user-next.config")
   } catch (innerError) {
     // ignore error
   }
@@ -19,15 +21,13 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  outputFileTracingRoot: path.resolve(process.cwd()),
   images: {
     unoptimized: true,
   },
   experimental: {
-    webpackBuildWorker: true,
-    parallelServerBuildTraces: true,
-    parallelServerCompiles: true,
     serverActions: {
-      bodySizeLimit: '50mb', // Permitir archivos grandes para imágenes de alta calidad
+      bodySizeLimit: "50mb", // Permitir archivos grandes para imagenes de alta calidad
     },
   },
 }
@@ -38,7 +38,7 @@ if (userConfig) {
 
   for (const key in config) {
     if (
-      typeof nextConfig[key] === 'object' &&
+      typeof nextConfig[key] === "object" &&
       !Array.isArray(nextConfig[key])
     ) {
       nextConfig[key] = {

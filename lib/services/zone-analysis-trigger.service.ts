@@ -6,6 +6,8 @@
 import { createClient } from '@/utils/supabase/server'
 import { CorrectedDefinitiveAnalyzer } from './corrected-definitive-analyzer'
 import { getPlaceholderResolverV2 } from './placeholder-resolution-v2'
+import { QualificationSourceService } from './qualification-source.service'
+import { TournamentFormatRulesService } from './tournament-format-rules.service'
 
 interface CircuitBreakerState {
   failures: number
@@ -152,6 +154,11 @@ export class ZoneAnalysisTriggerService {
     zoneId: string, 
     definitivePositions: any[]
   ): Promise<void> {
+    if (await this.shouldResolveGlobalPlaceholders(tournamentId)) {
+      await this.triggerGlobalPlaceholderResolution(tournamentId)
+      return
+    }
+
     if (definitivePositions.length === 0) {
       console.log(`📭 [ZONE-TRIGGER] No definitive positions to resolve for zone: ${zoneId}`)
       return
@@ -184,6 +191,57 @@ export class ZoneAnalysisTriggerService {
     }
 
     console.log(`🎯 [ZONE-TRIGGER] Placeholder resolution completed: ${totalResolved} total seeds resolved for zone ${zoneId}`)
+  }
+
+  private async shouldResolveGlobalPlaceholders(tournamentId: string): Promise<boolean> {
+    const supabase = await createClient()
+
+    const { data: tournament, error } = await supabase
+      .from('tournaments')
+      .select('type, format_type, format_config')
+      .eq('id', tournamentId)
+      .single()
+
+    if (error || !tournament) {
+      console.error(`[ZONE-TRIGGER] Error loading tournament format: ${error?.message || 'Tournament not found'}`)
+      return false
+    }
+
+    const rules = TournamentFormatRulesService.resolve({ tournament })
+    return rules.qualificationSource === 'GLOBAL_STANDINGS'
+  }
+
+  private async triggerGlobalPlaceholderResolution(tournamentId: string): Promise<void> {
+    console.log(`[ZONE-TRIGGER] Triggering global placeholder resolution`)
+
+    const entries = await QualificationSourceService.getQualifiedEntries(tournamentId)
+    const placeholderResolver = getPlaceholderResolverV2()
+    let totalResolved = 0
+
+    for (const entry of entries) {
+      if (!entry.isDefinitive || !entry.coupleId || !entry.globalPosition) {
+        continue
+      }
+
+      try {
+        const result = await placeholderResolver.resolveFromGlobalPosition(
+          tournamentId,
+          entry.globalPosition,
+          entry.coupleId
+        )
+
+        if (result.success) {
+          totalResolved += result.seedsResolved
+          console.log(`[ZONE-TRIGGER] Resolved ${result.seedsResolved} seeds for global position ${entry.globalPosition}`)
+        } else {
+          console.error(`[ZONE-TRIGGER] Failed to resolve global position ${entry.globalPosition}: ${result.errors?.join(', ')}`)
+        }
+      } catch (error) {
+        console.error(`[ZONE-TRIGGER] Exception resolving global position ${entry.globalPosition}:`, error)
+      }
+    }
+
+    console.log(`[ZONE-TRIGGER] Global placeholder resolution completed: ${totalResolved} total seeds resolved`)
   }
 
   /**

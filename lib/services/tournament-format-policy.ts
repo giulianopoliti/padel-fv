@@ -9,6 +9,8 @@ type TournamentLike = {
 export const RUNTIME_AMERICAN_MULTI_ZONE_PRESET_IDS = [
   'AMERICAN_MULTI_ZONE_2',
   'AMERICAN_MULTI_ZONE_3',
+  'AMERICAN_MULTI_ZONE_GLOBAL_2',
+  'AMERICAN_MULTI_ZONE_GLOBAL_3',
 ] as const
 
 export function isRuntimeAmericanMultiZonePreset(presetId?: string | null): boolean {
@@ -53,6 +55,8 @@ export function shouldWrapLegacyEndpointsWithCanonicalFlow(
   return (
     resolved.presetId === 'AMERICAN_MULTI_ZONE_2' ||
     resolved.presetId === 'AMERICAN_MULTI_ZONE_3' ||
+    resolved.presetId === 'AMERICAN_MULTI_ZONE_GLOBAL_2' ||
+    resolved.presetId === 'AMERICAN_MULTI_ZONE_GLOBAL_3' ||
     resolved.presetId === 'LONG_SINGLE_ZONE_BRACKET' ||
     resolved.presetId === 'LONG_SINGLE_ZONE_GOLD_SILVER'
   )
