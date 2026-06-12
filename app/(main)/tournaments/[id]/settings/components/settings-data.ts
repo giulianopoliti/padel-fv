@@ -32,6 +32,7 @@ export const getTournamentSettingsData = cache(async (tournamentId: string) => {
       pre_tournament_image_url,
       enable_draft_matches,
       is_draft,
+      hide_venue,
       club_id,
       start_date,
       end_date,

@@ -33,6 +33,7 @@ interface UpdateTournamentBasicInfoParams {
   price?: number | null
   start_date?: string | null
   end_date?: string | null
+  hide_venue?: boolean
 }
 
 interface ActionResult {
@@ -148,6 +149,11 @@ const toTournamentDateISOString = (dateString: string): string => {
 function revalidateTournamentSettingsPaths(tournamentId: string) {
   revalidatePath(`/tournaments/${tournamentId}`)
   revalidatePath(`/tournaments/${tournamentId}/settings`, 'layout')
+  revalidatePath('/tournaments')
+  revalidatePath('/tournaments/upcoming')
+  revalidatePath('/tournaments/in-progress')
+  revalidatePath('/tournaments/past')
+  revalidatePath('/panel')
 }
 
 async function getZoneSnapshots(
@@ -592,6 +598,10 @@ export async function updateTournamentBasicInfo(
 
     if (params.end_date !== undefined) {
       updateData.end_date = params.end_date ? toTournamentDateISOString(params.end_date) : null
+    }
+
+    if (params.hide_venue !== undefined) {
+      updateData.hide_venue = Boolean(params.hide_venue)
     }
 
     // Update tournament

@@ -99,6 +99,8 @@ export default function PublicTournamentList({
       <div className="p-4 sm:p-6">
         {tournaments.map((tournament) => {
           const statusLabel = statusLabels[tournament.status] || tournament.status
+          const hideVenue = Boolean(tournament.hideVenue)
+          const venueName = tournament.club?.name || tournament.club?.address || null
           const genderLabel =
             typeof tournament.gender === "string"
               ? genderLabels[tournament.gender as Gender] || tournament.gender
@@ -137,17 +139,19 @@ export default function PublicTournamentList({
                   </span>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="inline-flex items-start gap-2 text-sm font-black uppercase tracking-[0.04em] text-[var(--tpe-cyan)] sm:text-lg">
-                    <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                    <span>{tournament.club?.name || "Club a confirmar"}</span>
-                  </p>
-                  {tournament.club?.address ? (
-                    <p className="pl-6 text-sm font-semibold uppercase tracking-[0.03em] text-white/82">
-                      {tournament.club.address}
+                {!hideVenue && venueName ? (
+                  <div className="space-y-2">
+                    <p className="inline-flex items-start gap-2 text-sm font-black uppercase tracking-[0.04em] text-[var(--tpe-cyan)] sm:text-lg">
+                      <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                      <span>{venueName}</span>
                     </p>
-                  ) : null}
-                </div>
+                    {tournament.club?.address && tournament.club.address !== venueName ? (
+                      <p className="pl-6 text-sm font-semibold uppercase tracking-[0.03em] text-white/82">
+                        {tournament.club.address}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <div className="flex flex-wrap gap-2">
                   <Badge className="tpe-chip rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]">

@@ -108,11 +108,13 @@ export default function ScheduleContainer({
                     Horarios - {tournamentName}
                   </h1>
                   
-                  <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-xs lg:text-sm text-slate-600">
-                    <div className="flex items-center gap-1">
-                      <span>Club: {clubName}</span>
+                  {clubName ? (
+                    <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-xs lg:text-sm text-slate-600">
+                      <div className="flex items-center gap-1">
+                        <span>Club: {clubName}</span>
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -164,11 +166,13 @@ export default function ScheduleContainer({
                     Horarios - {tournamentName}
                   </h1>
                   
-                  <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-xs lg:text-sm text-slate-600">
-                    <div className="flex items-center gap-1">
-                      <span>Club: {clubName}</span>
+                  {clubName ? (
+                    <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-xs lg:text-sm text-slate-600">
+                      <div className="flex items-center gap-1">
+                        <span>Club: {clubName}</span>
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -236,11 +240,13 @@ export default function ScheduleContainer({
                   Horarios - {tournamentName}
                 </h1>
                 
-                <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-xs lg:text-sm text-slate-600">
-                  <div className="flex items-center gap-1">
-                    <span>Club: {clubName}</span>
+                {clubName ? (
+                  <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-xs lg:text-sm text-slate-600">
+                    <div className="flex items-center gap-1">
+                      <span>Club: {clubName}</span>
+                    </div>
                   </div>
-                </div>
+                ) : null}
               </div>
             </div>
           </div>

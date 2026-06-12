@@ -25,8 +25,8 @@ export const TOURNAMENT_FORMAT_PRESETS: Record<OperationalTournamentFormatPreset
       allowedSizes: [3, 4, 5],
     },
     display: {
-      name: 'Americano por zonas (2 partidos)',
-      description: 'Zonas multiples con 2 partidos por pareja y llave unica configurable por zona.',
+      name: 'Americano multizona serpenteo',
+      description: 'Zonas multiples con partidos por pareja configurables y llave ordenada por posiciones de zona.',
     },
   },
   AMERICAN_MULTI_ZONE_3: {
@@ -49,8 +49,8 @@ export const TOURNAMENT_FORMAT_PRESETS: Record<OperationalTournamentFormatPreset
       allowedSizes: [3, 4],
     },
     display: {
-      name: 'Americano por zonas (3 partidos)',
-      description: 'Zonas multiples: zonas de 4 juegan 3 partidos por pareja; zonas de 3 juegan round robin completo.',
+      name: 'Americano multizona serpenteo',
+      description: 'Zonas multiples con partidos por pareja configurables y llave ordenada por posiciones de zona.',
     },
   },
   AMERICAN_MULTI_ZONE_GLOBAL_2: {
@@ -73,8 +73,8 @@ export const TOURNAMENT_FORMAT_PRESETS: Record<OperationalTournamentFormatPreset
       allowedSizes: [3, 4, 5],
     },
     display: {
-      name: 'Americano tabla general (2 partidos)',
-      description: 'Zonas multiples con 2 partidos por pareja y llave sembrada desde una tabla general.',
+      name: 'Americano multizona tabla general',
+      description: 'Zonas multiples con partidos por pareja configurables y llave sembrada desde una tabla general.',
     },
   },
   AMERICAN_MULTI_ZONE_GLOBAL_3: {
@@ -97,8 +97,8 @@ export const TOURNAMENT_FORMAT_PRESETS: Record<OperationalTournamentFormatPreset
       allowedSizes: [3, 4],
     },
     display: {
-      name: 'Americano tabla general (3 partidos)',
-      description: 'Zonas multiples: zonas de 4 juegan 3 partidos por pareja; la llave sale de la tabla general.',
+      name: 'Americano multizona tabla general',
+      description: 'Zonas multiples con partidos por pareja configurables y llave sembrada desde una tabla general.',
     },
   },
   AMERICAN_SINGLE_ZONE_ROUND_ROBIN_CHAMPION: {

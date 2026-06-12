@@ -129,12 +129,14 @@ export default function PlayerScheduleView({
                     Horarios - {tournamentName}
                   </h1>
 
-                  <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-sm text-slate-600">
-                    <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg">
-                      <Building2 className="h-4 w-4 text-slate-500" />
-                      <span className="font-medium">{clubName}</span>
+                  {clubName ? (
+                    <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-sm text-slate-600">
+                      <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg">
+                        <Building2 className="h-4 w-4 text-slate-500" />
+                        <span className="font-medium">{clubName}</span>
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -196,12 +198,14 @@ export default function PlayerScheduleView({
                     Horarios - {tournamentName}
                   </h1>
 
-                  <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-sm text-slate-600">
-                    <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg">
-                      <Building2 className="h-4 w-4 text-slate-500" />
-                      <span className="font-medium">{clubName}</span>
+                  {clubName ? (
+                    <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-sm text-slate-600">
+                      <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg">
+                        <Building2 className="h-4 w-4 text-slate-500" />
+                        <span className="font-medium">{clubName}</span>
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -279,10 +283,12 @@ export default function PlayerScheduleView({
                 </h1>
 
                 <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-sm text-slate-600">
-                  <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg">
-                    <Building2 className="h-4 w-4 text-slate-500" />
-                    <span className="font-medium">{clubName}</span>
-                  </div>
+                  {clubName ? (
+                    <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg">
+                      <Building2 className="h-4 w-4 text-slate-500" />
+                      <span className="font-medium">{clubName}</span>
+                    </div>
+                  ) : null}
                   {inscriptionDetails && (
                     <div className="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-lg">
                       <span className="text-green-700 font-medium">

@@ -133,7 +133,8 @@ export default function PlayerFvUpcomingTournamentsSection({
           const statusLabel = statusLabels[tournament.status] || tournament.status
           const tournamentType = tournament.type || "LONG"
           const canRegister = !tournament.is_inscribed && !tournament.is_full && tournament.status === "NOT_STARTED"
-          const venueLabel = [tournament.club?.name, tournament.club?.address].filter(Boolean).join(" - ") || "A confirmar"
+          const hideVenue = Boolean(tournament.hide_venue)
+          const venueLabel = [tournament.club?.name, tournament.club?.address].filter(Boolean).join(" - ")
           const timeLabel = formatTimeLabel(tournament.start_date)
           const dateTimeLabel =
             timeLabel === "Horario a confirmar"
@@ -166,11 +167,13 @@ export default function PlayerFvUpcomingTournamentsSection({
                       label={tournamentType === "AMERICAN" ? "Fecha y hora" : "Inicio"}
                       value={dateTimeLabel}
                     />
-                    <InfoBlock
-                      icon={<MapPin className="h-4 w-4 text-court-300" />}
-                      label="Sede"
-                      value={venueLabel}
-                    />
+                    {!hideVenue && venueLabel ? (
+                      <InfoBlock
+                        icon={<MapPin className="h-4 w-4 text-court-300" />}
+                        label="Sede"
+                        value={venueLabel}
+                      />
+                    ) : null}
                     <InfoBlock icon={<Trophy className="h-4 w-4 text-court-300" />} label="Estado" value={statusLabel} />
                   </div>
 

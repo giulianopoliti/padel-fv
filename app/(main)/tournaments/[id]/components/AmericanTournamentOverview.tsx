@@ -198,7 +198,7 @@ export default function AmericanTournamentOverview({
         tournament={{
           id: tournament.id,
           name: tournament.name,
-          clubName: tournament.clubes?.name,
+          clubName: publicInfo.clubName || undefined,
           status: tournament.status,
           gender: tournament.gender,
           price: tournament.price ?? null,

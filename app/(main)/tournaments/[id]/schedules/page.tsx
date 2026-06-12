@@ -26,7 +26,7 @@ export default async function SchedulesPage({
   // Get tournament basic info
   const { data: tournament, error: tournamentError } = await supabase
     .from('tournaments')
-    .select('name, clubes(name)')
+    .select('name, hide_venue, clubes(name)')
     .eq('id', resolvedParams.id)
     .single()
 
@@ -66,11 +66,13 @@ export default async function SchedulesPage({
                   Horarios - {tournament.name}
                 </h1>
 
-                <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-xs lg:text-sm text-slate-600">
-                  <div className="flex items-center gap-1">
-                    <span>Club: {(tournament.clubes as any)?.name || 'Sin club'}</span>
+                {!tournament.hide_venue ? (
+                  <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-xs lg:text-sm text-slate-600">
+                    <div className="flex items-center gap-1">
+                      <span>Club: {(tournament.clubes as any)?.name || 'Sin club'}</span>
+                    </div>
                   </div>
-                </div>
+                ) : null}
               </div>
             </div>
           </div>

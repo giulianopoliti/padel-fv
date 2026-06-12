@@ -73,6 +73,7 @@ export async function getTenantUpcomingTournamentSummaries(
       end_date,
       price,
       award,
+      hide_venue,
       enable_public_inscriptions,
       enable_transfer_proof,
       transfer_alias,
@@ -107,6 +108,7 @@ export async function getTenantUpcomingTournamentSummaries(
   return orderedTournaments.map((tournament: any) => {
     const club = Array.isArray(tournament.clubes) ? tournament.clubes[0] || null : tournament.clubes || null
     const categoryDisplay = getTournamentCategoryDisplay(tournament)
+    const hideVenue = Boolean(tournament.hide_venue)
 
     return {
       id: tournament.id,
@@ -120,11 +122,12 @@ export async function getTenantUpcomingTournamentSummaries(
       endDate: tournament.end_date,
       price: tournament.price,
       award: tournament.award,
+      hideVenue,
       enablePublicInscriptions: Boolean(tournament.enable_public_inscriptions),
       enableTransferProof: Boolean(tournament.enable_transfer_proof),
       transferAlias: tournament.transfer_alias,
       transferAmount: tournament.transfer_amount,
-      club: club
+      club: club && !hideVenue
         ? {
             id: club.id || null,
             name: club.name || null,

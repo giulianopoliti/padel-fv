@@ -52,6 +52,8 @@ export default function PlayerInscribedTournamentsSection({
         {tournaments.map((inscription) => {
           const tournament = inscription.tournament
           const partnerName = `${inscription.partner.first_name} ${inscription.partner.last_name}`.trim()
+          const hideVenue = Boolean(tournament.hide_venue)
+          const venueName = tournament.club?.name || tournament.club?.address || null
 
           return (
             <article
@@ -81,14 +83,18 @@ export default function PlayerInscribedTournamentsSection({
                     <CalendarDays className="h-4 w-4 text-[var(--tpe-lime)]" />
                     {formatDateLabel(tournament.start_date)}
                   </p>
-                  <p className="inline-flex items-center gap-2 text-[var(--tpe-cyan)]">
-                    <MapPin className="h-4 w-4" />
-                    {tournament.club?.name || "Club a confirmar"}
-                  </p>
-                  {tournament.club?.address ? (
-                    <p className="pl-6 text-xs font-bold uppercase tracking-[0.16em] text-white/66">
-                      {tournament.club.address}
-                    </p>
+                  {!hideVenue && venueName ? (
+                    <>
+                      <p className="inline-flex items-center gap-2 text-[var(--tpe-cyan)]">
+                        <MapPin className="h-4 w-4" />
+                        {venueName}
+                      </p>
+                      {tournament.club?.address && tournament.club.address !== venueName ? (
+                        <p className="pl-6 text-xs font-bold uppercase tracking-[0.16em] text-white/66">
+                          {tournament.club.address}
+                        </p>
+                      ) : null}
+                    </>
                   ) : null}
                   <p className="inline-flex items-center gap-2 text-[var(--tpe-paper)]">
                     <Users className="h-4 w-4 text-[var(--tpe-lime)]" />

@@ -14,6 +14,16 @@ import {
 } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { getPresetOptionsByType } from '@/config/tournament-format-presets'
+import {
+  AMERICAN_MULTI_ZONE_FORMAT_OPTIONS,
+  AMERICAN_MULTI_ZONE_MATCH_OPTIONS,
+  getAmericanMultiZoneAlgorithmFromPresetId,
+  getAmericanMultiZoneMatchesFromConfig,
+  getAmericanMultiZonePresetId,
+  isAmericanMultiZonePresetId,
+  type AmericanMultiZoneAlgorithm,
+  type AmericanMultiZoneMatchesPerCouple,
+} from '@/lib/services/american-multizone-format-options'
 import { buildTournamentFormatConfig } from '@/lib/services/tournament-format-config-builder'
 import { RUNTIME_AMERICAN_MULTI_ZONE_PRESET_IDS } from '@/lib/services/tournament-format-policy'
 import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
@@ -91,7 +101,9 @@ export default function TournamentFormatConfigForm({
       : 'ALL'
   )
   const [matchesPerCouple, setMatchesPerCouple] = useState(
-    getDefaultMatchesPerCouple(resolvedFormat.effectiveTargetMatchesPerCouple)
+    isAmericanMultiZonePresetId(resolvedFormat.presetId)
+      ? getAmericanMultiZoneMatchesFromConfig(resolvedFormat)
+      : getDefaultMatchesPerCouple(resolvedFormat.effectiveTargetMatchesPerCouple)
   )
   const [goldCount, setGoldCount] = useState(
     resolvedFormat.advancementConfig.kind === 'GOLD_SILVER' ? resolvedFormat.advancementConfig.goldCount : 4
@@ -106,11 +118,22 @@ export default function TournamentFormatConfigForm({
   const [businessError, setBusinessError] = useState<string | null>(null)
 
   const selectedPreset = presetOptions.find((preset) => preset.presetId === presetId)
+  const isSelectedAmericanMultiZone =
+    tournamentType === 'AMERICAN' && isAmericanMultiZonePresetId(presetId)
+  const selectedAmericanMultiZoneAlgorithm =
+    getAmericanMultiZoneAlgorithmFromPresetId(presetId)
+  const selectedAmericanZoneMatchesPerCouple =
+    (matchesPerCouple === 3
+      ? 3
+      : getAmericanMultiZoneMatchesFromConfig({
+          presetId,
+          targetMatchesPerCouple: matchesPerCouple,
+        })) as AmericanMultiZoneMatchesPerCouple
 
   const getFriendlyFormatError = (code?: string, fallback?: string) => {
     switch (code) {
       case 'INVALID_TOURNAMENT_STATUS':
-        return 'El formato solo se puede cambiar cuando el torneo está en NOT_STARTED o ZONE_PHASE.'
+        return 'El formato solo se puede cambiar cuando el torneo está no iniciado o en fase de zonas.'
       case 'BRACKET_ALREADY_EXISTS':
       case 'BRACKET_ARTIFACTS_EXIST':
         return 'No se puede cambiar el formato porque la llave ya fue generada o hay artefactos de llave persistidos.'
@@ -126,14 +149,16 @@ export default function TournamentFormatConfigForm({
     }
   }
 
-  const handlePresetChange = (nextPresetId: string) => {
-    const nextPreset = presetOptions.find((preset) => preset.presetId === nextPresetId)
+  const applyPresetDefaults = (
+    nextPreset: NonNullable<typeof selectedPreset>,
+    nextMatchesPerCouple?: AmericanMultiZoneMatchesPerCouple
+  ) => {
     if (!nextPreset) return
 
-    setBusinessError(null)
-    setPresetId(nextPreset.presetId)
     if (nextPreset.zoneStage === 'FIXED_MATCH_COUNT') {
-      setMatchesPerCouple(getDefaultMatchesPerCouple(nextPreset.targetMatchesPerCouple))
+      setMatchesPerCouple(
+        nextMatchesPerCouple ?? getDefaultMatchesPerCouple(nextPreset.targetMatchesPerCouple)
+      )
     }
     if (nextPreset.advancementConfig.kind === 'SINGLE') {
       setSingleAdvanceCount(getDefaultSingleAdvanceCount(nextPreset.advancementConfig.advanceCount))
@@ -148,6 +173,36 @@ export default function TournamentFormatConfigForm({
     }
   }
 
+  const handlePresetChange = (nextPresetId: string) => {
+    const nextPreset = presetOptions.find((preset) => preset.presetId === nextPresetId)
+    if (!nextPreset) return
+
+    setBusinessError(null)
+    setPresetId(nextPreset.presetId)
+    applyPresetDefaults(nextPreset)
+  }
+
+  const handleAmericanMultiZoneAlgorithmChange = (algorithm: AmericanMultiZoneAlgorithm) => {
+    const nextPresetId = getAmericanMultiZonePresetId(algorithm, selectedAmericanZoneMatchesPerCouple)
+    const nextPreset = presetOptions.find((preset) => preset.presetId === nextPresetId)
+    if (!nextPreset) return
+
+    setBusinessError(null)
+    setPresetId(nextPreset.presetId)
+    applyPresetDefaults(nextPreset, selectedAmericanZoneMatchesPerCouple)
+  }
+
+  const handleAmericanZoneMatchesChange = (value: string) => {
+    const nextMatches = (value === '3' ? 3 : 2) as AmericanMultiZoneMatchesPerCouple
+    const nextPresetId = getAmericanMultiZonePresetId(selectedAmericanMultiZoneAlgorithm, nextMatches)
+    const nextPreset = presetOptions.find((preset) => preset.presetId === nextPresetId)
+    if (!nextPreset) return
+
+    setBusinessError(null)
+    setPresetId(nextPreset.presetId)
+    applyPresetDefaults(nextPreset, nextMatches)
+  }
+
   const handleSave = async (event: FormEvent) => {
     event.preventDefault()
     setIsLoading(true)
@@ -158,7 +213,7 @@ export default function TournamentFormatConfigForm({
         presetId,
         couplesPerZone,
         singleAdvanceCount,
-        matchesPerCouple,
+        matchesPerCouple: isSelectedAmericanMultiZone ? selectedAmericanZoneMatchesPerCouple : matchesPerCouple,
         goldCount,
         silverCount,
         eliminatedCount,
@@ -185,29 +240,83 @@ export default function TournamentFormatConfigForm({
 
   return (
     <form onSubmit={handleSave} className="space-y-6">
-      <div className="space-y-2">
-        <Label>Preset</Label>
-        <Select value={presetId} onValueChange={handlePresetChange}>
-          <SelectTrigger className="bg-white">
-            <SelectValue placeholder="Selecciona un formato" />
-          </SelectTrigger>
-          <SelectContent>
-            {presetOptions.map((preset) => (
-              <SelectItem key={preset.presetId} value={preset.presetId}>
-                {preset.display.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {selectedPreset && (
-          <p className="text-sm text-slate-600">{selectedPreset.display.description}</p>
-        )}
-        {tournamentType === 'AMERICAN' && tournamentStatus && tournamentStatus !== 'NOT_STARTED' && (
-          <p className="text-xs text-slate-500">
-            En torneo iniciado solo se permite cambiar entre formatos americanos multizona mientras no exista llave generada.
-          </p>
-        )}
-      </div>
+      {isSelectedAmericanMultiZone ? (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Formato americano multizona</Label>
+            <Select
+              value={selectedAmericanMultiZoneAlgorithm}
+              onValueChange={(value) => handleAmericanMultiZoneAlgorithmChange(value as AmericanMultiZoneAlgorithm)}
+            >
+              <SelectTrigger className="bg-white">
+                <SelectValue placeholder="Selecciona un formato" />
+              </SelectTrigger>
+              <SelectContent>
+                {AMERICAN_MULTI_ZONE_FORMAT_OPTIONS.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-slate-600">
+              {
+                AMERICAN_MULTI_ZONE_FORMAT_OPTIONS.find(
+                  (option) => option.id === selectedAmericanMultiZoneAlgorithm
+                )?.description
+              }
+            </p>
+            {tournamentStatus && tournamentStatus !== 'NOT_STARTED' && (
+              <p className="text-xs text-slate-500">
+                En torneo iniciado solo se permite cambiar entre formatos americanos multizona mientras no exista llave generada.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Partidos de zona por pareja</Label>
+            <Select value={String(selectedAmericanZoneMatchesPerCouple)} onValueChange={handleAmericanZoneMatchesChange}>
+              <SelectTrigger className="bg-white">
+                <SelectValue placeholder="Selecciona cuantos partidos" />
+              </SelectTrigger>
+              <SelectContent>
+                {AMERICAN_MULTI_ZONE_MATCH_OPTIONS.map((value) => (
+                  <SelectItem key={value} value={String(value)}>
+                    {value} partidos
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-slate-500">
+              En zonas de 3, el sistema usa round robin completo cuando corresponde.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Label>Preset</Label>
+          <Select value={presetId} onValueChange={handlePresetChange}>
+            <SelectTrigger className="bg-white">
+              <SelectValue placeholder="Selecciona un formato" />
+            </SelectTrigger>
+            <SelectContent>
+              {presetOptions.map((preset) => (
+                <SelectItem key={preset.presetId} value={preset.presetId}>
+                  {preset.display.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedPreset && (
+            <p className="text-sm text-slate-600">{selectedPreset.display.description}</p>
+          )}
+          {tournamentType === 'AMERICAN' && tournamentStatus && tournamentStatus !== 'NOT_STARTED' && (
+            <p className="text-xs text-slate-500">
+              En torneo iniciado solo se permite cambiar entre formatos americanos multizona mientras no exista llave generada.
+            </p>
+          )}
+        </div>
+      )}
 
       {businessError && (
         <Alert variant="destructive">
@@ -215,7 +324,7 @@ export default function TournamentFormatConfigForm({
         </Alert>
       )}
 
-      {selectedPreset?.zoneStage === 'FIXED_MATCH_COUNT' && (
+      {selectedPreset?.zoneStage === 'FIXED_MATCH_COUNT' && !isSelectedAmericanMultiZone && (
         <div className="space-y-2">
           <Label htmlFor="matches-per-couple">Partidos por pareja</Label>
           <Input

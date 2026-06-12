@@ -29,6 +29,7 @@ interface ClientTournament {
   description: string | null;
   award: string | null;
   max_participants: number | null;
+  hide_venue: boolean;
   club_id: string | null;
   organization_id: string | null;
   enable_public_inscriptions: boolean;
@@ -67,6 +68,7 @@ const serializeTournamentForClient = (tournament: any): ClientTournament => ({
   description: tournament.description ?? null,
   award: tournament.award ?? null,
   max_participants: tournament.max_participants ?? null,
+  hide_venue: Boolean(tournament.hide_venue),
   club_id: tournament.club_id ?? null,
   organization_id: tournament.organization_id ?? null,
   enable_public_inscriptions: Boolean(tournament.enable_public_inscriptions),

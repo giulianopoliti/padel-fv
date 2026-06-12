@@ -14,6 +14,55 @@ create table if not exists maintenance.zone_integrity_repair_audit (
   details jsonb not null default '{}'::jsonb
 );
 
+alter table maintenance.zone_integrity_repair_audit
+  add column if not exists repair_name text,
+  add column if not exists finding_type text,
+  add column if not exists row_count integer;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'maintenance'
+      and table_name = 'zone_integrity_repair_audit'
+      and column_name = 'audit_type'
+  ) then
+    alter table maintenance.zone_integrity_repair_audit
+      alter column audit_type drop not null,
+      alter column audit_type set default 'audit_repair_zone_integrity';
+  end if;
+end $$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'maintenance'
+      and table_name = 'zone_integrity_repair_audit'
+      and column_name = 'audit_type'
+  ) then
+    update maintenance.zone_integrity_repair_audit
+    set
+      repair_name = coalesce(repair_name, 'legacy_zone_integrity_audit'),
+      finding_type = coalesce(finding_type, audit_type, 'legacy_zone_integrity_finding')
+    where repair_name is null
+       or finding_type is null;
+  else
+    update maintenance.zone_integrity_repair_audit
+    set
+      repair_name = coalesce(repair_name, 'audit_repair_zone_integrity'),
+      finding_type = coalesce(finding_type, 'legacy_zone_integrity_finding')
+    where repair_name is null
+       or finding_type is null;
+  end if;
+end $$;
+
+alter table maintenance.zone_integrity_repair_audit
+  alter column repair_name set not null,
+  alter column finding_type set not null;
+
 insert into maintenance.zone_integrity_repair_audit (
   repair_name,
   finding_type,

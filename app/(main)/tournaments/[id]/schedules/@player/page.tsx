@@ -42,6 +42,7 @@ export default async function PlayerSchedulePage({
       type,
       status,
       format_config,
+      hide_venue,
       clubes:club_id (
         name
       )
@@ -74,9 +75,11 @@ export default async function PlayerSchedulePage({
   }
 
   const clubName =
-    (Array.isArray((tournament as any).clubes)
-      ? (tournament as any).clubes[0]?.name
-      : (tournament as any).clubes?.name) || 'Sin club'
+    tournament.hide_venue
+      ? ''
+      : (Array.isArray((tournament as any).clubes)
+          ? (tournament as any).clubes[0]?.name
+          : (tournament as any).clubes?.name) || 'Sin club'
 
   // Get tournament fechas
   const { data: rawFechas } = await supabase

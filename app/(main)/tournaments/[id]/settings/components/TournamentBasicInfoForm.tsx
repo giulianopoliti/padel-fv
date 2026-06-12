@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Save, FileText, Users, AlertCircle, Tag, Clock3 } from 'lucide-react'
+import { Loader2, Save, FileText, Users, AlertCircle, Tag, Clock3, EyeOff } from 'lucide-react'
 import { updateTournamentBasicInfo } from '../actions'
 import { MAX_TOURNAMENT_PRICE } from '@/lib/constants/tournaments'
 
@@ -67,6 +68,7 @@ interface TournamentBasicInfoFormProps {
     start_date?: string | null
     end_date?: string | null
     type?: string | null
+    hide_venue?: boolean | null
   }
   inscriptionsCount: number
 }
@@ -93,6 +95,7 @@ export default function TournamentBasicInfoForm({
   const [startDate, setStartDate] = useState(initialStartDate)
   const [startTime, setStartTime] = useState(initialStartTime)
   const [endDate, setEndDate] = useState(initialEndDate)
+  const [hideVenue, setHideVenue] = useState(Boolean(initialData.hide_venue))
   const [hasChanges, setHasChanges] = useState(false)
   const { toast } = useToast()
 
@@ -121,6 +124,7 @@ export default function TournamentBasicInfoForm({
         description: description.trim() || null,
         max_participants: maxParticipants === '' ? null : Number(maxParticipants),
         price: price === '' ? null : Number(price),
+        hide_venue: hideVenue,
       }
 
       if (startDate !== initialStartDate || startTime !== initialStartTime) {
@@ -176,6 +180,7 @@ export default function TournamentBasicInfoForm({
     setStartDate(initialStartDate)
     setStartTime(initialStartTime)
     setEndDate(initialEndDate)
+    setHideVenue(Boolean(initialData.hide_venue))
     setHasChanges(false)
   }
 
@@ -404,6 +409,28 @@ export default function TournamentBasicInfoForm({
               </AlertDescription>
             </Alert>
           )}
+        </div>
+      </div>
+
+      <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+        <Checkbox
+          id="hide-venue"
+          checked={hideVenue}
+          onCheckedChange={(checked) => {
+            setHideVenue(checked === true)
+            handleInputChange()
+          }}
+          disabled={isLoading}
+          className="mt-0.5"
+        />
+        <div className="space-y-1">
+          <Label htmlFor="hide-venue" className="flex cursor-pointer items-center gap-2 font-medium">
+            <EyeOff className="h-4 w-4 text-slate-600" />
+            Ocultar sede
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            No muestra el club, direccion ni telefonos de la sede en vistas publicas y de jugador.
+          </p>
         </div>
       </div>
 

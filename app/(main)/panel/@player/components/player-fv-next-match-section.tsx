@@ -46,7 +46,7 @@ export default function PlayerFvNextMatchSection({ nextMatches }: PlayerFvNextMa
         {nextMatches.map((match, index) => {
           const roundLabel = formatRoundLabel(match.round)
           const isPrimary = index === 0
-          const venueLabel = [match.club_name, match.club_address, match.scheduled_info.court].filter(Boolean).join(" - ") || "Sede a confirmar"
+          const venueLabel = [match.club_name, match.club_address, match.scheduled_info.court].filter(Boolean).join(" - ")
 
           return (
             <article
@@ -95,11 +95,13 @@ export default function PlayerFvNextMatchSection({ nextMatches }: PlayerFvNextMa
                       label="Fecha y hora"
                       value={formatMatchDateTime(match.scheduled_info.date, match.scheduled_info.time)}
                     />
-                    <InfoBlock
-                      icon={<MapPin className="h-4 w-4 text-court-300" />}
-                      label="Sede"
-                      value={venueLabel}
-                    />
+                    {venueLabel ? (
+                      <InfoBlock
+                        icon={<MapPin className="h-4 w-4 text-court-300" />}
+                        label="Sede"
+                        value={venueLabel}
+                      />
+                    ) : null}
                   </div>
                 </div>
 

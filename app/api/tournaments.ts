@@ -303,6 +303,7 @@ export async function getUpcomingTournamentsForHome(limit: number = 3) {
                 pre_tournament_image_url,
                 price,
                 award,
+                hide_venue,
                 enable_public_inscriptions,
                 description,
                 max_participants,
@@ -344,13 +345,16 @@ export async function getUpcomingTournamentsForHome(limit: number = 3) {
         const tournamentsWithParticipants = tournaments.map((rawTournament: any) => {
             const inscriptions = allInscriptions?.filter((i: any) => i.tournament_id === rawTournament.id) || [];
             const currentParticipants = calculateParticipants(inscriptions as { couple_id: string | null }[]);
+            const hideVenue = Boolean(rawTournament.hide_venue);
 
             return {
                 id: rawTournament.id,
                 name: rawTournament.name,
-                club: rawTournament.club ? {
+                hideVenue,
+                club: rawTournament.club && !hideVenue ? {
                     id: rawTournament.club.id,
                     name: rawTournament.club.name,
+                    address: rawTournament.club.address,
                     image: rawTournament.club.cover_image_url
                 } : null,
                 createdAt: rawTournament.created_at || null,
@@ -367,7 +371,7 @@ export async function getUpcomingTournamentsForHome(limit: number = 3) {
                 description: rawTournament.description || null,
                 maxParticipants: rawTournament.max_participants || null,
                 currentParticipants: currentParticipants,
-                address: rawTournament.club?.address || null,
+                address: hideVenue ? null : rawTournament.club?.address || null,
                 time: null,
                 prize: (rawTournament.description &&
                        (rawTournament.description.includes('premio') || rawTournament.description.includes('$')))
@@ -446,6 +450,7 @@ export async function getTournamentsOptimized({
                 pre_tournament_image_url,
                 price,
                 award,
+                hide_venue,
                 enable_public_inscriptions,
                 description,
                 max_participants,
@@ -541,13 +546,16 @@ export async function getTournamentsOptimized({
         const tournamentsWithParticipants = orderedTournaments.map((rawTournament: any) => {
             const inscriptions = allInscriptions?.filter((i: any) => i.tournament_id === rawTournament.id) || [];
             const currentParticipants = calculateParticipants(inscriptions as { couple_id: string | null }[]);
+            const hideVenue = Boolean(rawTournament.hide_venue);
 
             return {
                 id: rawTournament.id,
                 name: rawTournament.name,
-                club: rawTournament.club ? {
+                hideVenue,
+                club: rawTournament.club && !hideVenue ? {
                     id: rawTournament.club.id,
                     name: rawTournament.club.name,
+                    address: rawTournament.club.address,
                     image: rawTournament.club.cover_image_url
                 } : null,
                 organization: rawTournament.organization ? {
@@ -568,7 +576,7 @@ export async function getTournamentsOptimized({
                 description: rawTournament.description || null,
                 maxParticipants: rawTournament.max_participants || null,
                 currentParticipants: currentParticipants,
-                address: rawTournament.club?.address || null,
+                address: hideVenue ? null : rawTournament.club?.address || null,
                 time: null,
                 prize: (rawTournament.description &&
                        (rawTournament.description.includes('premio') || rawTournament.description.includes('$')))

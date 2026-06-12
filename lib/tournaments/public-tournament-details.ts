@@ -14,6 +14,7 @@ type TournamentPublicInfoSource = {
   price?: string | number | null
   award?: NullableString
   description?: NullableString
+  hide_venue?: boolean | null
   start_date?: NullableString
   clubes?: {
     name?: NullableString
@@ -45,6 +46,7 @@ export interface TournamentPublicInfo {
   startTimeLabel: string | null
   clubName: string | null
   clubAddress: string | null
+  hideVenue: boolean
   organizerName: string | null
   organizerPhone: string | null
   award: string | null
@@ -97,13 +99,15 @@ const getValidDate = (value: string | null) => {
 export const mapTournamentToPublicInfo = (
   tournament: TournamentPublicInfoSource
 ): TournamentPublicInfo => {
-  const clubName = cleanText(tournament.clubes?.name)
-  const clubAddress = cleanText(tournament.clubes?.address)
+  const hideVenue = Boolean(tournament.hide_venue)
+  const clubName = hideVenue ? null : cleanText(tournament.clubes?.name)
+  const clubAddress = hideVenue ? null : cleanText(tournament.clubes?.address)
   const organizerName = cleanText(tournament.organization?.name) || clubName
   const organizerPhone =
     cleanText(tournament.organization?.phone) ||
-    cleanText(tournament.clubes?.phone) ||
-    cleanText(tournament.clubes?.phone2)
+    (hideVenue
+      ? null
+      : cleanText(tournament.clubes?.phone) || cleanText(tournament.clubes?.phone2))
 
   const parsedStartDate = getValidDate(tournament.start_date || null)
   const type = cleanText(tournament.type)
@@ -142,6 +146,7 @@ export const mapTournamentToPublicInfo = (
         : null,
     clubName,
     clubAddress,
+    hideVenue,
     organizerName,
     organizerPhone,
     award: cleanText(tournament.award),

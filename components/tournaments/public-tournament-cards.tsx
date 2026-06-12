@@ -24,6 +24,7 @@ export interface PublicTournamentSummary {
   enablePublicInscriptions?: boolean
   currentParticipants?: number
   maxParticipants?: number | null
+  hideVenue?: boolean
   club?: {
     id?: string | null
     name?: string | null
@@ -199,6 +200,8 @@ export function PublicTournamentCards({
     <div className="flex flex-col gap-4">
       {tournaments.map((tournament) => {
         const priceLabel = formatPrice(tournament.price)
+        const hideVenue = Boolean(tournament.hideVenue)
+        const venueName = tournament.club?.name || tournament.club?.address || null
         const canShowParticipantStats =
           showParticipantStats &&
           Boolean(tournament.enablePublicInscriptions) &&
@@ -262,16 +265,18 @@ export function PublicTournamentCards({
                       </div>
                     </div>
 
-                    <div className={infoBoxClassName}>
-                      <MapPin className={infoIconClassName} />
-                      <div className="min-w-0">
-                        <p className={infoLabelClassName}>Club</p>
-                        <p className={infoValueClassName}>{tournament.club?.name || "Sede a confirmar"}</p>
-                        <p className="mt-1 text-xs text-white/82">
-                          {tournament.club?.address || "Dirección a confirmar"}
-                        </p>
+                    {!hideVenue && venueName ? (
+                      <div className={infoBoxClassName}>
+                        <MapPin className={infoIconClassName} />
+                        <div className="min-w-0">
+                          <p className={infoLabelClassName}>Sede</p>
+                          <p className={infoValueClassName}>{venueName}</p>
+                          {tournament.club?.address && tournament.club.address !== venueName ? (
+                            <p className="mt-1 text-xs text-white/82">{tournament.club.address}</p>
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
+                    ) : null}
                   </div>
 
                   {(priceLabel || tournament.award) ? (

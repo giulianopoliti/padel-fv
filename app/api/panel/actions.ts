@@ -55,6 +55,7 @@ export type InscribedTournament = {
     status: string
     category_name: string
     gender: string
+    hide_venue?: boolean
     club: {
       name: string
       address: string | null
@@ -97,6 +98,7 @@ export type UpcomingTournament = {
   enable_transfer_proof?: boolean
   transfer_alias?: string | null
   transfer_amount?: number | null
+  hide_venue?: boolean
   club: {
     name: string
     address: string | null
@@ -149,7 +151,40 @@ export async function getPlayerNextMatch(playerId: string): Promise<PlayerNextMa
       return { nextMatches: [], error: 'Error al obtener proximos partidos' }
     }
 
-    return data as PlayerNextMatchResult
+    const result = data as PlayerNextMatchResult
+    const nextMatches = result.nextMatches || []
+
+    if (nextMatches.length === 0) {
+      return result
+    }
+
+    const tournamentIds = Array.from(new Set(nextMatches.map((match) => match.tournament_id).filter(Boolean)))
+    const { data: visibilityRows, error: visibilityError } = await supabase
+      .from('tournaments')
+      .select('id, hide_venue')
+      .in('id', tournamentIds)
+
+    if (visibilityError) {
+      console.error('Error fetching next match venue visibility:', visibilityError)
+      return result
+    }
+
+    const hideVenueByTournament = new Map(
+      (visibilityRows || []).map((row: any) => [row.id, Boolean(row.hide_venue)]),
+    )
+
+    return {
+      ...result,
+      nextMatches: nextMatches.map((match) =>
+        hideVenueByTournament.get(match.tournament_id)
+          ? {
+              ...match,
+              club_name: undefined,
+              club_address: undefined,
+            }
+          : match,
+      ),
+    }
   } catch (error) {
     console.error('Error calling edge function:', error)
     return {
@@ -182,8 +217,21 @@ export async function getPlayerInscribedTournaments(playerId: string): Promise<I
       return result
     }
 
-    const categoryDisplayMap = await resolveTournamentCategoryDisplayMap(
-      inscribedTournaments.map((inscription) => inscription.tournament.id),
+    const tournamentIds = inscribedTournaments.map((inscription) => inscription.tournament.id)
+    const [categoryDisplayMap, visibilityResult] = await Promise.all([
+      resolveTournamentCategoryDisplayMap(tournamentIds),
+      supabase
+        .from('tournaments')
+        .select('id, hide_venue')
+        .in('id', tournamentIds),
+    ])
+
+    if (visibilityResult.error) {
+      console.error('Error fetching inscribed tournament venue visibility:', visibilityResult.error)
+    }
+
+    const hideVenueByTournament = new Map(
+      (visibilityResult.data || []).map((row: any) => [row.id, Boolean(row.hide_venue)]),
     )
 
     return {
@@ -194,6 +242,13 @@ export async function getPlayerInscribedTournaments(playerId: string): Promise<I
           ...inscription.tournament,
           category_name:
             categoryDisplayMap[inscription.tournament.id] || inscription.tournament.category_name || '',
+          hide_venue: Boolean(hideVenueByTournament.get(inscription.tournament.id)),
+          club: hideVenueByTournament.get(inscription.tournament.id)
+            ? {
+                name: '',
+                address: null,
+              }
+            : inscription.tournament.club,
         },
       })),
     }
@@ -274,6 +329,7 @@ export async function getPlayerUpcomingTournaments(
     const upcomingTournaments: UpcomingTournament[] = tournaments.map((tournament) => {
       const currentInscriptions = countMap[tournament.id] || 0
       const maxParticipants = null
+      const hideVenue = Boolean(tournament.hideVenue)
 
       return {
         id: tournament.id,
@@ -293,9 +349,13 @@ export async function getPlayerUpcomingTournaments(
         enable_transfer_proof: tournament.enableTransferProof || false,
         transfer_alias: tournament.transferAlias || null,
         transfer_amount: tournament.transferAmount || null,
-        club: {
+        hide_venue: hideVenue,
+        club: !hideVenue && tournament.club ? {
           name: tournament.club?.name || 'Sin club',
           address: tournament.club?.address || null,
+        } : {
+          name: '',
+          address: null,
         },
       }
     })

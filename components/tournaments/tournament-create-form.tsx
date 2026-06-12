@@ -45,6 +45,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { getPresetOptionsByType } from '@/config/tournament-format-presets';
 import { useUser } from '@/contexts/user-context';
 import { useUserClubs } from '@/hooks/use-user-clubs';
+import {
+  AMERICAN_MULTI_ZONE_FORMAT_OPTIONS,
+  AMERICAN_MULTI_ZONE_MATCH_OPTIONS,
+  getAmericanMultiZoneAlgorithmFromPresetId,
+  getAmericanMultiZoneMatchesFromPresetId,
+  getAmericanMultiZonePresetId,
+  isAmericanMultiZonePresetId,
+  type AmericanMultiZoneAlgorithm,
+  type AmericanMultiZoneMatchesPerCouple,
+} from '@/lib/services/american-multizone-format-options';
 import { buildTournamentFormatConfig } from '@/lib/services/tournament-format-config-builder';
 import {
   areCategoriesConsecutive,
@@ -130,6 +140,8 @@ const tournamentSchema = z.object({
   extra_club_ids: z.array(z.string()).default([]),
   price: z.number().int('El precio debe ser un numero entero').min(0, 'El precio no puede ser negativo').max(MAX_TOURNAMENT_PRICE, 'El precio es demasiado alto').optional(),
   award: z.string().optional(),
+  american_multizone_algorithm: z.enum(['SERPENTINE_BY_ZONE', 'GLOBAL_STANDINGS']).optional(),
+  american_zone_matches_per_couple: z.enum(['2', '3']).optional(),
   american_couples_per_zone: z.enum(['2', '3', 'ALL']).optional(),
   single_bracket_advance_count: z.number().int().min(2, 'Minimo 2 parejas').optional(),
   gold_count: z.number().int().min(0, 'No puede ser negativo').optional(),
@@ -331,6 +343,8 @@ export default function TournamentCreateForm() {
       extra_club_ids: [],
       price: undefined,
       award: '',
+      american_multizone_algorithm: 'SERPENTINE_BY_ZONE',
+      american_zone_matches_per_couple: '2',
       american_couples_per_zone: 'ALL',
       single_bracket_advance_count: 8,
       gold_count: 4,
@@ -345,6 +359,15 @@ export default function TournamentCreateForm() {
   const isAmericanTournament = selectedType === 'AMERICAN';
   const presetOptions = PRESET_OPTIONS[selectedType];
   const selectedPreset = presetOptions.find((preset) => preset.presetId === watchedValues.format_preset);
+  const nonMultiZoneAmericanPresetOptions = PRESET_OPTIONS.AMERICAN.filter(
+    (preset) => !isAmericanMultiZonePresetId(preset.presetId)
+  );
+  const selectedAmericanMultiZoneAlgorithm =
+    (watchedValues.american_multizone_algorithm as AmericanMultiZoneAlgorithm | undefined) ??
+    getAmericanMultiZoneAlgorithmFromPresetId(watchedValues.format_preset);
+  const selectedAmericanZoneMatchesPerCouple =
+    (watchedValues.american_zone_matches_per_couple === '3' ? 3 : 2) as AmericanMultiZoneMatchesPerCouple;
+  const isSelectedAmericanMultiZone = isAmericanMultiZonePresetId(watchedValues.format_preset);
   const extraClubIds = form.watch('extra_club_ids') || [];
   const userRole = userDetails?.role;
   const selectedClub = clubs.find((club) => club.id === watchedValues.club_id);
@@ -393,6 +416,32 @@ export default function TournamentCreateForm() {
       areCategoriesConsecutive(categories, watchedValues.primary_category_name || '', category.name),
     );
   }, [categories, watchedValues.primary_category_name]);
+
+  const handleAmericanMultiZoneAlgorithmChange = (
+    algorithm: AmericanMultiZoneAlgorithm,
+    onPresetChange?: (presetId: TournamentFormatPresetId) => void
+  ) => {
+    const nextPresetId = getAmericanMultiZonePresetId(algorithm, selectedAmericanZoneMatchesPerCouple);
+    form.setValue('american_multizone_algorithm', algorithm, { shouldDirty: true, shouldValidate: true });
+
+    if (onPresetChange) {
+      onPresetChange(nextPresetId);
+      return;
+    }
+
+    form.setValue('format_preset', nextPresetId, { shouldDirty: true, shouldValidate: true });
+  };
+
+  const handleAmericanZoneMatchesChange = (value: string) => {
+    const nextMatches = (value === '3' ? 3 : 2) as AmericanMultiZoneMatchesPerCouple;
+    const nextPresetId = getAmericanMultiZonePresetId(selectedAmericanMultiZoneAlgorithm, nextMatches);
+
+    form.setValue('american_zone_matches_per_couple', String(nextMatches) as '2' | '3', {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue('format_preset', nextPresetId, { shouldDirty: true, shouldValidate: true });
+  };
 
   useEffect(() => {
     if (categoryMode !== 'RANGE') {
@@ -478,6 +527,23 @@ export default function TournamentCreateForm() {
       }
     }
   }, [selectedType, form]);
+
+  useEffect(() => {
+    if (selectedType !== 'AMERICAN' || !isAmericanMultiZonePresetId(watchedValues.format_preset)) {
+      return;
+    }
+
+    const algorithm = getAmericanMultiZoneAlgorithmFromPresetId(watchedValues.format_preset);
+    const matches = getAmericanMultiZoneMatchesFromPresetId(watchedValues.format_preset);
+
+    if (form.getValues('american_multizone_algorithm') !== algorithm) {
+      form.setValue('american_multizone_algorithm', algorithm, { shouldValidate: false });
+    }
+
+    if (form.getValues('american_zone_matches_per_couple') !== String(matches)) {
+      form.setValue('american_zone_matches_per_couple', String(matches) as '2' | '3', { shouldValidate: false });
+    }
+  }, [form, selectedType, watchedValues.format_preset]);
 
   useEffect(() => {
     if (!selectedPreset) return;
@@ -1240,57 +1306,200 @@ export default function TournamentCreateForm() {
                             </p>
                           </div>
                           <FormControl>
-                            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
-                              {presetOptions.map((preset) => {
-                                const isSelected = field.value === preset.presetId;
-                                const presetMeta = getPresetMeta(preset.presetId);
+                            {selectedType === 'AMERICAN' ? (
+                              <div className="space-y-4">
+                                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
+                                  {AMERICAN_MULTI_ZONE_FORMAT_OPTIONS.map((option) => {
+                                    const isSelected =
+                                      isSelectedAmericanMultiZone &&
+                                      selectedAmericanMultiZoneAlgorithm === option.id;
 
-                                return (
-                                  <button
-                                    key={preset.presetId}
-                                    type="button"
-                                    onClick={() => field.onChange(preset.presetId)}
-                                    className={cn(
-                                      'rounded-xl border p-4 text-left transition-all sm:p-5',
-                                      isSelected
-                                        ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
-                                        : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
-                                    )}
-                                  >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <p className="text-base font-medium">{preset.display.name}</p>
-                                        <p className={cn('mt-1 text-sm leading-relaxed', isSelected ? 'text-slate-200' : 'text-slate-500')}>
-                                          {preset.display.description}
-                                        </p>
-                                      </div>
-                                      {isSelected && (
-                                        <div className="rounded-full border border-white/20 bg-white/10 p-2">
-                                          <Check className="h-4 w-4" />
+                                    return (
+                                      <button
+                                        key={option.id}
+                                        type="button"
+                                        onClick={() => handleAmericanMultiZoneAlgorithmChange(option.id, field.onChange)}
+                                        className={cn(
+                                          'rounded-xl border p-4 text-left transition-all sm:p-5',
+                                          isSelected
+                                            ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                                            : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
+                                        )}
+                                      >
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div className="min-w-0">
+                                            <p className="text-base font-medium">{option.label}</p>
+                                            <p className={cn('mt-1 text-sm leading-relaxed', isSelected ? 'text-slate-200' : 'text-slate-500')}>
+                                              {option.description}
+                                            </p>
+                                          </div>
+                                          {isSelected && (
+                                            <div className="rounded-full border border-white/20 bg-white/10 p-2">
+                                              <Check className="h-4 w-4" />
+                                            </div>
+                                          )}
                                         </div>
-                                      )}
-                                    </div>
 
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                      {presetMeta.map((item) => (
-                                        <Badge
-                                          key={item}
-                                          variant="outline"
-                                          className={cn('border-current/20 bg-transparent', isSelected ? 'text-white' : 'text-slate-600')}
-                                        >
-                                          {item}
-                                        </Badge>
-                                      ))}
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                          <Badge
+                                            variant="outline"
+                                            className={cn('border-current/20 bg-transparent', isSelected ? 'text-white' : 'text-slate-600')}
+                                          >
+                                            Multiples zonas
+                                          </Badge>
+                                          <Badge
+                                            variant="outline"
+                                            className={cn('border-current/20 bg-transparent', isSelected ? 'text-white' : 'text-slate-600')}
+                                          >
+                                            {option.id === 'GLOBAL_STANDINGS' ? 'Tabla general' : 'Posiciones por zona'}
+                                          </Badge>
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+
+                                {nonMultiZoneAmericanPresetOptions.length > 0 && (
+                                  <div className="space-y-3">
+                                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Otros formatos americanos</p>
+                                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
+                                      {nonMultiZoneAmericanPresetOptions.map((preset) => {
+                                        const isSelected = field.value === preset.presetId;
+                                        const presetMeta = getPresetMeta(preset.presetId);
+
+                                        return (
+                                          <button
+                                            key={preset.presetId}
+                                            type="button"
+                                            onClick={() => field.onChange(preset.presetId)}
+                                            className={cn(
+                                              'rounded-xl border p-4 text-left transition-all sm:p-5',
+                                              isSelected
+                                                ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                                                : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
+                                            )}
+                                          >
+                                            <div className="flex items-start justify-between gap-3">
+                                              <div className="min-w-0">
+                                                <p className="text-base font-medium">{preset.display.name}</p>
+                                                <p className={cn('mt-1 text-sm leading-relaxed', isSelected ? 'text-slate-200' : 'text-slate-500')}>
+                                                  {preset.display.description}
+                                                </p>
+                                              </div>
+                                              {isSelected && (
+                                                <div className="rounded-full border border-white/20 bg-white/10 p-2">
+                                                  <Check className="h-4 w-4" />
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                              {presetMeta.map((item) => (
+                                                <Badge
+                                                  key={item}
+                                                  variant="outline"
+                                                  className={cn('border-current/20 bg-transparent', isSelected ? 'text-white' : 'text-slate-600')}
+                                                >
+                                                  {item}
+                                                </Badge>
+                                              ))}
+                                            </div>
+                                          </button>
+                                        );
+                                      })}
                                     </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
+                                {presetOptions.map((preset) => {
+                                  const isSelected = field.value === preset.presetId;
+                                  const presetMeta = getPresetMeta(preset.presetId);
+
+                                  return (
+                                    <button
+                                      key={preset.presetId}
+                                      type="button"
+                                      onClick={() => field.onChange(preset.presetId)}
+                                      className={cn(
+                                        'rounded-xl border p-4 text-left transition-all sm:p-5',
+                                        isSelected
+                                          ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                                          : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
+                                      )}
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <p className="text-base font-medium">{preset.display.name}</p>
+                                          <p className={cn('mt-1 text-sm leading-relaxed', isSelected ? 'text-slate-200' : 'text-slate-500')}>
+                                            {preset.display.description}
+                                          </p>
+                                        </div>
+                                        {isSelected && (
+                                          <div className="rounded-full border border-white/20 bg-white/10 p-2">
+                                            <Check className="h-4 w-4" />
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      <div className="mt-3 flex flex-wrap gap-2">
+                                        {presetMeta.map((item) => (
+                                          <Badge
+                                            key={item}
+                                            variant="outline"
+                                            className={cn('border-current/20 bg-transparent', isSelected ? 'text-white' : 'text-slate-600')}
+                                          >
+                                            {item}
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+
+                    {selectedType === 'AMERICAN' && isSelectedAmericanMultiZone && (
+                      <FormField
+                        control={form.control}
+                        name="american_zone_matches_per_couple"
+                        render={({ field }) => (
+                          <FormItem className="max-w-xs">
+                            <FormLabel className="font-medium text-slate-700">Partidos de zona por pareja</FormLabel>
+                            <Select
+                              value={field.value ?? String(selectedAmericanZoneMatchesPerCouple)}
+                              onValueChange={(value) => {
+                                field.onChange(value);
+                                handleAmericanZoneMatchesChange(value);
+                              }}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="h-11 border-slate-200/80 bg-white focus:border-slate-900 focus:ring-slate-900">
+                                  <SelectValue placeholder="Selecciona cuantos partidos" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {AMERICAN_MULTI_ZONE_MATCH_OPTIONS.map((value) => (
+                                  <SelectItem key={value} value={String(value)}>
+                                    {value} partidos
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormDescription className="text-slate-500">
+                              En zonas de 3, el sistema usa round robin completo cuando corresponde.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                     {selectedPreset && (
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5">

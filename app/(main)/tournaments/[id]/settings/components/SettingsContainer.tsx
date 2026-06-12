@@ -22,6 +22,7 @@ interface SettingsContainerProps {
     registration_locked?: boolean
     bracket_status?: string
     pre_tournament_image_url?: string | null
+    hide_venue?: boolean
     clubes?: {
       cover_image_url?: string | null
     } | null
@@ -70,7 +71,8 @@ export default function SettingsContainer({
             initialData={{
               name: tournament.name,
               description: tournament.description,
-              max_participants: tournament.max_participants
+              max_participants: tournament.max_participants,
+              hide_venue: Boolean(tournament.hide_venue)
             }}
             inscriptionsCount={inscriptionsCount}
           />

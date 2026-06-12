@@ -69,7 +69,8 @@ export default function PlayerFvInscribedTournamentsSection({
           const tournament = inscription.tournament
           const partnerName = `${inscription.partner.first_name} ${inscription.partner.last_name}`.trim()
           const tournamentType = tournament.type || null
-          const venueLabel = [tournament.club?.name, tournament.club?.address].filter(Boolean).join(" - ") || "A confirmar"
+          const hideVenue = Boolean(tournament.hide_venue)
+          const venueLabel = [tournament.club?.name, tournament.club?.address].filter(Boolean).join(" - ")
 
           return (
             <article
@@ -104,11 +105,13 @@ export default function PlayerFvInscribedTournamentsSection({
                       label="Pareja"
                       value={partnerName}
                     />
-                    <InfoBlock
-                      icon={<MapPin className="h-4 w-4 text-court-300" />}
-                      label="Sede"
-                      value={venueLabel}
-                    />
+                    {!hideVenue && venueLabel ? (
+                      <InfoBlock
+                        icon={<MapPin className="h-4 w-4 text-court-300" />}
+                        label="Sede"
+                        value={venueLabel}
+                      />
+                    ) : null}
                     <InfoBlock
                       icon={<Trophy className="h-4 w-4 text-court-300" />}
                       label="Estado"
