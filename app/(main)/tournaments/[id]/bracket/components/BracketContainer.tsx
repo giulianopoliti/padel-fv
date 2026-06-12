@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Trophy, Calendar } from 'lucide-react'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Trophy, Calendar, ChevronDown, Info } from 'lucide-react'
 import LongBracketView from './LongBracketView'
 import LongScheduleView from './LongScheduleView'
 import { LongBracketGenerator } from '@/components/tournament/long/LongBracketGenerator'
@@ -18,27 +19,22 @@ const ACTIVE_BRACKET_STATUSES = ['BRACKET_PHASE', 'FINISHED_POINTS_PENDING', 'FI
 
 function BracketInstructions({ showBackToZones }: { showBackToZones: boolean }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
-      <h3 className="text-sm font-semibold text-slate-900">Instructivo</h3>
-      <div className="mt-3 space-y-3 text-sm text-slate-700">
+    <div className="space-y-2 text-sm text-slate-700">
         <p>
           <strong>Procesar BYE:</strong> usalo cuando un partido tiene una sola pareja real y el otro lado quedo vacio.
-          El sistema marca ese partido como finalizado, asigna la pareja ganadora y la avanza automaticamente a la siguiente ronda.
+          El sistema lo finaliza y avanza la pareja a la siguiente ronda.
         </p>
         <p>
-          <strong>Desprocesar BYE:</strong> revierte esa accion. El partido vuelve a quedar pendiente y la pareja avanzada se quita del cruce siguiente.
-          Sirve si reorganizaste mal una llave o procesaste un BYE antes de tiempo.
+          <strong>Desprocesar BYE:</strong> revierte esa accion. El partido vuelve a pendiente y se quita el avance del cruce siguiente.
         </p>
         <p>
-          <strong>Reorganizar parejas:</strong> en modo edicion podes mover o intercambiar parejas dentro de la misma ronda.
-          Los cambios no se aplican hasta que guardes. Mientras no guardes, podes cancelar todo y volver al estado anterior.
+          <strong>Reorganizar parejas:</strong> en modo edicion podes mover o intercambiar parejas dentro de la misma ronda. Nada se aplica hasta guardar.
         </p>
         <p>
           <strong>Si te confundiste y queres borrar la llave:</strong> usa el boton <strong>Volver a zonas</strong>.
-          Eso elimina la llave actual y devuelve el torneo a la fase de zonas para que puedas corregir y generar de nuevo.
+          Elimina la llave actual y devuelve el torneo a zonas para corregir y generar de nuevo.
           {showBackToZones ? ' Lo vas a encontrar arriba en esta misma pantalla.' : ''}
         </p>
-      </div>
     </div>
   )
 }
@@ -48,10 +44,38 @@ function BracketInstructionsSection({
 }: {
   showBackToZones: boolean
 }) {
+  const [isOpen, setIsOpen] = useState(false)
+
   return (
-    <div className="px-4 pb-4 lg:px-6">
+    <div className="px-4 pb-3 lg:px-6">
       <div className="mx-auto min-w-0 max-w-none lg:max-w-7xl xl:pr-[max(1.5rem,calc((100vw-80rem)/2+1.5rem))]">
-        <BracketInstructions showBackToZones={showBackToZones} />
+        <Collapsible
+          open={isOpen}
+          onOpenChange={setIsOpen}
+          className="rounded-lg border border-slate-200 bg-white shadow-sm"
+        >
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50"
+              aria-label={isOpen ? 'Ocultar instructivo de la llave' : 'Mostrar instructivo de la llave'}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <Info className="h-4 w-4 shrink-0 text-blue-700" />
+                <span>Instructivo de llave</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
+                {isOpen ? 'Ocultar' : 'Ver guia'}
+                <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+              </span>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="border-t border-slate-200 px-3 py-3">
+              <BracketInstructions showBackToZones={showBackToZones} />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </div>
   )

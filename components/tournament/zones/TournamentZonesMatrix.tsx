@@ -293,6 +293,13 @@ function TournamentZonesMatrixInternal({
     refreshPositions()
     toast.success('Datos actualizados')
   }, [hasUnsavedChanges, refreshData, refreshRestrictions, refreshMatches, refreshPositions])
+
+  const handleDisqualificationRefresh = useCallback(async () => {
+    await refreshData()
+    refreshRestrictions()
+    refreshMatches()
+    refreshPositions()
+  }, [refreshData, refreshRestrictions, refreshMatches, refreshPositions])
   
   const handleDragStart = useCallback((item: DragItem) => {
     startDrag(item)
@@ -652,6 +659,7 @@ function TournamentZonesMatrixInternal({
               isMobile={isMobile}
               selectedCoupleForMove={selectedCoupleForMove}
               onCoupleSelect={setSelectedCoupleForMove}
+              onDisqualificationChange={handleDisqualificationRefresh}
             />
           ))}
         </div>

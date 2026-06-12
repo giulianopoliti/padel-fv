@@ -86,6 +86,7 @@ export default async function QuallyPage({ params }: QuallyPageProps) {
     <QuallyView 
       tournament={tournament as any}
       coupleInscriptions={coupleInscriptions as any}
+      canManageTournament={accessCheck.accessLevel === 'FULL_MANAGEMENT'}
     />
   );
 }

@@ -2,8 +2,26 @@
 
 import React, { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/components/ui/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -12,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Trophy, Medal, Award, TrendingUp, TrendingDown } from 'lucide-react';
+import { Ban, Loader2, MoreHorizontal, RotateCcw, Trophy, Medal, Award, TrendingUp, TrendingDown } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { Database } from '@/database.types';
 import CoupleAvatar from './CoupleAvatar';
@@ -70,26 +88,49 @@ type ZonePosition = {
   }
 };
 
+type ActiveDisqualification = {
+  id: string;
+  couple_id: string;
+  phase: string;
+  status: string;
+};
+
+type PendingDisqualificationAction = {
+  zonePosition: ZonePosition;
+  action: 'disqualify' | 'revert';
+};
+
 interface PositionsTableProps {
   tournament: Tournament;
   coupleInscriptions: CoupleInscription[];
   isSingleSetFormat: boolean;
+  canManageTournament?: boolean;
 }
 
 const PositionsTable: React.FC<PositionsTableProps> = ({
   tournament,
   coupleInscriptions,
-  isSingleSetFormat
+  isSingleSetFormat,
+  canManageTournament = false
 }) => {
   const [standings, setStandings] = useState<ZonePosition[]>([]);
+  const [activeDisqualifications, setActiveDisqualifications] = useState<ActiveDisqualification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingCoupleId, setUpdatingCoupleId] = useState<string | null>(null);
+  const [pendingDisqualification, setPendingDisqualification] = useState<PendingDisqualificationAction | null>(null);
+  const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchZonePositions = async () => {
+  const canUpdateDisqualifications = canManageTournament && tournament.status === 'ZONE_PHASE';
+  const columnsCount = 9 + (!isSingleSetFormat ? 3 : 0) + (canUpdateDisqualifications ? 1 : 0);
+  const disqualificationsByCouple = React.useMemo(() => {
+    return new Map(activeDisqualifications.map((disqualification) => [disqualification.couple_id, disqualification]));
+  }, [activeDisqualifications]);
+
+  const fetchZonePositions = React.useCallback(async () => {
       const supabase = createClient();
       
-      // Get zone positions directly from database
-      const { data, error } = await supabase
+      const [positionsResult, disqualificationsResponse] = await Promise.all([
+        supabase
         .from('zone_positions')
         .select(`
           *,
@@ -106,7 +147,11 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
           )
         `)
         .eq('tournament_id', tournament.id)
-        .order('position', { ascending: true });
+        .order('position', { ascending: true }),
+        fetch(`/api/tournaments/${tournament.id}/disqualifications?phase=ZONE_PHASE`).catch(() => null)
+      ]);
+
+      const { data, error } = positionsResult;
       
       if (error) {
         console.error('Error fetching zone positions:', error);
@@ -114,12 +159,20 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
       } else {
         setStandings(data as ZonePosition[] || []);
       }
+
+      if (disqualificationsResponse?.ok) {
+        const disqualificationData = await disqualificationsResponse.json().catch(() => null);
+        setActiveDisqualifications(disqualificationData?.disqualifications || []);
+      } else {
+        setActiveDisqualifications([]);
+      }
       
       setLoading(false);
-    };
-
-    fetchZonePositions();
   }, [tournament.id]);
+
+  useEffect(() => {
+    fetchZonePositions();
+  }, [fetchZonePositions]);
 
   const getCoupleDisplayName = (zonePosition: ZonePosition): string => {
     if (!zonePosition.couples) return 'N/A';
@@ -178,6 +231,50 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
     return total > 0 ? (wins / total) * 100 : 0;
   };
 
+  const handleConfirmDisqualification = async () => {
+    if (!pendingDisqualification) return;
+
+    const { zonePosition, action } = pendingDisqualification;
+    const shouldRevert = action === 'revert';
+    setUpdatingCoupleId(zonePosition.couple_id);
+
+    try {
+      const response = await fetch(`/api/tournaments/${tournament.id}/couples/${zonePosition.couple_id}/disqualify`, {
+        method: shouldRevert ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: shouldRevert ? undefined : JSON.stringify({ reason: 'Descalificacion administrativa desde Qually' }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'No se pudo actualizar la descalificacion');
+      }
+
+      toast({
+        title: shouldRevert ? 'Descalificacion revertida' : 'Pareja descalificada',
+        description: shouldRevert
+          ? 'La pareja vuelve a quedar habilitada.'
+          : 'La pareja no avanzara a la llave y sus partidos pendientes fueron cancelados.',
+      });
+
+      setPendingDisqualification(null);
+      await fetchZonePositions();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'No se pudo actualizar la descalificacion',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdatingCoupleId(null);
+    }
+  };
+
+  const pendingCoupleName = pendingDisqualification
+    ? getCoupleDisplayName(pendingDisqualification.zonePosition)
+    : '';
+  const pendingIsRevert = pendingDisqualification?.action === 'revert';
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -225,16 +322,20 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
               <TableHead className="text-center w-[70px] font-semibold text-slate-700">GG</TableHead>
               <TableHead className="text-center w-[70px] font-semibold text-slate-700">GP</TableHead>
               <TableHead className="text-center w-[80px] font-semibold text-slate-700">+/-G</TableHead>
+              {canUpdateDisqualifications && (
+                <TableHead className="text-right w-[130px] font-semibold text-slate-700">Accion</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {standings.map((zonePosition, index) => {
               const winPercentage = calculateWinPercentage(zonePosition.wins, zonePosition.losses);
               const isTopThree = zonePosition.position <= 3;
+              const isDisqualified = disqualificationsByCouple.has(zonePosition.couple_id);
 
               return (
                 <React.Fragment key={zonePosition.couple_id}>
-                  <TableRow className={`transition-colors ${getRowBackground(zonePosition.position)}`}>
+                  <TableRow className={`transition-colors ${isDisqualified ? 'bg-red-50/70 hover:bg-red-50' : getRowBackground(zonePosition.position)}`}>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Badge
@@ -257,6 +358,11 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
                           <span className="text-sm font-semibold text-slate-900">
                             {getCoupleDisplayName(zonePosition)}
                           </span>
+                          {isDisqualified && (
+                            <Badge variant="destructive" className="w-fit text-[10px]">
+                              Descalificada
+                            </Badge>
+                          )}
                           {isTopThree && (
                             <span className="text-xs text-slate-500 mt-0.5">
                               {zonePosition.position === 1 ? '🥇 Primero' : zonePosition.position === 2 ? '🥈 Segundo' : '🥉 Tercero'}
@@ -343,11 +449,49 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
                         {zonePosition.games_difference}
                       </Badge>
                     </TableCell>
+                    {canUpdateDisqualifications && (
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              disabled={updatingCoupleId === zonePosition.couple_id}
+                              aria-label={`Acciones para ${getCoupleDisplayName(zonePosition)}`}
+                            >
+                              {updatingCoupleId === zonePosition.couple_id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <MoreHorizontal className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuItem
+                              className={isDisqualified ? 'text-slate-700' : 'text-red-700 focus:text-red-700'}
+                              onClick={() => setPendingDisqualification({
+                                zonePosition,
+                                action: isDisqualified ? 'revert' : 'disqualify',
+                              })}
+                            >
+                              {isDisqualified ? (
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                              ) : (
+                                <Ban className="mr-2 h-4 w-4" />
+                              )}
+                              {isDisqualified ? 'Revertir descalificacion' : 'Descalificar pareja'}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    )}
                   </TableRow>
                   {/* Separator after top 3 */}
                   {zonePosition.position === 3 && index < standings.length - 1 && (
                     <TableRow>
-                      <TableCell colSpan={12} className="p-0">
+                      <TableCell colSpan={columnsCount} className="p-0">
                         <Separator className="bg-amber-200" />
                       </TableCell>
                     </TableRow>
@@ -390,6 +534,68 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
           <strong className="text-slate-900">+/-G:</strong> Diferencia de Games
         </div>
       </div>
+
+      <AlertDialog
+        open={pendingDisqualification !== null}
+        onOpenChange={(open) => {
+          if (!open && !updatingCoupleId) {
+            setPendingDisqualification(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="max-w-md bg-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {pendingIsRevert ? (
+                <RotateCcw className="h-5 w-5 text-slate-600" />
+              ) : (
+                <Ban className="h-5 w-5 text-red-600" />
+              )}
+              {pendingIsRevert ? 'Revertir descalificacion' : 'Descalificar pareja'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <div className={pendingIsRevert ? 'rounded-lg border border-slate-200 bg-slate-50 p-3' : 'rounded-lg border border-red-200 bg-red-50 p-3'}>
+                  <p className={pendingIsRevert ? 'font-medium text-slate-800' : 'font-medium text-red-800'}>
+                    {pendingIsRevert
+                      ? `La pareja ${pendingCoupleName} volvera a quedar habilitada.`
+                      : `Confirmas descalificar a ${pendingCoupleName}?`}
+                  </p>
+                  <p className={pendingIsRevert ? 'mt-1 text-xs text-slate-600' : 'mt-1 text-xs text-red-700'}>
+                    {pendingIsRevert
+                      ? 'Esto solo se permite mientras no exista una llave generada.'
+                      : 'No avanzara a la llave y se cancelaran sus partidos pendientes. Los resultados ya cargados no se modifican.'}
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(updatingCoupleId)}>
+              Volver
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                void handleConfirmDisqualification();
+              }}
+              disabled={Boolean(updatingCoupleId)}
+              className={pendingIsRevert ? undefined : 'bg-red-600 hover:bg-red-700'}
+            >
+              {updatingCoupleId ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Procesando...
+                </>
+              ) : pendingIsRevert ? (
+                'Revertir'
+              ) : (
+                'Descalificar pareja'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

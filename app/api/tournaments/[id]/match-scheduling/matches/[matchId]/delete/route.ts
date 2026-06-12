@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/utils/supabase/server'
+import { createClient, createClientServiceRole } from '@/utils/supabase/server'
 import { checkTournamentPermissions } from '@/utils/tournament-permissions'
 import { revalidatePath } from 'next/cache'
+import { revertActiveBracketDisqualificationsForMatches } from '@/lib/services/tournament-disqualifications'
 
 interface RouteParams {
   params: {
@@ -63,6 +64,22 @@ export async function DELETE(
       return NextResponse.json(
         { success: false, error: 'Partido no encontrado' },
         { status: 404 }
+      )
+    }
+
+    try {
+      const adminSupabase = await createClientServiceRole()
+      await revertActiveBracketDisqualificationsForMatches(
+        tournamentId,
+        [matchId],
+        adminSupabase,
+        { revertedBy: user.id, reason: 'match_deleted' }
+      )
+    } catch (disqualificationError) {
+      console.error('[DELETE match-scheduling] Error reverting bracket disqualification:', disqualificationError)
+      return NextResponse.json(
+        { success: false, error: 'No se pudo limpiar la descalificacion asociada al partido' },
+        { status: 500 }
       )
     }
 

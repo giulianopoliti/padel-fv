@@ -1,6 +1,7 @@
 import {
   calculateCoupleMatchCounts,
   calculateExpectedZoneMatches,
+  findBlockingIncompleteCouplesWithActiveOpponentCapacity,
   findCouplesBelowRequiredMatches,
   resolveEffectiveRoundsPerCoupleForValidation,
   validatePlaceholderBracketGeneration,
@@ -254,6 +255,51 @@ describe('bracket-generation-validation', () => {
       expect(incompleteCouples).toEqual([
         { coupleId: 'couple-c', matchCount: 2, missingMatches: 1 },
         { coupleId: 'couple-d', matchCount: 1, missingMatches: 2 },
+      ])
+    })
+
+    it('does not block an incomplete active couple when no active opponent has capacity after a DQ', () => {
+      const counts = calculateCoupleMatchCounts(
+        ['couple-a', 'couple-b', 'couple-c'],
+        [
+          { couple1_id: 'couple-a', couple2_id: 'couple-b' },
+          { couple1_id: 'couple-a', couple2_id: 'couple-c' },
+          { couple1_id: 'couple-b', couple2_id: 'dq-couple' },
+        ]
+      )
+
+      expect(findBlockingIncompleteCouplesWithActiveOpponentCapacity(
+        ['couple-a', 'couple-b', 'couple-c'],
+        counts,
+        [
+          { couple1_id: 'couple-a', couple2_id: 'couple-b' },
+          { couple1_id: 'couple-a', couple2_id: 'couple-c' },
+          { couple1_id: 'couple-b', couple2_id: 'dq-couple' },
+        ],
+        2
+      )).toEqual([])
+    })
+
+    it('blocks incomplete active couples that can still play each other', () => {
+      const counts = calculateCoupleMatchCounts(
+        ['couple-a', 'couple-b', 'couple-c'],
+        [
+          { couple1_id: 'couple-a', couple2_id: 'couple-b' },
+          { couple1_id: 'couple-a', couple2_id: 'couple-c' },
+        ]
+      )
+
+      expect(findBlockingIncompleteCouplesWithActiveOpponentCapacity(
+        ['couple-a', 'couple-b', 'couple-c'],
+        counts,
+        [
+          { couple1_id: 'couple-a', couple2_id: 'couple-b' },
+          { couple1_id: 'couple-a', couple2_id: 'couple-c' },
+        ],
+        2
+      )).toEqual([
+        { coupleId: 'couple-b', matchCount: 1, missingMatches: 1 },
+        { coupleId: 'couple-c', matchCount: 1, missingMatches: 1 },
       ])
     })
   })

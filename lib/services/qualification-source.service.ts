@@ -4,6 +4,10 @@ import { TournamentFormatRulesService } from '@/lib/services/tournament-format-r
 import { DefinitivePositionService, type DefinitivePositionResult } from '@/lib/services/definitive-position.service'
 import { selectQualifiedEntries } from '@/lib/services/qualification-policy.service'
 import type { BracketKey } from '@/types/tournament-format-v2'
+import {
+  filterOutDisqualifiedCouples,
+  getActiveDisqualifiedCoupleIds,
+} from '@/lib/services/tournament-disqualifications'
 
 export interface QualifiedEntry {
   key: string
@@ -40,14 +44,22 @@ export class QualificationSourceService {
     const rules = TournamentFormatRulesService.resolve({ tournament })
     const shouldApplyAdvancementLimit = Boolean((tournament as any)?.format_config?.version === 2)
 
+    const disqualifiedCoupleIds = await getActiveDisqualifiedCoupleIds(tournamentId, supabase)
+
     if (rules.qualificationSource === 'GLOBAL_STANDINGS') {
-      const entries = await this.getGlobalStandingEntries(tournamentId, rules)
+      const entries = filterOutDisqualifiedCouples(
+        await this.getGlobalStandingEntries(tournamentId, rules),
+        disqualifiedCoupleIds
+      )
       return shouldApplyAdvancementLimit
         ? selectQualifiedEntries(entries, rules.resolvedFormat.effectiveAdvancementConfig, bracketKey)
         : entries
     }
 
-    const entries = await this.getZonePositionEntries(tournamentId)
+    const entries = filterOutDisqualifiedCouples(
+      await this.getZonePositionEntries(tournamentId),
+      disqualifiedCoupleIds
+    )
     return shouldApplyAdvancementLimit
       ? selectQualifiedEntries(entries, rules.resolvedFormat.effectiveAdvancementConfig, bracketKey)
       : entries

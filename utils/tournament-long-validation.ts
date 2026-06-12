@@ -3,14 +3,20 @@ import { hasFormatConfigV2 } from '@/lib/services/tournament-format-policy'
 import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
 import { getZoneStageAndMatchesPerCouple } from '@/lib/services/zone-fixture-planner.service'
 import { ZoneRulesSyncService } from '@/lib/services/zone-rules-sync.service'
+import {
+  filterOutDisqualifiedCouples,
+  getActiveDisqualifiedCoupleIds,
+  matchInvolvesDisqualifiedCouple,
+} from '@/lib/services/tournament-disqualifications'
 import { createClient } from '@/utils/supabase/server'
 
 export interface LongTournamentValidationResult {
   canGenerate: boolean
   reason?: string
-  details?: {
-    totalCouples: number
-    completedCouples: number
+    details?: {
+      totalCouples: number
+      disqualifiedCouples?: number
+      completedCouples: number
     pendingCouples: number
     allCouplesCompleted: boolean
     requirement: string
@@ -71,8 +77,18 @@ export async function validateLongTournamentForBracket(
       }
     }
 
+    const disqualifiedCoupleIds = await getActiveDisqualifiedCoupleIds(tournamentId, supabase)
+    const activeCouples = filterOutDisqualifiedCouples(couples, disqualifiedCoupleIds)
+
+    if (activeCouples.length === 0) {
+      return {
+        canGenerate: false,
+        reason: 'No active couples found in tournament',
+      }
+    }
+
     const resolvedFormat = TournamentFormatResolver.getResolvedFormat(tournament, {
-      totalCouples: couples.length,
+      totalCouples: activeCouples.length,
     })
     const formatConfig = tournament.format_config as any
     const configuredLongMatchesPerCouple =
@@ -85,7 +101,7 @@ export async function validateLongTournamentForBracket(
         ? formatConfig.targetMatchesPerCouple
         : null
     const requiredMatchesPerCouple = configuredLongMatchesPerCouple ?? getZoneStageAndMatchesPerCouple(
-      couples.length,
+      activeCouples.length,
       resolvedFormat
     ).matchesPerCouple
 
@@ -117,32 +133,36 @@ export async function validateLongTournamentForBracket(
     }
 
     const totalCouplesAdvancing = hasFormatConfigV2(tournament)
-      ? AdvancementPlanner.selectBracketEntries(couples, resolvedFormat, 'MAIN', {
-          totalCouples: couples.length,
+      ? AdvancementPlanner.selectBracketEntries(activeCouples, resolvedFormat, 'MAIN', {
+          totalCouples: activeCouples.length,
         }).length
       : qualifyingAdvancementEnabled
-        ? Math.min(couplesAdvance || couples.length, couples.length)
-        : couples.length
+        ? Math.min(couplesAdvance || activeCouples.length, activeCouples.length)
+        : activeCouples.length
 
     const coupleMatchCounts = []
 
-    for (const couple of couples) {
+    for (const couple of activeCouples) {
       const { data: matches, error: matchesError } = await supabase
         .from('matches')
-        .select('id, status')
+        .select('id, status, couple1_id, couple2_id')
         .eq('tournament_id', tournamentId)
         .eq('round', 'ZONE')
         .or(`couple1_id.eq.${couple.couple_id},couple2_id.eq.${couple.couple_id}`)
-        .eq('status', 'FINISHED')
 
       if (matchesError) {
         console.error('Error counting matches for couple:', couple.couple_id, matchesError)
         continue
       }
 
+      const countedMatches = (matches || []).filter((match) => (
+        match.status === 'FINISHED' ||
+        (match.status === 'CANCELED' && matchInvolvesDisqualifiedCouple(match, disqualifiedCoupleIds))
+      ))
+
       coupleMatchCounts.push({
         couple_id: couple.couple_id,
-        matches_played: matches?.length || 0,
+        matches_played: countedMatches.length,
       })
     }
 
@@ -161,6 +181,7 @@ export async function validateLongTournamentForBracket(
         reason: `${incompleteCouples.length} couples haven't completed ${requiredMatchesPerCouple} matches`,
         details: {
           totalCouples: coupleMatchCounts.length,
+          disqualifiedCouples: couples.length - activeCouples.length,
           completedCouples,
           pendingCouples: incompleteCouples.length,
           allCouplesCompleted: false,
@@ -182,6 +203,7 @@ export async function validateLongTournamentForBracket(
       canGenerate: true,
       details: {
         totalCouples: coupleMatchCounts.length,
+        disqualifiedCouples: couples.length - activeCouples.length,
         completedCouples: coupleMatchCounts.length,
         pendingCouples: 0,
         allCouplesCompleted: true,

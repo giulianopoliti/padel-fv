@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Clock3, Edit3, Save, Trophy, Users, X, Zap } from 'lucide-react'
+import { Clock3, Edit3, Maximize2, Save, Trophy, Users, X, Zap } from 'lucide-react'
 import {
   BracketMoveCoupleSheet,
   type BracketMoveSelection,
@@ -98,6 +98,8 @@ export function ImprovedBracketRenderer({
   const desktopScrollRef = useRef<HTMLDivElement | null>(null)
   const autoScrollFrameRef = useRef<number | null>(null)
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
+  const [desktopViewportWidth, setDesktopViewportWidth] = useState(0)
+  const [fitToWidth, setFitToWidth] = useState(true)
 
   const dragOperations = useBracketDragOperations({
     tournamentId,
@@ -170,6 +172,34 @@ export function ImprovedBracketRenderer({
     roundGroups,
     tournamentType
   })
+
+  useEffect(() => {
+    const container = desktopScrollRef.current
+
+    if (!container) {
+      return
+    }
+
+    const updateViewportWidth = () => {
+      setDesktopViewportWidth(container.clientWidth)
+    }
+
+    updateViewportWidth()
+
+    const observer = new ResizeObserver(updateViewportWidth)
+    observer.observe(container)
+
+    return () => observer.disconnect()
+  }, [roundGroups.length])
+
+  const desktopCanvasWidth = layout.canvasSize.width
+  const desktopCanvasHeight = layout.canvasSize.height
+  const desktopFitScale = desktopViewportWidth > 0 && desktopCanvasWidth > 0
+    ? Math.min(1, Math.max(0.72, (desktopViewportWidth - 24) / desktopCanvasWidth))
+    : 1
+  const desktopScale = fitToWidth ? desktopFitScale : 1
+  const scaledDesktopCanvasWidth = desktopCanvasWidth * desktopScale
+  const scaledDesktopCanvasHeight = desktopCanvasHeight * desktopScale
 
   const moveSelectionDetails = useMemo<BracketMoveSelection | null>(() => {
     if (!selectedCoupleForMove) {
@@ -521,6 +551,16 @@ export function ImprovedBracketRenderer({
               <Zap className="h-3.5 w-3.5" />
               {stats.canPlay} listos
             </div>
+            <Button
+              type="button"
+              variant={fitToWidth ? 'default' : 'outline'}
+              size="sm"
+              className="hidden h-7 gap-1.5 px-2 text-xs lg:inline-flex"
+              onClick={() => setFitToWidth(current => !current)}
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+              {fitToWidth ? `Ajustado ${Math.round(desktopScale * 100)}%` : '100%'}
+            </Button>
           </div>
 
           {isOwner && enableDragDrop && (
@@ -637,56 +677,66 @@ export function ImprovedBracketRenderer({
           <div
             className="relative"
             style={{
-              width: Math.max(layout.canvasSize.width, 1100),
-              height: layout.canvasSize.height
+              width: Math.max(scaledDesktopCanvasWidth, desktopViewportWidth || scaledDesktopCanvasWidth),
+              height: scaledDesktopCanvasHeight
             }}
           >
-            <svg
-              className="absolute inset-0 pointer-events-none"
-              width={Math.max(layout.canvasSize.width, 1100)}
-              height={layout.canvasSize.height}
+            <div
+              className="relative origin-top-left"
+              style={{
+                width: desktopCanvasWidth,
+                height: desktopCanvasHeight,
+                transform: `scale(${desktopScale})`,
+                transformOrigin: 'top left'
+              }}
             >
-              {layout.connectors.map(connector => (
-                <path
-                  key={connector.id}
-                  d={connector.d}
-                  fill="none"
-                  stroke="#0f766e"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity="0.9"
-                />
-              ))}
-            </svg>
-
-            {layout.columns.map(column => (
-              <div
-                key={column.round}
-                className="absolute top-3"
-                style={{
-                  left: column.x,
-                  width: column.width
-                }}
+              <svg
+                className="absolute inset-0 pointer-events-none"
+                width={desktopCanvasWidth}
+                height={desktopCanvasHeight}
               >
-                <div className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Round</p>
-                      <h3 className="text-sm font-semibold text-slate-900">{column.displayName}</h3>
+                {layout.connectors.map(connector => (
+                  <path
+                    key={connector.id}
+                    d={connector.d}
+                    fill="none"
+                    stroke="#0f766e"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    opacity="0.9"
+                  />
+                ))}
+              </svg>
+
+              {layout.columns.map(column => (
+                <div
+                  key={column.round}
+                  className="absolute top-3"
+                  style={{
+                    left: column.x,
+                    width: column.width
+                  }}
+                >
+                  <div className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Round</p>
+                        <h3 className="text-sm font-semibold text-slate-900">{column.displayName}</h3>
+                      </div>
+                      <Badge
+                        variant={column.completedMatches === column.totalMatches ? 'default' : 'secondary'}
+                        className={cn(column.completedMatches === column.totalMatches && 'bg-emerald-600')}
+                      >
+                        {column.completedMatches}/{column.totalMatches}
+                      </Badge>
                     </div>
-                    <Badge
-                      variant={column.completedMatches === column.totalMatches ? 'default' : 'secondary'}
-                      className={cn(column.completedMatches === column.totalMatches && 'bg-emerald-600')}
-                    >
-                      {column.completedMatches}/{column.totalMatches}
-                    </Badge>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
 
-            {layout.positions.map(renderDesktopTreeMatch)}
+              {layout.positions.map(renderDesktopTreeMatch)}
+            </div>
           </div>
         </div>
       </div>

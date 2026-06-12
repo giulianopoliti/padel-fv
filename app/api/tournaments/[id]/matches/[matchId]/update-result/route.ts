@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/utils/supabase/server'
+import { createClient, createClientServiceRole } from '@/utils/supabase/server'
 import { IncrementalPlaceholderUpdater } from '@/lib/services/incremental-placeholder-updater'
 import { checkTournamentPermissions } from '@/utils/tournament-permissions'
 import { handleMatchEliminationUpdate } from '@/utils/bracket-seeding-algorithm'
+import { revertActiveBracketDisqualificationsForMatches } from '@/lib/services/tournament-disqualifications'
 
 // ============================================================================
 // HELPER FUNCTIONS (Mejores Prácticas: Separación de Responsabilidades)
@@ -340,6 +341,24 @@ export async function DELETE(
         matchId,
         status: '',
         error: 'Failed to reset match result'
+      }, { status: 500 })
+    }
+
+    try {
+      const adminSupabase = await createClientServiceRole()
+      await revertActiveBracketDisqualificationsForMatches(
+        tournamentId,
+        [matchId],
+        adminSupabase,
+        { revertedBy: user.id, reason: 'match_result_deleted' }
+      )
+    } catch (disqualificationError) {
+      console.error('Failed to revert bracket disqualification after result delete:', disqualificationError)
+      return NextResponse.json({
+        success: false,
+        matchId,
+        status: '',
+        error: 'Resultado borrado, pero no se pudo limpiar la descalificacion asociada'
       }, { status: 500 })
     }
 

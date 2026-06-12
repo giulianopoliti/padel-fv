@@ -1,5 +1,10 @@
 // El cliente será pasado como parámetro desde el endpoint
 
+import {
+  filterOutDisqualifiedCouples,
+  getActiveDisqualifiedCoupleIds,
+} from '@/lib/services/tournament-disqualifications';
+
 export interface CoupleRanking {
   couple_id: string;
   tournament_id: string;
@@ -60,10 +65,13 @@ async function getAllZonePositions(tournamentId: string, supabase: any): Promise
     return [];
   }
 
+  const disqualifiedCoupleIds = await getActiveDisqualifiedCoupleIds(tournamentId, supabase);
+  const activeData = filterOutDisqualifiedCouples<CoupleRanking>(data as CoupleRanking[], disqualifiedCoupleIds);
+
   // DEDUPLICACION: Si una pareja aparece multiples veces, quedarse con la mejor posicion
   const coupleMap = new Map<string, CoupleRanking>();
   
-  for (const couple of data) {
+  for (const couple of activeData) {
     const existing = coupleMap.get(couple.couple_id);
     
     if (!existing) {
@@ -87,8 +95,12 @@ async function getAllZonePositions(tournamentId: string, supabase: any): Promise
 
   const dedupedData = Array.from(coupleMap.values());
   
-  if (dedupedData.length !== data.length) {
-    console.warn(`[getAllZonePositions] Se eliminaron ${data.length - dedupedData.length} registros duplicados de ${data.length} totales`);
+  if (dedupedData.length !== activeData.length) {
+    console.warn(`[getAllZonePositions] Se eliminaron ${activeData.length - dedupedData.length} registros duplicados de ${activeData.length} totales`);
+  }
+
+  if (disqualifiedCoupleIds.size > 0) {
+    console.log(`[getAllZonePositions] Excluidas ${data.length - activeData.length} parejas descalificadas del seeding`);
   }
 
   return dedupedData;

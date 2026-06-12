@@ -5,6 +5,11 @@ import { getZoneStageAndMatchesPerCouple } from '@/lib/services/zone-fixture-pla
 import { getZonesFormatIdFromTournament } from '@/lib/services/zones-format-utils'
 import { ZoneRulesSyncService } from '@/lib/services/zone-rules-sync.service'
 import type { BracketKey } from '@/types/tournament-format-v2'
+import {
+  filterOutDisqualifiedCouples,
+  getActiveDisqualifiedCoupleIds,
+  matchInvolvesDisqualifiedCouple,
+} from '@/lib/services/tournament-disqualifications'
 
 export interface BracketArtifactState {
   seedCount: number
@@ -128,6 +133,40 @@ export function findCouplesBelowRequiredMatches(
       matchCount,
       missingMatches: requiredMatchesPerCouple - matchCount
     }))
+}
+
+export function findBlockingIncompleteCouplesWithActiveOpponentCapacity(
+  coupleIds: string[],
+  coupleMatchCounts: Record<string, number>,
+  matches: Array<{ couple1_id?: string | null; couple2_id?: string | null }>,
+  requiredMatchesPerCouple: number
+): Array<{ coupleId: string; matchCount: number; missingMatches: number }> {
+  const incompleteCouples = findCouplesBelowRequiredMatches(coupleMatchCounts, requiredMatchesPerCouple)
+  if (incompleteCouples.length === 0) {
+    return []
+  }
+
+  const activeCoupleIds = new Set(coupleIds)
+  const existingMatchKeys = new Set(
+    matches
+      .filter((match) => (
+        match.couple1_id &&
+        match.couple2_id &&
+        activeCoupleIds.has(match.couple1_id) &&
+        activeCoupleIds.has(match.couple2_id)
+      ))
+      .map((match) => [match.couple1_id, match.couple2_id].sort().join(':'))
+  )
+
+  return incompleteCouples.filter((couple) => (
+    coupleIds.some((opponentId) => {
+      if (opponentId === couple.coupleId) return false
+      if ((coupleMatchCounts[opponentId] || 0) >= requiredMatchesPerCouple) return false
+
+      const matchKey = [couple.coupleId, opponentId].sort().join(':')
+      return !existingMatchKeys.has(matchKey)
+    })
+  ))
 }
 
 export function resolveEffectiveRoundsPerCoupleForValidation(
@@ -323,6 +362,7 @@ export async function validatePlaceholderBracketGeneration(
   const incompleteZones: PlaceholderBracketValidationFailure['incompleteZones'] = []
   let totalCouples = 0
   const requiredMatchesPerCoupleValues = new Set<number>()
+  const disqualifiedCoupleIds = await getActiveDisqualifiedCoupleIds(tournamentId, supabase)
 
   for (const zone of zones || []) {
     const { data: zonePositions, error: coupleError } = await supabase
@@ -359,7 +399,8 @@ export async function validatePlaceholderBracketGeneration(
       }
     }
 
-    const coupleIds = (zonePositions || [])
+    const activeZonePositions = filterOutDisqualifiedCouples(zonePositions || [], disqualifiedCoupleIds)
+    const coupleIds = activeZonePositions
       .map((position) => position.couple_id)
       .filter((coupleId): coupleId is string => Boolean(coupleId))
     const couplesInZone = coupleIds.length
@@ -379,7 +420,9 @@ export async function validatePlaceholderBracketGeneration(
       ...zone,
       rounds_per_couple: syncResult.roundsPerCouple,
     }
-    const matchesInZone = zoneMatches?.length || 0
+    const matchesInZone = (zoneMatches || []).filter((match) => (
+      !matchInvolvesDisqualifiedCouple(match, disqualifiedCoupleIds)
+    )).length
     const roundsPerCouple = resolveEffectiveRoundsPerCoupleForValidation(
       tournament,
       syncedZone,
@@ -387,13 +430,21 @@ export async function validatePlaceholderBracketGeneration(
     )
     const expectedMatches = calculateExpectedZoneMatches(couplesInZone, roundsPerCouple)
     const coupleMatchCounts = calculateCoupleMatchCounts(coupleIds, zoneMatches || [])
-    const incompleteCouples = findCouplesBelowRequiredMatches(coupleMatchCounts, roundsPerCouple)
+    const hasActiveDisqualifications = disqualifiedCoupleIds.size > 0
+    const incompleteCouples = hasActiveDisqualifications
+      ? findBlockingIncompleteCouplesWithActiveOpponentCapacity(
+          coupleIds,
+          coupleMatchCounts,
+          zoneMatches || [],
+          roundsPerCouple
+        )
+      : findCouplesBelowRequiredMatches(coupleMatchCounts, roundsPerCouple)
     if (roundsPerCouple > 0) {
       requiredMatchesPerCoupleValues.add(roundsPerCouple)
     }
     totalCouples += couplesInZone
 
-    if (matchesInZone < expectedMatches || incompleteCouples.length > 0) {
+    if ((!hasActiveDisqualifications && matchesInZone < expectedMatches) || incompleteCouples.length > 0) {
       incompleteZones.push({
         zoneId: zone.id,
         zoneName: zone.name,

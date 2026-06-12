@@ -20,6 +20,16 @@ import {
   transformAvailableCouplesData 
 } from '../utils/data-serialization'
 
+interface DisqualificationsResponse {
+  success: boolean
+  disqualifications?: Array<{
+    id: string
+    couple_id: string
+    phase: string
+  }>
+  error?: string
+}
+
 // Fetcher function for zones
 async function fetchZones(tournamentId: string): Promise<CleanZone[]> {
   const response = await fetch(`/api/tournaments/${tournamentId}/zones`)
@@ -56,6 +66,21 @@ async function fetchAvailableCouples(tournamentId: string): Promise<AvailableCou
   return transformAvailableCouplesData(data.couples || [])
 }
 
+async function fetchActiveZoneDisqualifications(tournamentId: string) {
+  const response = await fetch(`/api/tournaments/${tournamentId}/disqualifications?phase=ZONE_PHASE`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch disqualifications: ${response.statusText}`)
+  }
+
+  const data: DisqualificationsResponse = await response.json()
+  if (!data.success) {
+    throw new Error(data.error || 'Failed to fetch disqualifications')
+  }
+
+  return data.disqualifications || []
+}
+
 // Combined fetcher for both zones and available couples
 async function fetchTournamentZonesData(tournamentId: string): Promise<{
   zones: CleanZone[]
@@ -63,13 +88,35 @@ async function fetchTournamentZonesData(tournamentId: string): Promise<{
 }> {
   try {
     // Fetch both datasets in parallel
-    const [zones, availableCouples] = await Promise.all([
+    const [zones, availableCouples, disqualifications] = await Promise.all([
       fetchZones(tournamentId),
-      fetchAvailableCouples(tournamentId)
+      fetchAvailableCouples(tournamentId),
+      fetchActiveZoneDisqualifications(tournamentId).catch(() => [])
     ])
+
+    const disqualificationsByCouple = new Map(
+      disqualifications.map((disqualification) => [disqualification.couple_id, disqualification])
+    )
+    const zonesWithDisqualificationState = zones.map((zone) => ({
+      ...zone,
+      couples: zone.couples.map((couple) => {
+        const disqualification = disqualificationsByCouple.get(couple.id)
+        if (!disqualification) return couple
+
+        return {
+          ...couple,
+          metadata: {
+            ...couple.metadata,
+            isDisqualified: true,
+            disqualificationId: disqualification.id,
+            disqualificationPhase: disqualification.phase,
+          },
+        }
+      }),
+    }))
     
     return {
-      zones,
+      zones: zonesWithDisqualificationState,
       availableCouples
     }
   } catch (error) {

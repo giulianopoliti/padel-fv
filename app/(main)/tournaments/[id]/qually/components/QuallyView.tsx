@@ -41,11 +41,13 @@ type CoupleInscription = {
 interface QuallyViewProps {
   tournament: Tournament;
   coupleInscriptions: CoupleInscription[];
+  canManageTournament?: boolean;
 }
 
 const QuallyView: React.FC<QuallyViewProps> = ({ 
   tournament, 
-  coupleInscriptions 
+  coupleInscriptions,
+  canManageTournament = false
 }) => {
   const [activeTab, setActiveTab] = useState('results');
 
@@ -172,6 +174,7 @@ const QuallyView: React.FC<QuallyViewProps> = ({
                     tournament={tournament}
                     coupleInscriptions={coupleInscriptions}
                     isSingleSetFormat={isSingleSetFormat}
+                    canManageTournament={canManageTournament}
                   />
                 </CardContent>
               </Card>

@@ -14,6 +14,7 @@ import {
   MatchPointsCouple,
   TournamentType
 } from '../types';
+import { getActiveDisqualificationMatchIds } from '@/lib/services/tournament-disqualifications';
 
 export class PointsCalculatorService {
   /**
@@ -71,13 +72,16 @@ export class PointsCalculatorService {
       throw new Error('Error fetching matches');
     }
 
-    console.log(`[PointsCalculator] Processing ${matches.length} finished matches`);
+    const disqualifiedMatchIds = await getActiveDisqualificationMatchIds(tournamentId, supabase);
+    const pointEligibleMatches = (matches || []).filter((match: any) => !disqualifiedMatchIds.has(match.id));
+
+    console.log(`[PointsCalculator] Processing ${pointEligibleMatches.length} finished matches (${disqualifiedMatchIds.size} disqualified matches excluded)`);
 
     // 5. Calculate points per match
     const playerPoints = new Map<string, { earned: number; bonus: number }>();
     const matchPointsCouples: Omit<MatchPointsCouple, 'id' | 'created_at'>[] = [];
 
-    for (const match of matches) {
+    for (const match of pointEligibleMatches) {
       if (!match.winner_id || !match.couple1_id || !match.couple2_id) {
         console.warn(`[PointsCalculator] Skipping incomplete match ${match.id}`);
         continue;
@@ -130,7 +134,7 @@ export class PointsCalculatorService {
       tournamentId,
       tournamentType,
       playerPoints,
-      matches.length,
+      pointEligibleMatches.length,
       config,
       matchPointsCouples,
       supabase
