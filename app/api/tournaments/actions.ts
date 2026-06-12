@@ -19,6 +19,7 @@ import {
   areCategoriesConsecutive,
   categorizePlayerForTournament,
   fetchOrderedCategories,
+  parseTournamentCategoryConfig,
   resolveInitialPlayerProfile,
   resolvePersistedTournamentCategoryName,
   type TournamentCategoryConfig,
@@ -752,6 +753,236 @@ export async function createTournamentAction(formData: CreateTournamentData & { 
   } catch (e: any) {
     console.error('[createTournamentAction] Unexpected error:', e);
     return { success: false, error: `An unexpected error occurred: ${e.message}` };
+  }
+}
+
+type DuplicateTournamentDraft = {
+  id: string;
+  name: string;
+  description: string | null;
+  category_name: string;
+  category_config: TournamentCategoryConfig | null;
+  type: 'LONG' | 'AMERICAN';
+  gender: 'MALE' | 'FEMALE' | 'MIXED';
+  start_date: string | null;
+  end_date: string | null;
+  max_participants: number | null;
+  club_id: string | null;
+  extra_club_ids: string[];
+  price: number | null;
+  award: string | null;
+  format_config: unknown;
+};
+
+type DuplicateTournamentClub = {
+  id: string;
+  name: string;
+};
+
+type DuplicateTournamentData = CreateTournamentData & {
+  source_tournament_id: string;
+  club_id?: string;
+  extra_club_ids?: string[];
+};
+
+export async function getTournamentDuplicateDraft(tournamentId: string): Promise<{
+  success: boolean;
+  tournament?: DuplicateTournamentDraft;
+  categories?: Array<{ name: string; lower_range: number; upper_range: number | null }>;
+  clubs?: DuplicateTournamentClub[];
+  defaultClubId?: string | null;
+  error?: string;
+}> {
+  const supabase = await createClient();
+
+  try {
+    console.log('[getTournamentDuplicateDraft] Loading duplicate draft:', tournamentId);
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      console.warn('[getTournamentDuplicateDraft] User not authenticated:', userError?.message);
+      return { success: false, error: 'No autenticado' };
+    }
+
+    const permissions = await checkTournamentPermissions(user.id, tournamentId);
+    if (!permissions.hasPermission) {
+      console.warn('[getTournamentDuplicateDraft] Permission denied:', permissions.reason);
+      return { success: false, error: permissions.reason || 'No tienes permisos para duplicar este torneo' };
+    }
+
+    const { data: userData, error: userRoleError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (userRoleError || !userData) {
+      console.error('[getTournamentDuplicateDraft] Error fetching user role:', userRoleError);
+      return { success: false, error: 'No se pudo determinar tu rol de usuario' };
+    }
+
+    const { data: tournament, error: tournamentError } = await supabase
+      .from('tournaments')
+      .select(`
+        id,
+        name,
+        description,
+        category_name,
+        category_config,
+        type,
+        gender,
+        start_date,
+        end_date,
+        max_participants,
+        club_id,
+        price,
+        award,
+        format_config
+      `)
+      .eq('id', tournamentId)
+      .single();
+
+    if (tournamentError || !tournament) {
+      console.error('[getTournamentDuplicateDraft] Error fetching tournament:', tournamentError);
+      return { success: false, error: 'No se pudo cargar el torneo original' };
+    }
+
+    if (tournament.type !== 'LONG' && tournament.type !== 'AMERICAN') {
+      return { success: false, error: 'Solo se pueden duplicar torneos LONG o AMERICAN' };
+    }
+
+    const { data: linkedClubs, error: linkedClubsError } = await supabase
+      .from('clubes_tournament')
+      .select('club_id')
+      .eq('tournament_id', tournamentId);
+
+    if (linkedClubsError) {
+      console.warn('[getTournamentDuplicateDraft] Could not fetch linked clubs:', linkedClubsError.message);
+    }
+
+    const linkedClubIds = (linkedClubs || [])
+      .map((club: any) => club.club_id)
+      .filter(Boolean);
+    const mainClubId = tournament.club_id ?? null;
+    const extraClubIds = Array.from(new Set(linkedClubIds.filter((clubId) => clubId !== mainClubId)));
+    const categoryConfig = parseTournamentCategoryConfig(tournament.category_config);
+    const categories = await fetchOrderedCategories(supabase);
+    let clubs: DuplicateTournamentClub[] = [];
+    let defaultClubId: string | null = null;
+
+    if (userData.role === 'CLUB') {
+      const { data: club, error: clubError } = await supabase
+        .from('clubes')
+        .select('id, name')
+        .eq('user_id', user.id)
+        .single();
+
+      if (clubError || !club) {
+        console.error('[getTournamentDuplicateDraft] Error fetching user club:', clubError);
+        return { success: false, error: 'No se pudo cargar la sede del usuario' };
+      }
+
+      clubs = [{ id: club.id, name: club.name }];
+      defaultClubId = club.id;
+    } else if (userData.role === 'ORGANIZADOR') {
+      const { data: orgMembers, error: orgMemberError } = await supabase
+        .from('organization_members')
+        .select('organizacion_id')
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+
+      if (orgMemberError) {
+        console.error('[getTournamentDuplicateDraft] Error fetching organization memberships:', orgMemberError);
+        return { success: false, error: 'No se pudieron cargar tus organizaciones' };
+      }
+
+      const organizationIds = (orgMembers || []).map((member: any) => member.organizacion_id).filter(Boolean);
+
+      if (organizationIds.length > 0) {
+        const { data: organizationClubs, error: organizationClubsError } = await supabase
+          .from('organization_clubs')
+          .select(`
+            club_id,
+            clubes!inner(
+              id,
+              name
+            )
+          `)
+          .in('organizacion_id', organizationIds);
+
+        if (organizationClubsError) {
+          console.error('[getTournamentDuplicateDraft] Error fetching organization clubs:', organizationClubsError);
+          return { success: false, error: 'No se pudieron cargar tus sedes' };
+        }
+
+        clubs = (organizationClubs || []).map((organizationClub: any) => ({
+          id: organizationClub.clubes.id,
+          name: organizationClub.clubes.name,
+        }));
+      }
+    }
+
+    const uniqueClubs = Array.from(new Map(clubs.map((club) => [club.id, club])).values());
+    console.log('[getTournamentDuplicateDraft] Draft ready:', {
+      tournamentId,
+      categories: categories.length,
+      clubs: uniqueClubs.length,
+    });
+
+    return {
+      success: true,
+      tournament: {
+        id: tournament.id,
+        name: tournament.name || '',
+        description: tournament.description ?? null,
+        category_name: tournament.category_name || '',
+        category_config: categoryConfig,
+        type: tournament.type,
+        gender: tournament.gender || 'MALE',
+        start_date: tournament.start_date ? new Date(tournament.start_date).toISOString() : null,
+        end_date: tournament.end_date ? new Date(tournament.end_date).toISOString() : null,
+        max_participants: tournament.max_participants ?? null,
+        club_id: mainClubId,
+        extra_club_ids: extraClubIds,
+        price: tournament.price ?? null,
+        award: tournament.award ?? null,
+        format_config: tournament.format_config ?? {},
+      },
+      categories,
+      clubs: uniqueClubs,
+      defaultClubId,
+    };
+  } catch (error: any) {
+    console.error('[getTournamentDuplicateDraft] Unexpected error:', error);
+    return { success: false, error: error.message || 'Error inesperado al cargar el torneo' };
+  }
+}
+
+export async function duplicateTournamentAction(formData: DuplicateTournamentData) {
+  const supabase = await createClient();
+
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return { success: false, error: 'No autenticado' };
+    }
+
+    const permissions = await checkTournamentPermissions(user.id, formData.source_tournament_id);
+    if (!permissions.hasPermission) {
+      return { success: false, error: permissions.reason || 'No tienes permisos para duplicar este torneo' };
+    }
+
+    const { source_tournament_id: _, ...createData } = formData;
+    const result = await createTournamentAction(createData);
+
+    if (result.success && result.tournament?.id) {
+      revalidatePath('/my-tournaments');
+    }
+
+    return result;
+  } catch (error: any) {
+    console.error('[duplicateTournamentAction] Unexpected error:', error);
+    return { success: false, error: error.message || 'Error inesperado al duplicar el torneo' };
   }
 }
 

@@ -7,6 +7,7 @@ import { Plus, Trophy, BarChart3, TrendingUp, Calendar, Target, CheckCircle2, XC
 import Link from "next/link"
 import TournamentCard from "@/app/(main)/panel/@organizador/components/tournament-card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DuplicateTournamentDialog } from "./components/duplicate-tournament-dialog"
 
 // Componente de carga para usar con Suspense
 function TournamentsLoading() {
@@ -26,6 +27,31 @@ function TournamentsLoading() {
           <Skeleton key={i} className="h-[200px] w-full" />
         ))}
       </div>
+    </div>
+  )
+}
+
+function TournamentCardWithDuplicate({
+  tournament,
+  priority,
+}: {
+  tournament: NonNullable<Awaited<ReturnType<typeof getClubTournamentsWithMetrics>>["tournaments"]>[number]
+  priority: boolean
+}) {
+  return (
+    <div className="relative">
+      <TournamentCard
+        tournament={tournament}
+        priority={priority}
+      />
+      {(tournament.type === "LONG" || tournament.type === "AMERICAN") && (
+        <div className="absolute bottom-4 right-4 z-20">
+          <DuplicateTournamentDialog
+            tournamentId={tournament.id}
+            tournamentName={tournament.name}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -150,7 +176,7 @@ export default async function MyTournamentsPage() {
               <TabsContent value="upcoming" className="mt-8 space-y-4">
                 {upcomingTournaments.length > 0 ? (
                   upcomingTournaments.map((tournament, index) => (
-                    <TournamentCard
+                    <TournamentCardWithDuplicate
                       key={tournament.id}
                       tournament={tournament}
                       priority={index === 0}
@@ -175,7 +201,7 @@ export default async function MyTournamentsPage() {
               <TabsContent value="zones" className="mt-8 space-y-4">
                 {zonePhaseTournaments.length > 0 ? (
                   zonePhaseTournaments.map((tournament, index) => (
-                    <TournamentCard
+                    <TournamentCardWithDuplicate
                       key={tournament.id}
                       tournament={tournament}
                       priority={index === 0}
@@ -194,7 +220,7 @@ export default async function MyTournamentsPage() {
               <TabsContent value="brackets" className="mt-8 space-y-4">
                 {bracketPhaseTournaments.length > 0 ? (
                   bracketPhaseTournaments.map((tournament, index) => (
-                    <TournamentCard
+                    <TournamentCardWithDuplicate
                       key={tournament.id}
                       tournament={tournament}
                       priority={index === 0}
@@ -213,7 +239,7 @@ export default async function MyTournamentsPage() {
               <TabsContent value="finished" className="mt-8 space-y-4">
                 {finishedTournaments.length > 0 ? (
                   finishedTournaments.map((tournament, index) => (
-                    <TournamentCard
+                    <TournamentCardWithDuplicate
                       key={tournament.id}
                       tournament={tournament}
                       priority={index === 0}
@@ -232,7 +258,7 @@ export default async function MyTournamentsPage() {
               <TabsContent value="canceled" className="mt-8 space-y-4">
                 {canceledTournaments.length > 0 ? (
                   canceledTournaments.map((tournament, index) => (
-                    <TournamentCard
+                    <TournamentCardWithDuplicate
                       key={tournament.id}
                       tournament={tournament}
                       priority={index === 0}
