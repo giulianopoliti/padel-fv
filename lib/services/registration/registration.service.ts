@@ -13,6 +13,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { createRegistrationStrategy, RegistrationStrategyError } from './registration-strategy.factory'
 import { validateMixedPairGender } from '@/lib/services/tournament-category-config'
+import { sendTournamentInscriptionNotification } from '@/lib/services/email'
 import type { IRegistrationStrategy } from './registration-strategy.interface'
 import type {
   RegisterCoupleRequest,
@@ -69,6 +70,7 @@ export class RegistrationService {
 
       // Log del resultado
       this.logRegistrationResult('registerCouple', request.tournamentId, result)
+      await this.notifyInscriptionCreated(result.inscriptionId, context.context)
 
       return result
 
@@ -104,6 +106,7 @@ export class RegistrationService {
 
       const result = await strategy.registerNewPlayersAsCouple(request, context.context)
       this.logRegistrationResult('registerNewPlayersAsCouple', request.tournamentId, result)
+      await this.notifyInscriptionCreated(result.inscriptionId, context.context)
 
       return result
 
@@ -139,6 +142,7 @@ export class RegistrationService {
 
       const result = await strategy.registerIndividualPlayer(request, context.context)
       this.logRegistrationResult('registerIndividualPlayer', request.tournamentId, result)
+      await this.notifyInscriptionCreated(result.inscriptionId, context.context)
 
       return result
 
@@ -175,6 +179,7 @@ export class RegistrationService {
 
       const result = await strategy.registerAuthenticatedPlayer(request, context.context)
       this.logRegistrationResult('registerAuthenticatedPlayer', request.tournamentId, result)
+      await this.notifyInscriptionCreated(result.inscriptionId, context.context)
 
       return result
 
@@ -210,6 +215,7 @@ export class RegistrationService {
 
       const result = await strategy.convertIndividualToCouple(request, context.context)
       this.logRegistrationResult('convertIndividualToCouple', request.tournamentId, result)
+      await this.notifyInscriptionCreated(result.inscriptionId, context.context)
 
       return result
 
@@ -365,6 +371,22 @@ export class RegistrationService {
    */
   private getStrategy(tournamentType: TournamentType): IRegistrationStrategy {
     return createRegistrationStrategy(tournamentType)
+  }
+
+  private async notifyInscriptionCreated(
+    inscriptionId: string | undefined,
+    context: RegistrationContext
+  ): Promise<void> {
+    if (!inscriptionId) return
+
+    try {
+      await sendTournamentInscriptionNotification({
+        supabase: context.supabase,
+        inscriptionId,
+      })
+    } catch (error) {
+      console.error('[RegistrationService] Error enviando email de inscripcion:', error)
+    }
   }
 
   /**

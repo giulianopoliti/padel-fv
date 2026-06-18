@@ -152,38 +152,11 @@ export async function getPlayerNextMatch(playerId: string): Promise<PlayerNextMa
     }
 
     const result = data as PlayerNextMatchResult
-    const nextMatches = result.nextMatches || []
-
-    if (nextMatches.length === 0) {
-      return result
-    }
-
-    const tournamentIds = Array.from(new Set(nextMatches.map((match) => match.tournament_id).filter(Boolean)))
-    const { data: visibilityRows, error: visibilityError } = await supabase
-      .from('tournaments')
-      .select('id, hide_venue')
-      .in('id', tournamentIds)
-
-    if (visibilityError) {
-      console.error('Error fetching next match venue visibility:', visibilityError)
-      return result
-    }
-
-    const hideVenueByTournament = new Map(
-      (visibilityRows || []).map((row: any) => [row.id, Boolean(row.hide_venue)]),
-    )
-
     return {
       ...result,
-      nextMatches: nextMatches.map((match) =>
-        hideVenueByTournament.get(match.tournament_id)
-          ? {
-              ...match,
-              club_name: undefined,
-              club_address: undefined,
-            }
-          : match,
-      ),
+      // The next match must always expose its assigned venue to the player.
+      // The edge function already prioritizes the match club for multi-venue tournaments.
+      nextMatches: result.nextMatches || [],
     }
   } catch (error) {
     console.error('Error calling edge function:', error)

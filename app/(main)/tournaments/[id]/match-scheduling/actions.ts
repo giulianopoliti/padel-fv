@@ -6,6 +6,7 @@ import { checkTournamentPermissions } from "@/utils/tournament-permissions"
 import { updateZonePositionsForTournament } from "@/lib/services/ranking"
 import { getFechaBracketLabel } from "@/lib/services/fecha-bracket-policy"
 import { IncrementalPlaceholderUpdater } from "@/lib/services/incremental-placeholder-updater"
+import { sendLongMatchScheduledNotification } from "@/lib/services/email"
 
 // Types for match scheduling
 export interface SchedulingData {
@@ -634,6 +635,14 @@ export async function createMatch(
     }
 
     // Sets will be created only when loading match results
+    try {
+      await sendLongMatchScheduledNotification({
+        supabase,
+        matchId: newMatch.id,
+      })
+    } catch (emailError) {
+      console.error('[match-scheduling] Error enviando email de partido programado:', emailError)
+    }
 
     revalidatePath(`/tournaments/${fecha.tournament_id}/match-scheduling`)
 

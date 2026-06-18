@@ -80,14 +80,24 @@ export default function PlayerNextMatchSection({ nextMatches }: PlayerNextMatchS
                       <CalendarDays className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--tpe-lime)]" />
                       <span>{formatMatchDateTime(match.scheduled_info.date, match.scheduled_info.time)}</span>
                     </p>
-                    <p className="inline-flex items-start gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[var(--tpe-paper)]">
-                      <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--tpe-lime)]" />
-                      <span>{match.scheduled_info.court || match.club_name || "Cancha a confirmar"}</span>
-                    </p>
+                    {match.scheduled_info.court ? (
+                      <p className="inline-flex items-start gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[var(--tpe-paper)]">
+                        <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--tpe-lime)]" />
+                        <span>Cancha: {match.scheduled_info.court}</span>
+                      </p>
+                    ) : null}
+                    {match.club_name ? (
+                      <p className="inline-flex items-start gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[var(--tpe-paper)]">
+                        <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--tpe-lime)]" />
+                        <span>Club: {match.club_name}</span>
+                      </p>
+                    ) : null}
                   </div>
 
                   {match.club_address ? (
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/68">{match.club_address}</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/68">
+                      Direccion: {match.club_address}
+                    </p>
                   ) : null}
                 </div>
 

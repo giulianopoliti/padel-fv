@@ -6184,6 +6184,16 @@ export async function approveInscription(inscriptionId: string): Promise<{
     console.error('[approveInscription] Error actualizando inscripcion:', updateError);
     return { success: false, error: 'Error al aprobar la inscripcion' };
   }
+
+  try {
+    const { sendTournamentInscriptionNotification } = await import('@/lib/services/email');
+    await sendTournamentInscriptionNotification({
+      supabase,
+      inscriptionId,
+    });
+  } catch (emailError) {
+    console.error('[approveInscription] Error enviando email de aprobacion:', emailError);
+  }
   
   console.log(`[approveInscription] Inscripcion ${inscriptionId} aprobada exitosamente`);
   
