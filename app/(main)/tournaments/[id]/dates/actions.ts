@@ -329,6 +329,7 @@ export async function getTimeSlotsForRound(
         )
       `)
       .in('fecha_id', fechaIds)
+      .eq('slot_type', 'TIME_RANGE')
       .order('date', { ascending: true })
       .order('start_time', { ascending: true })
 

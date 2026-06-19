@@ -215,7 +215,7 @@ export default function ActionsPanel({
                   <span className="font-medium text-gray-700">Tipo:</span>
                   <p className="text-gray-600 mt-1">
                     {selectedFecha.round_type === 'ZONE'
-                      ? 'Clasificatoria'
+                      ? 'Tabla de posiciones'
                       : `Eliminatoria (${getBracketLabel(selectedFecha.bracket_key)})`}
                   </p>
                 </div>

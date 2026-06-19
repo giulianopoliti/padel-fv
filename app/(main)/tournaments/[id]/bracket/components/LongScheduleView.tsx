@@ -346,7 +346,7 @@ function LongScheduleViewContent({
             <ol className="list-decimal list-inside mt-2 space-y-1">
               <li>Ve a la página principal del torneo</li>
               <li>Asegúrate de tener parejas registradas</li>
-              <li>Ve a la sección "Llaves" (bracket)</li>
+              <li>Ve a la seccion "Llave"</li>
               <li>Haz clic en "Generar Bracket"</li>
               <li>Luego regresa a esta vista de schedule</li>
             </ol>

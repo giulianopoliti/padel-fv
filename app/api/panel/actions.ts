@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { getTenantUpcomingTournamentSummaries } from '@/lib/services/tenant-home.service'
 import { getTournamentCategoryDisplay } from '@/lib/services/tournament-category-config'
+import { buildTournamentCapacitySummary } from '@/lib/services/tournament-capacity.service'
 import {
   isTournamentGenderFilter,
   type TournamentGenderFilter,
@@ -91,10 +92,12 @@ export type UpcomingTournament = {
   gender: string
   max_participants: number | null
   current_inscriptions: number
+  remaining_slots: number | null
   description: string
   price: number | string | null
   is_inscribed: boolean
   is_full: boolean
+  has_few_slots: boolean
   enable_transfer_proof?: boolean
   transfer_alias?: string | null
   transfer_amount?: number | null
@@ -284,24 +287,11 @@ export async function getPlayerUpcomingTournaments(
       }
     }
 
-    const { data: allInscriptions, error: allInscriptionsError } = await supabase
-      .from('inscriptions')
-      .select('tournament_id')
-      .in('tournament_id', tournamentIds)
-
-    if (allInscriptionsError) {
-      console.error('Error fetching tournament inscription counts:', allInscriptionsError)
-    }
-
-    const countMap: Record<string, number> = {}
-    for (const inscription of allInscriptions || []) {
-      const tournamentId = (inscription as any).tournament_id
-      countMap[tournamentId] = (countMap[tournamentId] || 0) + 1
-    }
-
     const upcomingTournaments: UpcomingTournament[] = tournaments.map((tournament) => {
-      const currentInscriptions = countMap[tournament.id] || 0
-      const maxParticipants = null
+      const currentInscriptions = tournament.currentParticipants || 0
+      const maxParticipants =
+        typeof tournament.maxParticipants === 'number' ? tournament.maxParticipants : null
+      const capacity = buildTournamentCapacitySummary(maxParticipants, currentInscriptions)
       const hideVenue = Boolean(tournament.hideVenue)
 
       return {
@@ -313,12 +303,14 @@ export async function getPlayerUpcomingTournaments(
         status: tournament.status,
         category_name: tournament.categoryName || '',
         gender: typeof tournament.gender === 'string' ? tournament.gender : '',
-        max_participants: maxParticipants,
+        max_participants: capacity.maxParticipants,
         current_inscriptions: currentInscriptions,
+        remaining_slots: capacity.remainingSlots,
         description: '',
         price: tournament.price ?? null,
         is_inscribed: inscribedTournamentIds.has(tournament.id),
-        is_full: typeof maxParticipants === 'number' ? currentInscriptions >= maxParticipants : false,
+        is_full: capacity.isFull,
+        has_few_slots: capacity.hasFewSlots,
         enable_transfer_proof: tournament.enableTransferProof || false,
         transfer_alias: tournament.transferAlias || null,
         transfer_amount: tournament.transferAmount || null,

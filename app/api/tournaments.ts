@@ -3,6 +3,10 @@ import { Category, Tournament } from "@/types";
 import { getTournamentCategoryDisplay } from "@/lib/services/tournament-category-config";
 import { getTenantOrganization } from "@/lib/services/tenant-organization.service";
 import {
+    buildTournamentCapacitySummary,
+    getTournamentCoupleCounts,
+} from "@/lib/services/tournament-capacity.service";
+import {
     getTournamentGenderPriority,
     isTournamentGenderFilter,
     prioritizeTournamentsByGender,
@@ -332,19 +336,12 @@ export async function getUpcomingTournamentsForHome(limit: number = 3) {
 
         // Get inscriptions count for all tournaments in one query
         const tournamentIds = tournaments.map((t: any) => t.id);
-        const { data: allInscriptions, error: inscriptionsError } = await supabase
-            .from("inscriptions")
-            .select("tournament_id, couple_id")
-            .in("tournament_id", tournamentIds);
-
-        if (inscriptionsError) {
-            console.error("Error fetching inscriptions for home tournaments:", inscriptionsError);
-        }
+        const countsByTournament = await getTournamentCoupleCounts(supabase, tournamentIds);
 
         // Build final tournament objects with participants count
         const tournamentsWithParticipants = tournaments.map((rawTournament: any) => {
-            const inscriptions = allInscriptions?.filter((i: any) => i.tournament_id === rawTournament.id) || [];
-            const currentParticipants = calculateParticipants(inscriptions as { couple_id: string | null }[]);
+            const currentParticipants = countsByTournament[rawTournament.id] || 0;
+            const capacity = buildTournamentCapacitySummary(rawTournament.max_participants, currentParticipants);
             const hideVenue = Boolean(rawTournament.hide_venue);
 
             return {
@@ -369,8 +366,11 @@ export async function getUpcomingTournamentsForHome(limit: number = 3) {
                 award: rawTournament.award || null,
                 enablePublicInscriptions: Boolean(rawTournament.enable_public_inscriptions),
                 description: rawTournament.description || null,
-                maxParticipants: rawTournament.max_participants || null,
-                currentParticipants: currentParticipants,
+                maxParticipants: capacity.maxParticipants,
+                currentParticipants: capacity.currentParticipants,
+                remainingSlots: capacity.remainingSlots,
+                isFull: capacity.isFull,
+                hasFewSlots: capacity.hasFewSlots,
                 address: hideVenue ? null : rawTournament.club?.address || null,
                 time: null,
                 prize: (rawTournament.description &&
@@ -533,19 +533,12 @@ export async function getTournamentsOptimized({
 
         // Get inscriptions count for all tournaments in one query
         const tournamentIds = orderedTournaments.map((t: any) => t.id);
-        const { data: allInscriptions, error: inscriptionsError } = await supabase
-            .from("inscriptions")
-            .select("tournament_id, couple_id")
-            .in("tournament_id", tournamentIds);
-
-        if (inscriptionsError) {
-            console.error("Error fetching inscriptions:", inscriptionsError);
-        }
+        const countsByTournament = await getTournamentCoupleCounts(supabase, tournamentIds);
 
         // Build final tournament objects with participants count
         const tournamentsWithParticipants = orderedTournaments.map((rawTournament: any) => {
-            const inscriptions = allInscriptions?.filter((i: any) => i.tournament_id === rawTournament.id) || [];
-            const currentParticipants = calculateParticipants(inscriptions as { couple_id: string | null }[]);
+            const currentParticipants = countsByTournament[rawTournament.id] || 0;
+            const capacity = buildTournamentCapacitySummary(rawTournament.max_participants, currentParticipants);
             const hideVenue = Boolean(rawTournament.hide_venue);
 
             return {
@@ -574,8 +567,11 @@ export async function getTournamentsOptimized({
                 award: rawTournament.award || null,
                 enablePublicInscriptions: Boolean(rawTournament.enable_public_inscriptions),
                 description: rawTournament.description || null,
-                maxParticipants: rawTournament.max_participants || null,
-                currentParticipants: currentParticipants,
+                maxParticipants: capacity.maxParticipants,
+                currentParticipants: capacity.currentParticipants,
+                remainingSlots: capacity.remainingSlots,
+                isFull: capacity.isFull,
+                hasFewSlots: capacity.hasFewSlots,
                 address: hideVenue ? null : rawTournament.club?.address || null,
                 time: null,
                 prize: (rawTournament.description &&

@@ -152,6 +152,16 @@ export default function PlayerFvUpcomingTournamentsSection({
                     <Badge className="bg-court-500 text-brand-900 hover:bg-court-500">
                       {typeLabels[tournamentType] || tournamentType}
                     </Badge>
+                    {tournament.is_full && !tournament.is_inscribed ? (
+                      <Badge className="rounded-full border border-red-400/40 bg-red-500/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-red-100">
+                        Completo
+                      </Badge>
+                    ) : null}
+                    {tournament.has_few_slots ? (
+                      <Badge className="animate-pulse rounded-full border border-red-400/50 bg-red-500/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-red-100">
+                        Pocos cupos
+                      </Badge>
+                    ) : null}
                   </div>
 
                   <div className="space-y-1">

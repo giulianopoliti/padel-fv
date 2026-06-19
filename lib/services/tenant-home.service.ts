@@ -1,6 +1,10 @@
 import { createClient } from "@/utils/supabase/server"
 import { getTenantOrganization } from "@/lib/services/tenant-organization.service"
 import { getTournamentCategoryDisplay } from "@/lib/services/tournament-category-config"
+import {
+  buildTournamentCapacitySummary,
+  getTournamentCoupleCounts,
+} from "@/lib/services/tournament-capacity.service"
 import type { PublicTournamentSummary } from "@/types/public-tournament"
 import {
   getTournamentGenderPriority,
@@ -73,6 +77,7 @@ export async function getTenantUpcomingTournamentSummaries(
       end_date,
       price,
       award,
+      max_participants,
       hide_venue,
       enable_public_inscriptions,
       enable_transfer_proof,
@@ -105,10 +110,17 @@ export async function getTenantUpcomingTournamentSummaries(
     ? prioritizeTournamentsByGender(data || [], options.priorityGender).slice(0, limit)
     : data || []
 
+  const countsByTournament = await getTournamentCoupleCounts(
+    supabase,
+    orderedTournaments.map((tournament: any) => tournament.id),
+  )
+
   return orderedTournaments.map((tournament: any) => {
     const club = Array.isArray(tournament.clubes) ? tournament.clubes[0] || null : tournament.clubes || null
     const categoryDisplay = getTournamentCategoryDisplay(tournament)
     const hideVenue = Boolean(tournament.hide_venue)
+    const currentParticipants = countsByTournament[tournament.id] || 0
+    const capacity = buildTournamentCapacitySummary(tournament.max_participants, currentParticipants)
 
     return {
       id: tournament.id,
@@ -124,6 +136,11 @@ export async function getTenantUpcomingTournamentSummaries(
       award: tournament.award,
       hideVenue,
       enablePublicInscriptions: Boolean(tournament.enable_public_inscriptions),
+      currentParticipants: capacity.currentParticipants,
+      maxParticipants: capacity.maxParticipants,
+      remainingSlots: capacity.remainingSlots,
+      isFull: capacity.isFull,
+      hasFewSlots: capacity.hasFewSlots,
       enableTransferProof: Boolean(tournament.enable_transfer_proof),
       transferAlias: tournament.transfer_alias,
       transferAmount: tournament.transfer_amount,

@@ -144,7 +144,7 @@ export default function FechaManager({
                           <div className="flex items-center gap-1">
                             {fecha.round_type === 'ZONE' && (
                               <Badge variant="outline" className="text-xs">
-                                Clasificatoria
+                                Tabla de posiciones
                               </Badge>
                             )}
                             {fecha.round_type !== 'ZONE' && (

@@ -106,7 +106,7 @@ export default function DatesContainer({
                   📅 Gestión de Fechas del Torneo
                 </h3>
                 <p className="text-blue-700 text-sm">
-                  Configura las fechas conceptuales de tu torneo (Clasificatorias, Cuartos, etc.). 
+                  Configura las fechas conceptuales de tu torneo (Posiciones, Cuartos, etc.).
                   Cada fecha puede tener múltiples horarios y configuraciones específicas.
                 </p>
               </div>

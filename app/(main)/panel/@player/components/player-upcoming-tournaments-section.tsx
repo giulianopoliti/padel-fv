@@ -143,6 +143,11 @@ export default function PlayerUpcomingTournamentsSection({
                       Completo
                     </Badge>
                   ) : null}
+                  {tournament.has_few_slots ? (
+                    <Badge className="animate-pulse rounded-full border border-red-400/50 bg-red-500/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-red-100">
+                      Pocos cupos
+                    </Badge>
+                  ) : null}
                 </div>
               </div>
 

@@ -40,16 +40,18 @@ export async function generateMetadata({ params }: InscriptionsPageProps): Promi
   
   const { data: tournament } = await supabase
     .from('tournaments')
-    .select('name, clubes:club_id(name)')
+    .select('name, type, hide_venue, clubes:club_id(name)')
     .eq('id', resolvedParams.id)
     .single();
 
-  const clubName = tournament?.clubes?.name || 'Club';
+  const club = Array.isArray(tournament?.clubes) ? tournament.clubes[0] : tournament?.clubes;
+  const clubName = tournament?.hide_venue ? null : club?.name;
+  const venueDescription = clubName ? ` en ${clubName}` : '';
   
   // ✅ Descripción adaptada al tipo de torneo
   const description = tournament?.type === 'LONG'
-    ? `Inscripciones abiertas para ${tournament?.name} en ${clubName}. Sistema de torneos largos con gestión de fechas.`
-    : `Inscripciones abiertas para ${tournament?.name} en ${clubName}. Torneo americano con sistema de zonas.`;
+    ? `Inscripciones abiertas para ${tournament?.name}${venueDescription}. Sistema de torneos largos con gestión de fechas.`
+    : `Inscripciones abiertas para ${tournament?.name}${venueDescription}. Torneo americano con sistema de zonas.`;
 
   return {
     title: `Inscripciones - ${tournament?.name || 'Torneo'}`,
@@ -183,7 +185,10 @@ export default async function InscriptionsPage({ params }: InscriptionsPageProps
   // ========================================
   
   // Serializar datos para evitar errores de Next.js con objetos no serializables
-  const serializedTournament = JSON.parse(JSON.stringify(tournament));
+  const serializedTournament = JSON.parse(JSON.stringify({
+    ...tournament,
+    clubes: tournament.hide_venue ? undefined : tournament.clubes,
+  }));
   const serializedAllPlayers = JSON.parse(JSON.stringify(allPlayers || []));
 
   return (

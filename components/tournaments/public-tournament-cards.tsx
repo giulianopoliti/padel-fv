@@ -24,6 +24,9 @@ export interface PublicTournamentSummary {
   enablePublicInscriptions?: boolean
   currentParticipants?: number
   maxParticipants?: number | null
+  remainingSlots?: number | null
+  isFull?: boolean
+  hasFewSlots?: boolean
   hideVenue?: boolean
   club?: {
     id?: string | null
@@ -207,6 +210,7 @@ export function PublicTournamentCards({
           Boolean(tournament.enablePublicInscriptions) &&
           typeof tournament.maxParticipants === "number" &&
           tournament.maxParticipants > 0
+        const canRegister = tournament.status === "NOT_STARTED" && !tournament.isFull
         const currentParticipants = tournament.currentParticipants || 0
         const progressWidth = canShowParticipantStats
           ? `${Math.min((currentParticipants / tournament.maxParticipants!) * 100, 100)}%`
@@ -234,6 +238,16 @@ export function PublicTournamentCards({
                     {tournament.gender ? (
                       <Badge variant="outline" className={mutedBadgeClassName}>
                         {genderLabel[tournament.gender as keyof typeof genderLabel] || tournament.gender}
+                      </Badge>
+                    ) : null}
+                    {tournament.isFull ? (
+                      <Badge className="rounded-full border border-red-400/40 bg-red-500/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-red-100">
+                        Completo
+                      </Badge>
+                    ) : null}
+                    {tournament.hasFewSlots ? (
+                      <Badge className="animate-pulse rounded-full border border-red-400/50 bg-red-500/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-red-100">
+                        Pocos cupos
                       </Badge>
                     ) : null}
                   </div>
@@ -312,7 +326,7 @@ export function PublicTournamentCards({
                 </div>
 
                 <div className="flex w-full flex-col justify-end gap-3 lg:w-56 lg:items-center">
-                  {tournament.status === "NOT_STARTED" ? (
+                  {canRegister ? (
                     <PublicRegistrationLauncher
                       tournamentId={tournament.id}
                       tournamentName={tournament.name}
@@ -324,6 +338,10 @@ export function PublicTournamentCards({
                       buttonClassName={`${registrationButtonClassName} lg:max-w-[220px]`}
                       fullWidth
                     />
+                  ) : tournament.status === "NOT_STARTED" ? (
+                    <div className="rounded-2xl border border-white/12 bg-white/6 px-4 py-3 text-center text-xs font-bold uppercase tracking-[0.18em] text-white/80">
+                      {tournament.isFull ? "Torneo completo" : "Inscripciones cerradas"}
+                    </div>
                   ) : null}
                   <Button asChild variant="outline" className={`${detailsButtonClassName} lg:max-w-[220px]`}>
                     <Link href={`/tournaments/${tournament.id}`}>Ver detalles</Link>

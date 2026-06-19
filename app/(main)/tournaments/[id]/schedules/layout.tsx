@@ -42,7 +42,7 @@ export default async function SchedulesLayout({
   // Check if user is inscribed as player
   const inscription = await checkUserTournamentInscription(user.id, resolvedParams.id)
 
-  if (inscription.isInscribed && !inscription.isEliminated) {
+  if (inscription.isInscribed && !inscription.isEliminated && !inscription.isPending) {
     // User is inscribed and active player
     return player
   }
@@ -55,6 +55,10 @@ export default async function SchedulesLayout({
         eliminationInfo={inscription.inscriptionDetails}
       />
     )
+  }
+
+  if (inscription.isPending) {
+    redirect(`/tournaments/${resolvedParams.id}`)
   }
 
   // Players not inscribed should not access schedules

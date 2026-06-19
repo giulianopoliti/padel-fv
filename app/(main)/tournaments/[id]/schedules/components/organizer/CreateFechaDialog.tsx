@@ -68,7 +68,7 @@ interface CreateFechaDialogProps {
 }
 
 const ROUND_LABELS: Record<RoundType, string> = {
-  ZONE: 'Qually (Clasificatoria)',
+  ZONE: 'Tabla de posiciones',
   '32VOS': '32vos de Final',
   '16VOS': '16vos de Final',
   '8VOS': '8vos de Final',
@@ -317,7 +317,7 @@ export default function CreateFechaDialog({
                   <FormLabel>Nombre de la Fecha *</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="ej: Clasificatorias, Cuartos de Final..."
+                      placeholder="ej: Tabla de posiciones, Cuartos de Final..."
                       disabled={isSubmitting}
                       {...field}
                     />
@@ -398,7 +398,7 @@ export default function CreateFechaDialog({
                           </option>
                         ))
                       ) : (
-                        <option value="ZONE:MAIN">Qually (Clasificatoria)</option>
+                        <option value="ZONE:MAIN">Tabla de posiciones</option>
                       )}
                     </select>
                   </FormControl>

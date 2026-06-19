@@ -142,3 +142,64 @@
   background: rgba(255, 255, 255, 0.06);
   color: var(--tpe-white);
 }
+
+/* Tournament themes stay scoped so AMERICAN can adopt them independently. */
+.tournament-theme-padel-fv {
+  --primary: 220 49% 25%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 68 95% 45%;
+  --accent-foreground: 220 49% 20%;
+  --ring: 68 95% 45%;
+  --tournament-highlight: 73 88% 94%;
+  --tournament-soft: 214 35% 94%;
+}
+
+.tournament-theme-padel-elite {
+  --primary: 233 52% 20%;
+  --primary-foreground: 60 45% 98%;
+  --accent: 72 56% 66%;
+  --accent-foreground: 233 52% 20%;
+  --ring: 194 100% 58%;
+  --tournament-highlight: 62 76% 80%;
+  --tournament-soft: 226 40% 94%;
+}
+
+.tournament-long-shell {
+  background:
+    radial-gradient(circle at top right, hsl(var(--accent) / 0.12), transparent 28rem),
+    hsl(var(--background));
+}
+
+.tournament-highlight-surface {
+  background-color: hsl(var(--tournament-highlight));
+}
+
+/* Legacy LONG screens still use blue/purple utilities. Scope their visual meaning
+   to the active tenant until each management surface moves to semantic classes. */
+.tournament-long-shell .bg-blue-50,
+.tournament-long-shell .bg-purple-50 { background-color: hsl(var(--primary) / 0.06); }
+.tournament-long-shell .bg-blue-100,
+.tournament-long-shell .bg-purple-100 { background-color: hsl(var(--primary) / 0.12); }
+.tournament-long-shell .bg-blue-500,
+.tournament-long-shell .bg-blue-600,
+.tournament-long-shell .bg-purple-600 { background-color: hsl(var(--primary)); }
+.tournament-long-shell .bg-blue-700,
+.tournament-long-shell .bg-blue-800 { background-color: hsl(var(--primary) / 0.9); }
+.tournament-long-shell .text-blue-500,
+.tournament-long-shell .text-blue-600,
+.tournament-long-shell .text-blue-700,
+.tournament-long-shell .text-blue-800,
+.tournament-long-shell .text-blue-900,
+.tournament-long-shell .text-purple-600,
+.tournament-long-shell .text-purple-700,
+.tournament-long-shell .text-purple-800,
+.tournament-long-shell .text-purple-900 { color: hsl(var(--primary)); }
+.tournament-long-shell .border-blue-200,
+.tournament-long-shell .border-blue-300,
+.tournament-long-shell .border-purple-200,
+.tournament-long-shell .border-purple-300 { border-color: hsl(var(--primary) / 0.25); }
+.tournament-long-shell .from-blue-500,
+.tournament-long-shell .from-blue-600 { --tw-gradient-from: hsl(var(--primary)) var(--tw-gradient-from-position); }
+.tournament-long-shell .to-blue-600,
+.tournament-long-shell .to-blue-800,
+.tournament-long-shell .to-purple-500 { --tw-gradient-to: hsl(var(--accent)) var(--tw-gradient-to-position); }

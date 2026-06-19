@@ -116,7 +116,7 @@ export default function SelectedFechaContent({
                 variant={isZoneRound ? "default" : "secondary"}
                 className="text-xs"
               >
-                {isZoneRound ? 'Clasificatoria' : `Eliminatoria (${getBracketLabel(selectedFecha.bracket_key)})`}
+                {isZoneRound ? 'Tabla de posiciones' : `Eliminatoria (${getBracketLabel(selectedFecha.bracket_key)})`}
               </Badge>
               <Badge variant="outline" className="text-xs">
                 Fecha #{selectedFecha.fecha_number}
@@ -262,7 +262,7 @@ export default function SelectedFechaContent({
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Tipo de fase:</span>
                       <Badge variant={isZoneRound ? "default" : "secondary"}>
-                        {isZoneRound ? 'Clasificatoria' : `Eliminatoria (${getBracketLabel(selectedFecha.bracket_key)})`}
+                        {isZoneRound ? 'Tabla de posiciones' : `Eliminatoria (${getBracketLabel(selectedFecha.bracket_key)})`}
                       </Badge>
                     </div>
 

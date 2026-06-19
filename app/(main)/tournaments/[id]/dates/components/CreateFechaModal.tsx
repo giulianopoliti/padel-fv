@@ -107,7 +107,7 @@ export default function CreateFechaModal({
             <Label htmlFor="name">Nombre de la Fecha *</Label>
             <Input
               id="name"
-              placeholder="ej: Clasificatorias, Cuartos de Final..."
+              placeholder="ej: Tabla de posiciones, Cuartos de Final..."
               value={formData.name}
               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
               required
@@ -164,7 +164,7 @@ export default function CreateFechaModal({
               disabled={loading}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="ZONE">Qually (Zona)</option>
+              <option value="ZONE">Tabla de posiciones (Zona)</option>
               <option value="32VOS">32vos de Final</option>
               <option value="16VOS">16vos de Final</option>
               <option value="8VOS">8vos de Final</option>

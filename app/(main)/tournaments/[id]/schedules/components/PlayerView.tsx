@@ -1,26 +1,19 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { Progress } from '@/components/ui/progress'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
-import { Clock, Users, Save, Check, AlertCircle, Info, CalendarDays } from 'lucide-react'
-import { UserAccess, PlayerScheduleData, TimeSlot } from '../types'
-import { getPlayerScheduleData, updateCoupleAvailability } from '../actions'
-import { PlayerAvailabilitySkeleton } from './LoadingStates'
-import { InlineError } from './ErrorStates'
+import { useEffect, useState } from 'react'
+import { AlertCircle, CalendarDays, CalendarX2, Check, Circle, Clock, Info, Users, X } from 'lucide-react'
 import { toast } from 'sonner'
+
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Textarea } from '@/components/ui/textarea'
+import type { PlayerScheduleData, TimeSlot, UserAccess } from '../types'
+import { getPlayerScheduleData, updateCoupleAvailability, updateFreeDatePreference } from '../actions'
 import { formatDateWithWeekday } from '../utils'
+import { partitionLongScheduleSlots } from '@/lib/services/long-schedule-slots'
+import { InlineError } from './ErrorStates'
+import { PlayerAvailabilitySkeleton } from './LoadingStates'
 
 interface PlayerViewProps {
   tournamentId: string
@@ -28,237 +21,178 @@ interface PlayerViewProps {
   userAccess: UserAccess
 }
 
-export default function PlayerView({ 
-  tournamentId, 
-  fechaId, 
-  userAccess 
-}: PlayerViewProps) {
+export default function PlayerView({ tournamentId, fechaId, userAccess }: PlayerViewProps) {
   const [scheduleData, setScheduleData] = useState<PlayerScheduleData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [savingSlotId, setSavingSlotId] = useState<string | null>(null)
+
+  const loadPlayerData = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await getPlayerScheduleData(tournamentId, fechaId)
+      if (!result.success || !result.data) {
+        setError(result.error || 'No se pudieron cargar los horarios')
+        return
+      }
+      setScheduleData(result.data)
+    } catch (loadError) {
+      console.error('Error loading player schedule data:', loadError)
+      setError('Error inesperado al cargar los horarios')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const loadPlayerData = async () => {
-      setLoading(true)
-      setError(null)
-      
-      try {
-        const result = await getPlayerScheduleData(tournamentId, fechaId)
-        
-        if (result.success && result.data) {
-          setScheduleData(result.data)
-        } else {
-          setError(result.error || 'No se pudieron cargar los datos de disponibilidad')
-        }
-      } catch (err) {
-        setError('Error inesperado al cargar los datos')
-        console.error('Error loading player schedule data:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadPlayerData()
+    void loadPlayerData()
   }, [tournamentId, fechaId])
 
-  const handleAvailabilityChange = async (
-    timeSlotId: string, 
-    isAvailable: boolean, 
-    notes?: string
-  ) => {
-    if (!scheduleData || !userAccess.coupleId) return
+  const handleAvailabilityChange = async (timeSlotId: string, isAvailable: boolean, notes?: string) => {
+    if (!scheduleData || !userAccess.coupleId) return false
     if (!scheduleData.can_edit_availability) {
-      toast.error(scheduleData.availability_restriction_reason || 'No puedes marcar disponibilidad en esta fecha.')
-      return
+      toast.error(scheduleData.availability_restriction_reason || 'No podes responder esta fecha.')
+      return false
     }
 
-    startTransition(async () => {
-      try {
-        const result = await updateCoupleAvailability({
-          time_slot_id: timeSlotId,
-          couple_id: userAccess.coupleId!,
-          is_available: isAvailable,
-          notes: notes || undefined
-        })
-
-        if (result.success) {
-          // Update local state
-          setScheduleData(prev => {
-            if (!prev) return prev
-            
-            const updatedTimeSlots = prev.timeSlots.map(slot => {
-              if (slot.id === timeSlotId) {
-                return {
-                  ...slot,
-                  my_availability: {
-                    couple_id: userAccess.coupleId!,
-                    is_available: isAvailable,
-                    notes: notes || null
-                  }
-                }
-              }
-              return slot
-            })
-            
-            return { ...prev, timeSlots: updatedTimeSlots }
-          })
-          
-          toast.success('Disponibilidad actualizada correctamente')
-        } else {
-          toast.error(result.error)
-        }
-      } catch (err) {
-        toast.error('Error inesperado al actualizar disponibilidad')
-        console.error('Error updating availability:', err)
+    setSavingSlotId(timeSlotId)
+    try {
+      const result = await updateCoupleAvailability({
+        time_slot_id: timeSlotId,
+        couple_id: userAccess.coupleId,
+        is_available: isAvailable,
+        notes: notes || undefined,
+      })
+      if (!result.success) {
+        toast.error(result.error)
+        return false
       }
-    })
+
+      setScheduleData(previous => previous ? {
+        ...previous,
+        timeSlots: previous.timeSlots.map(slot => slot.id === timeSlotId ? {
+          ...slot,
+          my_availability: {
+            couple_id: userAccess.coupleId!,
+            is_available: isAvailable,
+            notes: notes || null,
+          },
+        } : slot),
+      } : previous)
+      toast.success(isAvailable ? 'Marcado como disponible' : 'Marcado como no disponible')
+      return true
+    } catch (saveError) {
+      console.error('Error updating availability:', saveError)
+      toast.error('No se pudo guardar la respuesta')
+      return false
+    } finally {
+      setSavingSlotId(null)
+    }
   }
 
-  const handleRetry = () => {
-    setScheduleData(null)
-    setError(null)
-    setLoading(true)
+  const handleFreeDateChange = async (timeSlotId: string, requested: boolean, notes?: string) => {
+    if (!scheduleData || !userAccess.coupleId) return false
+    if (!scheduleData.can_edit_availability) {
+      toast.error(scheduleData.availability_restriction_reason || 'No podes responder esta fecha.')
+      return false
+    }
+
+    setSavingSlotId(timeSlotId)
+    try {
+      const result = await updateFreeDatePreference({
+        time_slot_id: timeSlotId,
+        couple_id: userAccess.coupleId,
+        requested,
+        notes: notes || undefined,
+      })
+      if (!result.success) {
+        toast.error(result.error)
+        return false
+      }
+
+      setScheduleData(previous => previous ? {
+        ...previous,
+        timeSlots: previous.timeSlots.map(slot => slot.id === timeSlotId ? {
+          ...slot,
+          my_availability: requested ? {
+            couple_id: userAccess.coupleId!,
+            is_available: true,
+            notes: notes || null,
+          } : undefined,
+        } : slot),
+      } : previous)
+      toast.success(requested ? 'Fecha libre solicitada' : 'Solicitud de fecha libre cancelada')
+      return true
+    } catch (saveError) {
+      console.error('Error updating free date preference:', saveError)
+      toast.error('No se pudo guardar la solicitud')
+      return false
+    } finally {
+      setSavingSlotId(null)
+    }
   }
 
-  if (loading) {
-    return <PlayerAvailabilitySkeleton />
-  }
+  if (loading) return <PlayerAvailabilitySkeleton />
+  if (error) return <InlineError message={error} onRetry={() => void loadPlayerData()} />
+  if (!scheduleData) return <InlineError message="No se pudieron cargar los horarios" />
+  if (!userAccess.coupleId) return <InlineError message="No encontramos una pareja asociada a tu inscripcion." />
 
-  if (error) {
-    return <InlineError message={error} onRetry={handleRetry} />
-  }
-
-  if (!scheduleData) {
-    return <InlineError message="No se pudieron cargar los datos de disponibilidad" onRetry={handleRetry} />
-  }
-
-  if (!userAccess.coupleId) {
-    return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <AlertCircle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Sin pareja asignada</h3>
-          <p className="text-gray-600">
-            No se pudo encontrar tu pareja para este torneo. Contacta al organizador.
-          </p>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  const {
-    timeSlots,
-    coupleInfo,
-    can_edit_availability: canEditAvailability = true,
-    availability_restriction_reason: availabilityRestrictionReason
-  } = scheduleData
-
-  // Defensive check
-  if (!coupleInfo) {
-    return <InlineError message="Error: Información de pareja no disponible" />
-  }
+  const { timeSlots, coupleInfo, can_edit_availability: canEdit = true, availability_restriction_reason: restrictionReason } = scheduleData
+  const { freeDateSlot, playableTimeSlots } = partitionLongScheduleSlots(timeSlots)
 
   return (
-    <div className="space-y-6">
-      {/* Header with couple info */}
-      <Card className="border-l-4 border-l-blue-600 shadow-md hover:shadow-lg transition-shadow">
-        <CardContent className="p-6">
-          <div className="flex items-start gap-5">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-4 rounded-2xl shadow-lg">
-              <Users className="h-7 w-7 text-white" />
-            </div>
-            <div className="flex-1 space-y-3">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900 mb-1">Disponibilidad Horaria</h2>
-                <Separator className="my-2" />
-              </div>
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200">
-                <p className="text-sm text-slate-600 mb-1 font-medium">Tu Pareja:</p>
-                <p className="text-lg font-bold text-green-800">
-                  {coupleInfo.player1_name} / {coupleInfo.player2_name}
-                </p>
-              </div>
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <Info className="h-4 w-4 text-blue-500" />
-                Marca los horarios donde ambos jugadores están disponibles
-              </p>
-            </div>
+    <div className="space-y-4">
+      <Card className="border-primary/20 shadow-sm">
+        <CardContent className="flex items-start gap-3 p-4 sm:p-5">
+          <div className="rounded-xl bg-primary p-3 text-primary-foreground"><Users className="h-5 w-5" /></div>
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold">Horarios de tu pareja</h2>
+            <p className="truncate font-semibold text-primary">{coupleInfo?.player1_name} / {coupleInfo?.player2_name}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Responde por ambos jugadores en cada horario.</p>
           </div>
         </CardContent>
       </Card>
 
-      {/* Instructions */}
-      <Accordion type="single" collapsible defaultValue="instructions" className="w-full">
-        <AccordionItem value="instructions" className="border rounded-lg px-4 bg-blue-50/50">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-500 p-2 rounded-lg">
-                <Info className="h-5 w-5 text-white" />
-              </div>
-              <span className="font-semibold text-base">Instrucciones importantes</span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent>
-            <Separator className="mb-4" />
-            <ul className="text-sm text-slate-700 space-y-3 pl-4">
-              <li className="flex items-start gap-2">
-                <Check className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                <span>Marca solo los horarios donde <strong>ambos jugadores</strong> están disponibles</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                <span>Cualquier miembro de la pareja puede actualizar la disponibilidad</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                <span>Puedes agregar notas opcionales (ej: "Solo después de las 18h")</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                <span>Los cambios se guardan automáticamente</span>
-              </li>
-            </ul>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-
-      {!canEditAvailability && (
+      {!canEdit && (
         <Card className="border-amber-300 bg-amber-50">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-amber-900">Disponibilidad en modo lectura</p>
-                <p className="text-sm text-amber-800">
-                  {availabilityRestrictionReason || 'Todavía no podés editar disponibilidad para esta fecha.'}
-                </p>
-              </div>
-            </div>
+          <CardContent className="flex gap-3 p-4 text-amber-900">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+            <div><p className="font-semibold">Disponibilidad en modo lectura</p><p className="text-sm">{restrictionReason || 'Todavia no podes responder esta fecha.'}</p></div>
           </CardContent>
         </Card>
       )}
 
-      {/* Time Slots Availability */}
-      {timeSlots.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Sin horarios disponibles</h3>
-            <p className="text-gray-600">
-              El organizador aún no ha configurado los horarios para esta fecha.
-            </p>
-          </CardContent>
-        </Card>
+      <Accordion type="single" collapsible>
+        <AccordionItem value="instructions" className="rounded-xl border bg-card px-4">
+          <AccordionTrigger className="hover:no-underline"><span className="flex items-center gap-2 text-sm font-semibold"><Info className="h-4 w-4 text-primary" />Como responder</span></AccordionTrigger>
+          <AccordionContent className="space-y-2 text-sm text-muted-foreground">
+            <p>Marca Disponible solo cuando ambos integrantes puedan jugar.</p>
+            <p>Disponible y No disponible se guardan como respuestas confirmadas y pueden cambiarse despues.</p>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+
+      {freeDateSlot && (
+        <FreeDateRequestCard
+          timeSlot={freeDateSlot}
+          onPreferenceChange={handleFreeDateChange}
+          saving={savingSlotId === freeDateSlot.id}
+          disabled={!canEdit}
+        />
+      )}
+
+      {playableTimeSlots.length === 0 ? (
+        <Card><CardContent className="p-8 text-center"><Clock className="mx-auto h-10 w-10 text-muted-foreground" /><h3 className="mt-3 font-semibold">Sin horarios publicados</h3><p className="mt-1 text-sm text-muted-foreground">El organizador todavia no configuro horarios para esta fecha.</p></CardContent></Card>
       ) : (
-        <div className="space-y-4">
-          {timeSlots.map((timeSlot) => (
+        <div className="space-y-3">
+          {playableTimeSlots.map(timeSlot => (
             <TimeSlotAvailabilityCard
               key={timeSlot.id}
               timeSlot={timeSlot}
               onAvailabilityChange={handleAvailabilityChange}
-              isPending={isPending}
-              disabledByPolicy={!canEditAvailability}
+              saving={savingSlotId === timeSlot.id}
+              disabled={!canEdit}
             />
           ))}
         </div>
@@ -267,148 +201,142 @@ export default function PlayerView({
   )
 }
 
-interface TimeSlotAvailabilityCardProps {
-  timeSlot: TimeSlot & {
-    my_availability?: { couple_id: string; is_available: boolean; notes?: string | null }
-    couple_availabilities?: { is_available: boolean }[]
-  }
-  onAvailabilityChange: (timeSlotId: string, isAvailable: boolean, notes?: string) => void
-  isPending: boolean
-  disabledByPolicy?: boolean
+interface FreeDateRequestCardProps {
+  timeSlot: TimeSlot & { my_availability?: { couple_id: string; is_available: boolean; notes?: string | null } }
+  onPreferenceChange: (timeSlotId: string, requested: boolean, notes?: string) => Promise<boolean>
+  saving: boolean
+  disabled: boolean
 }
 
-function TimeSlotAvailabilityCard({
-  timeSlot,
-  onAvailabilityChange,
-  isPending,
-  disabledByPolicy = false
-}: TimeSlotAvailabilityCardProps) {
-  const [isAvailable, setIsAvailable] = useState(timeSlot.my_availability?.is_available || false)
+const FreeDateRequestCard = ({ timeSlot, onPreferenceChange, saving, disabled }: FreeDateRequestCardProps) => {
+  const initialRequested = timeSlot.my_availability?.is_available === true
+  const [requested, setRequested] = useState(initialRequested)
   const [notes, setNotes] = useState(timeSlot.my_availability?.notes || '')
-  const [hasChanges, setHasChanges] = useState(false)
+  const [savedNotes, setSavedNotes] = useState(timeSlot.my_availability?.notes || '')
 
-  const handleAvailabilityToggle = (checked: boolean) => {
-    setIsAvailable(checked)
-    setHasChanges(true)
+  const handleToggleRequest = async () => {
+    const nextRequested = !requested
+    setRequested(nextRequested)
+    const saved = await onPreferenceChange(timeSlot.id, nextRequested, nextRequested ? notes : undefined)
+    if (!saved) setRequested(!nextRequested)
+    if (saved && !nextRequested) {
+      setNotes('')
+      setSavedNotes('')
+    }
   }
 
-  const handleNotesChange = (value: string) => {
-    setNotes(value)
-    setHasChanges(true)
+  const handleNotesBlur = async () => {
+    if (!requested || notes === savedNotes) return
+    const saved = await onPreferenceChange(timeSlot.id, true, notes)
+    if (saved) setSavedNotes(notes)
   }
-
-  const handleSave = () => {
-    onAvailabilityChange(timeSlot.id, isAvailable, notes)
-    setHasChanges(false)
-  }
-
-  const availableCount = timeSlot.couple_availabilities?.filter((ca: { is_available: boolean }) => ca.is_available).length || 0
-  const totalCouples = timeSlot.couple_availabilities?.length || 0
-  const availabilityPercentage = totalCouples > 0 ? (availableCount / totalCouples) * 100 : 0
 
   return (
-    <Card className={`transition-all duration-300 hover:shadow-md ${hasChanges ? 'ring-2 ring-blue-500 shadow-lg' : ''} ${isAvailable ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-slate-200'}`}>
-      <CardHeader className="pb-4">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-          <div className="space-y-2 flex-1">
-            <CardTitle className="flex items-center gap-3 text-xl">
-              <div className="p-2.5 bg-primary/10 rounded-xl">
-                <CalendarDays className="h-5 w-5 text-primary" />
-              </div>
-              {formatDateWithWeekday(timeSlot.date)}
-            </CardTitle>
-            <Separator className="my-2" />
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              <p className="font-semibold text-base">
-                {timeSlot.start_time} - {timeSlot.end_time}
-              </p>
-            </div>
+    <Card className={requested ? 'border-amber-400 bg-amber-50/80' : 'border-primary/25 bg-primary/5'}>
+      <CardContent className="space-y-4 p-4 sm:p-5">
+        <div className="flex items-start gap-3">
+          <div className={requested ? 'rounded-xl bg-amber-500 p-3 text-white' : 'rounded-xl bg-primary p-3 text-primary-foreground'}>
+            <CalendarX2 className="h-5 w-5" />
           </div>
-
-          {totalCouples > 0 && (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200 min-w-[140px]">
-              <div className="text-xs text-slate-600 font-medium mb-1">Parejas Disponibles</div>
-              <div className="text-2xl font-bold text-blue-700 mb-2">
-                {availableCount}/{totalCouples}
-              </div>
-              <Progress value={availabilityPercentage} className="h-2" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-lg font-bold">¿Necesitan fecha libre?</h3>
+              {requested && <span className="rounded-full bg-amber-200 px-2.5 py-1 text-xs font-bold text-amber-900">Fecha libre solicitada</span>}
             </div>
-          )}
+            <p className="mt-1 text-sm text-muted-foreground">El pedido aplica a ambos integrantes y significa que prefieren no jugar durante esta fecha.</p>
+          </div>
         </div>
-      </CardHeader>
 
-      <CardContent className="space-y-5">
-        {timeSlot.description && (
-          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-            <p className="text-sm text-slate-700">{timeSlot.description}</p>
+        <Button
+          type="button"
+          variant={requested ? 'outline' : 'default'}
+          className={requested ? 'min-h-12 w-full border-amber-500 bg-white text-amber-900 hover:bg-amber-100' : 'min-h-12 w-full'}
+          onClick={() => void handleToggleRequest()}
+          disabled={saving || disabled}
+          aria-pressed={requested}
+        >
+          <CalendarX2 className="mr-2 h-4 w-4" />
+          {requested ? 'Cancelar pedido' : 'Quiero fecha libre'}
+        </Button>
+
+        {requested && (
+          <div className="space-y-2">
+            <label htmlFor={`free-date-note-${timeSlot.id}`} className="text-sm font-semibold">Nota opcional</label>
+            <Textarea
+              id={`free-date-note-${timeSlot.id}`}
+              value={notes}
+              onChange={event => setNotes(event.target.value)}
+              onBlur={() => void handleNotesBlur()}
+              disabled={saving || disabled}
+              maxLength={200}
+              rows={2}
+              placeholder="Ej: esta semana no podemos jugar"
+            />
           </div>
         )}
+        {saving && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Circle className="h-3 w-3 animate-pulse fill-current" />Guardando solicitud...</p>}
+      </CardContent>
+    </Card>
+  )
+}
 
-        {/* Availability Toggle */}
-        <div className="space-y-4">
-          <div className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${isAvailable ? 'bg-green-50 border-green-300' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}>
-            <Switch
-              id={`available-${timeSlot.id}`}
-              checked={isAvailable}
-              onCheckedChange={handleAvailabilityToggle}
-              disabled={isPending || disabledByPolicy}
-              className="data-[state=checked]:bg-green-600"
-            />
-            <Label
-              htmlFor={`available-${timeSlot.id}`}
-              className="text-base font-semibold cursor-pointer flex-1"
-            >
-              Estamos disponibles en este horario
-            </Label>
-            {timeSlot.my_availability?.is_available && !hasChanges && (
-              <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
-                <Check className="h-3 w-3" />
-                <span>Guardado</span>
-              </div>
-            )}
+interface TimeSlotAvailabilityCardProps {
+  timeSlot: TimeSlot & { my_availability?: { couple_id: string; is_available: boolean; notes?: string | null } }
+  onAvailabilityChange: (timeSlotId: string, isAvailable: boolean, notes?: string) => Promise<boolean>
+  saving: boolean
+  disabled: boolean
+}
+
+const TimeSlotAvailabilityCard = ({ timeSlot, onAvailabilityChange, saving, disabled }: TimeSlotAvailabilityCardProps) => {
+  const [availability, setAvailability] = useState<boolean | null>(timeSlot.my_availability?.is_available ?? null)
+  const [notes, setNotes] = useState(timeSlot.my_availability?.notes || '')
+  const [savedNotes, setSavedNotes] = useState(timeSlot.my_availability?.notes || '')
+
+  const handleSelect = async (nextValue: boolean) => {
+    const previousValue = availability
+    setAvailability(nextValue)
+    const saved = await onAvailabilityChange(timeSlot.id, nextValue, notes)
+    if (!saved) setAvailability(previousValue)
+  }
+
+  const handleNotesBlur = async () => {
+    if (availability === null || notes === savedNotes) return
+    const saved = await onAvailabilityChange(timeSlot.id, availability, notes)
+    if (saved) setSavedNotes(notes)
+  }
+
+  const statusClass = availability === true
+    ? 'bg-emerald-100 text-emerald-700'
+    : availability === false
+      ? 'bg-rose-100 text-rose-700'
+      : 'bg-muted text-muted-foreground'
+
+  return (
+    <Card className={availability === true ? 'border-emerald-300' : availability === false ? 'border-rose-200' : undefined}>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg"><span className="rounded-lg bg-primary/10 p-2 text-primary"><CalendarDays className="h-4 w-4" /></span>{formatDateWithWeekday(timeSlot.date)}</CardTitle>
+            <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-muted-foreground"><Clock className="h-4 w-4" />{timeSlot.start_time.slice(0, 5)} - {timeSlot.end_time.slice(0, 5)}</p>
           </div>
-
-          {/* Notes - Now with Accordion for cleaner look */}
-          {isAvailable && (
-            <Accordion type="single" collapsible className="w-full">
-              <AccordionItem value="notes" className="border rounded-lg px-4 bg-slate-50">
-                <AccordionTrigger className="hover:no-underline py-3">
-                  <div className="flex items-center gap-2">
-                    <Info className="h-4 w-4 text-slate-500" />
-                    <span className="text-sm font-medium">Agregar notas adicionales (opcional)</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="pt-2 pb-3">
-                    <Textarea
-                      id={`notes-${timeSlot.id}`}
-                      placeholder="Ej: Solo después de las 18h, preferimos temprano, etc."
-                      value={notes}
-                      onChange={(e) => handleNotesChange(e.target.value)}
-                      disabled={isPending || disabledByPolicy}
-                      rows={3}
-                      className="resize-none"
-                    />
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          )}
-
-          {/* Save Button */}
-          {hasChanges && (
-            <Button
-              onClick={handleSave}
-              disabled={isPending || disabledByPolicy}
-              className="w-full sm:w-auto gap-2 shadow-md hover:shadow-lg transition-shadow"
-              size="lg"
-            >
-              <Save className="h-4 w-4" />
-              {isPending ? 'Guardando...' : 'Guardar Cambios'}
-            </Button>
-          )}
+          <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${statusClass}`}>{availability === true ? 'Disponible' : availability === false ? 'No disponible' : 'Sin responder'}</span>
         </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {timeSlot.description && <p className="rounded-xl bg-muted/70 p-3 text-sm text-muted-foreground">{timeSlot.description}</p>}
+        <div className="grid grid-cols-2 gap-2" role="group" aria-label={`Disponibilidad para ${formatDateWithWeekday(timeSlot.date)}`}>
+          <Button type="button" variant="outline" disabled={saving || disabled} onClick={() => void handleSelect(true)} aria-pressed={availability === true} className={`min-h-12 gap-2 ${availability === true ? 'border-emerald-500 bg-emerald-50 text-emerald-800 hover:bg-emerald-100' : ''}`}><Check className="h-4 w-4" />Disponible</Button>
+          <Button type="button" variant="outline" disabled={saving || disabled} onClick={() => void handleSelect(false)} aria-pressed={availability === false} className={`min-h-12 gap-2 ${availability === false ? 'border-rose-400 bg-rose-50 text-rose-800 hover:bg-rose-100' : ''}`}><X className="h-4 w-4" />No disponible</Button>
+        </div>
+        {availability !== null && (
+          <Accordion type="single" collapsible>
+            <AccordionItem value="notes" className="rounded-xl border px-3">
+              <AccordionTrigger className="py-3 text-sm hover:no-underline">Nota opcional</AccordionTrigger>
+              <AccordionContent><Textarea value={notes} onChange={event => setNotes(event.target.value)} onBlur={() => void handleNotesBlur()} disabled={saving || disabled} maxLength={200} rows={2} placeholder="Ej: podemos a partir de las 19" /></AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        )}
+        {saving && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Circle className="h-3 w-3 animate-pulse fill-current" />Guardando respuesta...</p>}
       </CardContent>
     </Card>
   )

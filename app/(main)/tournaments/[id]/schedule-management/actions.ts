@@ -136,6 +136,7 @@ export async function deleteTournamentFecha(fechaId: string) {
       .from('tournament_time_slots')
       .select('id')
       .eq('fecha_id', fechaId)
+      .eq('slot_type', 'TIME_RANGE')
 
     if (timeSlotsError) {
       return {
@@ -324,6 +325,7 @@ export async function cloneTimeSlots(sourceFechaId: string, targetFechaId: strin
       .from('tournament_time_slots')
       .select('date, start_time, end_time, max_matches, court_name, description')
       .eq('fecha_id', sourceFechaId)
+      .eq('slot_type', 'TIME_RANGE')
 
     if (sourceError || !sourceTimeSlots) {
       return {

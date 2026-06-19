@@ -7,6 +7,7 @@ import { checkTournamentAccess } from '@/utils/tournament-permissions';
 import { ensureSerializable } from '@/utils/serialization';
 import AmericanTournamentOverview from './components/AmericanTournamentOverview';
 import LongTournamentView from './components/LongTournamentView';
+import { getLongPlayerOverview } from '@/lib/services/long-player-overview';
 
 interface TournamentPageProps {
   params: Promise<{ id: string }>;
@@ -165,8 +166,18 @@ export default async function TournamentPage({ params }: TournamentPageProps) {
   // ========================================
 
   if (tournament.type === 'LONG') {
-    // ➜ SISTEMA LARGO: Dashboard con estadísticas
-    return <LongTournamentView tournamentId={tournamentId} tournament={clientTournament} publicInfo={publicInfo} />;
+    const playerOverview = user && access.metadata.userRole === 'PLAYER'
+      ? await getLongPlayerOverview(tournamentId, user.id)
+      : null;
+
+    return (
+      <LongTournamentView
+        tournamentId={tournamentId}
+        tournament={clientTournament}
+        publicInfo={publicInfo}
+        playerOverview={playerOverview ? ensureSerializable(playerOverview) : null}
+      />
+    );
   }
 
   // ➜ SISTEMA AMERICANO: Overview con props V2

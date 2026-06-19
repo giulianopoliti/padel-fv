@@ -5,6 +5,10 @@
  */
 
 import { createClient } from '@/utils/supabase/server';
+import {
+  buildTournamentCapacitySummary,
+  getTournamentCoupleCount,
+} from '@/lib/services/tournament-capacity.service';
 import type { 
   TournamentStatus, 
   TournamentFormat,
@@ -48,8 +52,10 @@ export class TournamentValidationService {
           id,
           status,
           registration_locked,
+          registration_locked_by_capacity,
           bracket_status,
           bracket_generated_at,
+          max_participants,
           created_at
         `)
         .eq('id', tournamentId)
@@ -66,10 +72,13 @@ export class TournamentValidationService {
       // Determine which system to use
       const useNewSystem = this.shouldUseNewSystem(tournament);
       
+      const currentParticipants = await getTournamentCoupleCount(supabase, tournamentId);
+      const capacity = buildTournamentCapacitySummary(tournament.max_participants, currentParticipants);
+
       if (useNewSystem) {
-        return await this.validateWithNewSystem(tournament);
+        return await this.validateWithNewSystem(tournament, capacity);
       } else {
-        return await this.validateWithLegacySystem(tournament);
+        return await this.validateWithLegacySystem(tournament, capacity);
       }
 
     } catch (error: any) {
@@ -86,12 +95,32 @@ export class TournamentValidationService {
   // NEW SIMPLIFIED SYSTEM VALIDATION
   // ============================================================================
 
-  private static async validateWithNewSystem(tournament: any): Promise<RegistrationValidationResult> {
+  private static async validateWithNewSystem(
+    tournament: any,
+    capacity: { isFull: boolean; remainingSlots: number | null }
+  ): Promise<RegistrationValidationResult> {
     const status = tournament.status as TournamentStatus;
+
+    if (tournament.registration_locked && !tournament.registration_locked_by_capacity) {
+      return {
+        allowed: false,
+        reason: 'Registration locked by tournament organizer',
+        details: 'Tournament owner has explicitly locked registrations',
+        system: 'NEW'
+      };
+    }
 
     // New system rules based on simplified states
     switch (status) {
       case 'NOT_STARTED':
+        if (capacity.isFull) {
+          return {
+            allowed: false,
+            reason: 'Tournament full',
+            details: 'No quedan cupos disponibles para nuevas parejas',
+            system: 'NEW'
+          };
+        }
         return {
           allowed: true,
           reason: 'Tournament accepts registrations',
@@ -100,6 +129,14 @@ export class TournamentValidationService {
 
       case 'ZONE_PHASE':
         // Key feature: ZONE_PHASE allows late registration
+        if (capacity.isFull) {
+          return {
+            allowed: false,
+            reason: 'Tournament full',
+            details: 'No quedan cupos disponibles para nuevas parejas',
+            system: 'NEW'
+          };
+        }
         return {
           allowed: true,
           reason: 'Late registration allowed during zone phase',
@@ -162,14 +199,29 @@ export class TournamentValidationService {
   // LEGACY SYSTEM VALIDATION (Backward Compatibility)
   // ============================================================================
 
-  private static async validateWithLegacySystem(tournament: any): Promise<RegistrationValidationResult> {
+  private static async validateWithLegacySystem(
+    tournament: any,
+    capacity: { isFull: boolean; remainingSlots: number | null }
+  ): Promise<RegistrationValidationResult> {
     // Legacy system logic (existing canAddNewCouple logic)
+    if (capacity.isFull) {
+      return {
+        allowed: false,
+        reason: 'Tournament full',
+        details: 'No quedan cupos disponibles para nuevas parejas',
+        system: 'LEGACY'
+      };
+    }
     
     if (tournament.registration_locked) {
       return {
         allowed: false,
-        reason: 'Registration locked by tournament organizer',
-        details: 'Tournament owner has explicitly locked registrations',
+        reason: tournament.registration_locked_by_capacity
+          ? 'Tournament full'
+          : 'Registration locked by tournament organizer',
+        details: tournament.registration_locked_by_capacity
+          ? 'No quedan cupos disponibles para nuevas parejas'
+          : 'Tournament owner has explicitly locked registrations',
         system: 'LEGACY'
       };
     }

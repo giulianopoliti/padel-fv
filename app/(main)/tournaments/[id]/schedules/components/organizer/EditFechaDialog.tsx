@@ -324,7 +324,7 @@ export default function EditFechaDialog({
                   <FormLabel>Nombre de la Fecha *</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="ej: Clasificatorias, Cuartos de Final..."
+                      placeholder="ej: Tabla de posiciones, Cuartos de Final..."
                       disabled={isSubmitting}
                       {...field}
                     />
@@ -463,7 +463,7 @@ export default function EditFechaDialog({
                       ) : availableRounds.length > 0 ? (
                         availableRounds.map((round) => {
                           const labels: Record<string, string> = {
-                            'ZONE': 'QUALLY (Clasificatoria)',
+                            'ZONE': 'TABLA DE POSICIONES',
                             '32VOS': '32vos de Final',
                             '16VOS': '16vos de Final',
                             '8VOS': '8vos de Final',
@@ -478,7 +478,7 @@ export default function EditFechaDialog({
                           )
                         })
                       ) : (
-                        <option value="ZONE">QUALLY (Clasificatoria) - Por defecto</option>
+                        <option value="ZONE">TABLA DE POSICIONES - Por defecto</option>
                       )}
                     </select>
                   </FormControl>

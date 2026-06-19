@@ -10,6 +10,9 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import TournamentLongSidebar from './TournamentLongSidebar'
 import TournamentAmericanSidebar from './TournamentAmericanSidebar'
 import TournamentMobileHeader from './TournamentMobileHeader'
+import TournamentMobileBottomNav from './TournamentMobileBottomNav'
+import { TENANT_CONFIG } from '@/config/tenant'
+import { cn } from '@/lib/utils'
 
 interface TournamentLongLayoutProps {
   children: React.ReactNode
@@ -58,6 +61,7 @@ const playerInscriptionFetcher = async ([, tournamentId, playerId]: [string, str
     .from('inscriptions')
     .select(`
       is_eliminated,
+      is_pending,
       eliminated_at,
       eliminated_in_round,
       player_id,
@@ -85,6 +89,7 @@ const playerInscriptionFetcher = async ([, tournamentId, playerId]: [string, str
 
   return {
     is_eliminated: inscription.is_eliminated,
+    is_pending: inscription.is_pending,
     eliminated_at: inscription.eliminated_at,
     eliminated_in_round: inscription.eliminated_in_round
   }
@@ -187,6 +192,14 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
       Boolean(userDetails.club_id && tournament.club_id && userDetails.club_id === tournament.club_id)) ||
     (userDetails?.role === 'ORGANIZADOR' && hasOrganizerManagementPermission)
 
+  const isLongTournament = tournament.type === 'LONG'
+  const isPlayer = userDetails?.role === 'PLAYER'
+  const isOrganizer = hasManagePermission
+  const hasPlayerTournamentInscription = Boolean(playerInscription)
+  const tournamentThemeClass = isLongTournament
+    ? TENANT_CONFIG.tournaments.theme.className
+    : undefined
+
   const sidebarProps = {
     tournament: {
       id: tournament.id,
@@ -215,14 +228,13 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
   if (isMobile) {
     console.log('[TournamentLongLayout] Rendering MOBILE layout with tournament:', sidebarProps.tournament.name)
     return (
-      <div className="min-h-screen bg-background">
-        <TournamentMobileHeader
-          tournament={sidebarProps.tournament}
-          onSidebarToggle={() => {
-            console.log('[TournamentLongLayout] Mobile header clicked - opening sidebar')
-            setSidebarOpen(true)
-          }}
-        />
+      <div className={cn("min-h-screen bg-background", tournamentThemeClass, isLongTournament && "tournament-long-shell")}>
+        {!isLongTournament && (
+          <TournamentMobileHeader
+            tournament={sidebarProps.tournament}
+            onSidebarToggle={() => setSidebarOpen(true)}
+          />
+        )}
 
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
           <SheetContent side="left" className="w-80 p-0">
@@ -235,19 +247,28 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
           </SheetContent>
         </Sheet>
 
-        <main>
+        <main className={cn(isLongTournament && (isOrganizer || (isPlayer && hasPlayerTournamentInscription)) && "pb-20")}>
           {children}
         </main>
+
+        {isLongTournament && (isOrganizer || (isPlayer && hasPlayerTournamentInscription)) && (
+          <TournamentMobileBottomNav
+            tournamentId={tournament.id}
+            role={isOrganizer ? 'ORGANIZER' : 'PLAYER'}
+            showAvailability={!playerInscription?.is_eliminated && !playerInscription?.is_pending}
+            onMore={() => setSidebarOpen(true)}
+          />
+        )}
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className={cn("flex min-h-screen bg-background", tournamentThemeClass, isLongTournament && "tournament-long-shell")}>
       <div className="flex-shrink-0 sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto">
         <SidebarComponent {...sidebarProps} />
       </div>
-      <main className="min-w-0 flex-1 overflow-x-hidden bg-slate-50">
+      <main className="min-w-0 flex-1 overflow-x-hidden bg-background/80">
         {children}
       </main>
     </div>

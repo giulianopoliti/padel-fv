@@ -69,6 +69,7 @@ interface Tournament {
   enable_transfer_proof?: boolean;
   transfer_alias?: string | null;
   transfer_amount?: number | null;
+  hide_venue?: boolean;
   clubes?: {
     name?: string;
     phone?: string;
@@ -193,7 +194,7 @@ const InscriptionsClient: React.FC<InscriptionsClientProps> = ({
                     )}
                   </div>
                   
-                  {tournament.clubes?.name && (
+                  {!tournament.hide_venue && tournament.clubes?.name && (
                     <div className="flex items-center gap-1">
                       <span>•</span>
                       <span>{tournament.clubes.name}</span>

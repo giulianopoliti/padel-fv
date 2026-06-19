@@ -18,6 +18,7 @@ import {
   calculateExpectedZoneMatches,
   getPersistedBracketArtifacts
 } from '@/lib/services/bracket-generation-validation'
+import { syncTournamentCapacityRegistrationLock } from '@/lib/services/tournament-capacity.service'
 import { MAX_TOURNAMENT_PRICE } from '@/lib/constants/tournaments'
 
 interface QualifyingAdvancementSettings {
@@ -618,6 +619,12 @@ export async function updateTournamentBasicInfo(
         success: false,
         error: 'Error al actualizar el torneo. Por favor, intenta de nuevo.'
       }
+    }
+
+    try {
+      await syncTournamentCapacityRegistrationLock(params.tournamentId)
+    } catch (capacityError) {
+      console.error('Error syncing tournament capacity after settings update:', capacityError)
     }
 
     // Revalidate the tournament pages

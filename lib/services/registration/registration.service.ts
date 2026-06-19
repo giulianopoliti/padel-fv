@@ -11,9 +11,11 @@
  */
 
 import { createClient } from '@/utils/supabase/server'
+import { revalidatePath } from 'next/cache'
 import { createRegistrationStrategy, RegistrationStrategyError } from './registration-strategy.factory'
 import { validateMixedPairGender } from '@/lib/services/tournament-category-config'
 import { sendTournamentInscriptionNotification } from '@/lib/services/email'
+import { syncTournamentCapacityRegistrationLock } from '@/lib/services/tournament-capacity.service'
 import type { IRegistrationStrategy } from './registration-strategy.interface'
 import type {
   RegisterCoupleRequest,
@@ -71,6 +73,7 @@ export class RegistrationService {
       // Log del resultado
       this.logRegistrationResult('registerCouple', request.tournamentId, result)
       await this.notifyInscriptionCreated(result.inscriptionId, context.context)
+      await this.handleTournamentCapacitySideEffects(request.tournamentId, result.success)
 
       return result
 
@@ -107,6 +110,7 @@ export class RegistrationService {
       const result = await strategy.registerNewPlayersAsCouple(request, context.context)
       this.logRegistrationResult('registerNewPlayersAsCouple', request.tournamentId, result)
       await this.notifyInscriptionCreated(result.inscriptionId, context.context)
+      await this.handleTournamentCapacitySideEffects(request.tournamentId, result.success)
 
       return result
 
@@ -216,6 +220,7 @@ export class RegistrationService {
       const result = await strategy.convertIndividualToCouple(request, context.context)
       this.logRegistrationResult('convertIndividualToCouple', request.tournamentId, result)
       await this.notifyInscriptionCreated(result.inscriptionId, context.context)
+      await this.handleTournamentCapacitySideEffects(request.tournamentId, result.success)
 
       return result
 
@@ -251,6 +256,7 @@ export class RegistrationService {
 
       const result = await strategy.removeCouple(request, context.context)
       this.logRegistrationResult('removeCouple', request.tournamentId, result)
+      await this.handleTournamentCapacitySideEffects(request.tournamentId, result.success)
 
       return result
 
@@ -493,6 +499,11 @@ export class RegistrationService {
       return { success: false, error: 'El jugador no existe' }
     }
 
+    const tournamentValidation = await this.validateTournamentRegistrationState(context.tournament.id)
+    if (!tournamentValidation.success) {
+      return tournamentValidation
+    }
+
     return { success: true }
   }
 
@@ -513,6 +524,11 @@ export class RegistrationService {
 
     if (!playerProfile) {
       return { success: false, error: 'No tienes un perfil de jugador creado' }
+    }
+
+    const tournamentValidation = await this.validateTournamentRegistrationState(context.tournament.id)
+    if (!tournamentValidation.success) {
+      return tournamentValidation
     }
 
     return { success: true }
@@ -594,6 +610,42 @@ export class RegistrationService {
         error: result.error
       })
     }
+  }
+
+  private async validateTournamentRegistrationState(
+    tournamentId: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    const { TournamentValidationService } = await import('../tournament-validation.service')
+    const tournamentValidation = await TournamentValidationService.validateCoupleRegistration(tournamentId)
+
+    if (!tournamentValidation.allowed) {
+      return {
+        success: false,
+        error: `${tournamentValidation.reason}${tournamentValidation.details ? ` - ${tournamentValidation.details}` : ''}`,
+      }
+    }
+
+    return { success: true }
+  }
+
+  private async handleTournamentCapacitySideEffects(tournamentId: string, shouldSync: boolean): Promise<void> {
+    if (shouldSync) {
+      try {
+        await syncTournamentCapacityRegistrationLock(tournamentId)
+      } catch (error) {
+        console.error('[RegistrationService] Error sincronizando cupo del torneo:', error)
+      }
+    }
+
+    this.revalidateTournamentRegistrationPaths(tournamentId)
+  }
+
+  private revalidateTournamentRegistrationPaths(tournamentId: string): void {
+    revalidatePath('/')
+    revalidatePath('/panel')
+    revalidatePath('/tournaments')
+    revalidatePath('/tournaments/upcoming')
+    revalidatePath(`/tournaments/${tournamentId}`)
   }
 }
 

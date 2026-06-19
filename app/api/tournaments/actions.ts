@@ -32,6 +32,7 @@ import {
   removeTournamentCoupleMembership,
 } from '@/lib/services/tournament-zone-membership';
 import { MAX_TOURNAMENT_PRICE } from '@/lib/constants/tournaments';
+import { syncTournamentCapacityRegistrationLock } from '@/lib/services/tournament-capacity.service';
 
 
 // Sistema unificado de puntos para TODO el torneo
@@ -6279,8 +6280,18 @@ export async function rejectInscription(inscriptionId: string): Promise<{
   }
   
   console.log(`[rejectInscription] Inscripcion ${inscriptionId} rechazada exitosamente`);
+
+  try {
+    await syncTournamentCapacityRegistrationLock(inscription.tournament_id)
+  } catch (capacityError) {
+    console.error('[rejectInscription] Error sincronizando cupo del torneo:', capacityError)
+  }
   
   // Revalidar paths
+  revalidatePath('/');
+  revalidatePath('/panel');
+  revalidatePath('/tournaments');
+  revalidatePath('/tournaments/upcoming');
   revalidatePath(`/tournaments/${inscription.tournament_id}`);
   revalidatePath(`/my-tournaments/${inscription.tournament_id}`);
   

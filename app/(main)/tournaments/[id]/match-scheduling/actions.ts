@@ -28,6 +28,8 @@ export interface CoupleWithData {
   matches_in_fecha: number
   has_played_in_this_date: boolean // true if has finished match in this fecha
   match_status: 'DRAFT' | 'PENDING' | 'FINISHED' | null // status of match in this fecha (null if no match)
+  free_date_blocked: boolean
+  free_date_notes: string | null
 }
 
 export interface TimeSlot {
@@ -199,6 +201,7 @@ export async function getMatchSchedulingData(
       .select('id, start_time, end_time, court_name, date, max_matches')
       .eq('fecha_id', fechaId)
       .eq('is_available', true)
+      .eq('slot_type', 'TIME_RANGE')
       .order('date', { ascending: true })
       .order('start_time', { ascending: true })
 
@@ -214,7 +217,7 @@ export async function getMatchSchedulingData(
         time_slot_id,
         is_available,
         notes,
-        tournament_time_slots!inner (fecha_id)
+        tournament_time_slots!inner (fecha_id, slot_type)
       `)
       .eq('tournament_time_slots.fecha_id', fechaId)
 
@@ -340,6 +343,10 @@ export async function getMatchSchedulingData(
       const player1 = unwrapRelation<any>(couple.player1)
       const player2 = unwrapRelation<any>(couple.player2)
       const zone = unwrapRelation<any>(zonePosition?.zones)
+      const freeDatePreference = (availabilityData || []).find(item => {
+        const slot = unwrapRelation<any>(item.tournament_time_slots)
+        return item.couple_id === couple.id && slot?.slot_type === 'FREE_DATE' && item.is_available
+      })
 
       return {
         id: couple.id,
@@ -358,7 +365,9 @@ export async function getMatchSchedulingData(
         } : null,
         matches_in_fecha: finishedMatchesCounts.get(couple.id) || 0,
         has_played_in_this_date: couplesWithMatches.has(couple.id), // Now checks for ANY match, not just finished
-        match_status: coupleMatchStatus.get(couple.id) || null // DRAFT, PENDING, or null
+        match_status: coupleMatchStatus.get(couple.id) || null, // DRAFT, PENDING, or null
+        free_date_blocked: Boolean(freeDatePreference),
+        free_date_notes: freeDatePreference?.notes || null
       }
     })
 
@@ -373,12 +382,14 @@ export async function getMatchSchedulingData(
     }))
 
     // Transform availability
-    const availability: AvailabilityItem[] = (availabilityData || []).map(item => ({
-      couple_id: item.couple_id,
-      time_slot_id: item.time_slot_id,
-      is_available: item.is_available,
-      notes: item.notes
-    }))
+    const availability: AvailabilityItem[] = (availabilityData || [])
+      .filter(item => unwrapRelation<any>(item.tournament_time_slots)?.slot_type === 'TIME_RANGE')
+      .map(item => ({
+        couple_id: item.couple_id,
+        time_slot_id: item.time_slot_id,
+        is_available: item.is_available,
+        notes: item.notes
+      }))
 
     // Transform existing matches with scheduling information
     const existingMatches: ExistingMatch[] = (existingMatchesData || []).flatMap(item => {
@@ -533,7 +544,7 @@ export async function createMatch(
     if (timeSlotId) {
       const { data: timeSlotData } = await supabase
         .from('tournament_time_slots')
-        .select('start_time, end_time, court_name, max_matches, date')
+        .select('start_time, end_time, court_name, max_matches, date, slot_type')
         .eq('id', timeSlotId)
         .single()
 
@@ -542,6 +553,10 @@ export async function createMatch(
           success: false,
           error: 'Horario no encontrado'
         }
+      }
+
+      if (timeSlotData.slot_type === 'FREE_DATE') {
+        return { success: false, error: 'La fecha libre no es un horario jugable' }
       }
 
       timeSlot = timeSlotData
@@ -747,7 +762,7 @@ export async function updateMatchResult(
     if (existingMatchFull.round !== 'ZONE') {
       return {
         success: false,
-        error: `Este partido es de ${existingMatchFull.round || 'eliminación'}. Usa la vista de Llaves para cargar el resultado, no Match Scheduling.`
+        error: `Este partido es de ${existingMatchFull.round || 'eliminación'}. Usa la vista de Llave para cargar el resultado, no Match Scheduling.`
       }
     }
 

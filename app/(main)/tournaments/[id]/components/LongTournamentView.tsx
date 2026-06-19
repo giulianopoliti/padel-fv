@@ -12,6 +12,7 @@ import { useUser } from '@/contexts/user-context';
 import type { TournamentPublicInfo } from '@/lib/tournaments/public-tournament-details';
 import { Gender } from '@/types';
 import { createClient } from '@/utils/supabase/client';
+import type { LongPlayerOverview } from '@/lib/services/long-player-overview.shared';
 
 interface Tournament {
   id: string;
@@ -45,6 +46,7 @@ interface LongTournamentViewProps {
   tournamentId: string;
   tournament: Tournament;
   publicInfo: TournamentPublicInfo;
+  playerOverview: LongPlayerOverview | null;
 }
 
 /**
@@ -58,14 +60,15 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({
   tournamentId,
   tournament,
   publicInfo,
+  playerOverview,
 }) => {
   const { userDetails } = useUser();
   const [stats, setStats] = useState<TournamentStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const isLoggedInPlayer = userDetails?.role === 'PLAYER';
-
   useEffect(() => {
+    if (playerOverview) return;
+
     const fetchStats = async () => {
       const supabase = createClient();
 
@@ -92,23 +95,13 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({
     };
 
     fetchStats();
-  }, [tournament.status, tournamentId]);
+  }, [playerOverview, tournament.status, tournamentId]);
 
-  if (loading) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Cargando estadísticas...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoggedInPlayer) {
+  if (playerOverview) {
     return (
       <PlayerTournamentDashboard
         tournamentId={tournamentId}
+        overview={playerOverview}
         tournament={{
           id: tournament.id,
           name: tournament.name,
@@ -122,6 +115,17 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({
           publicInfo,
         }}
       />
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando estadísticas...</p>
+        </div>
+      </div>
     );
   }
 
@@ -238,7 +242,7 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({
             <Trophy className="h-5 w-5 text-blue-600 mt-0.5" />
             <div>
               <h3 className="font-semibold text-blue-900 mb-1">
-                Torneo Long - Sistema de Fechas
+                Liga - Sistema de Fechas
               </h3>
               <p className="text-blue-700 text-sm">
                 Utiliza la sidebar para navegar entre las diferentes secciones del torneo.

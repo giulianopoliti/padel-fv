@@ -61,6 +61,8 @@ export interface TimeSlot {
   is_available: boolean
   description?: string
   created_at: string
+  slot_type: 'TIME_RANGE' | 'FREE_DATE'
+  is_system: boolean
 }
 
 export interface TimeSlotWithAvailability extends TimeSlot {
@@ -105,6 +107,13 @@ export interface UpdateAvailabilityData {
   couple_id: string
   time_slot_id: string
   is_available: boolean
+  notes?: string
+}
+
+export interface UpdateFreeDatePreferenceData {
+  couple_id: string
+  time_slot_id: string
+  requested: boolean
   notes?: string
 }
 

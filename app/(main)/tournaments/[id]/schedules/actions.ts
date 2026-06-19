@@ -9,6 +9,7 @@ import {
   ActionResult, 
   CreateTimeSlotData, 
   UpdateAvailabilityData,
+  UpdateFreeDatePreferenceData,
   TimeSlotWithAvailability,
   CoupleAvailability,
   TournamentBasic,
@@ -109,7 +110,7 @@ const validateUserPermissions = async (
     if (userProfile.role === 'PLAYER') {
       const inscriptionResult = await checkUserTournamentInscription(userId, tournamentId)
 
-      if (inscriptionResult.isInscribed && !inscriptionResult.isEliminated) {
+      if (inscriptionResult.isInscribed && !inscriptionResult.isEliminated && !inscriptionResult.isPending) {
         isInscribed = true
         coupleId = inscriptionResult.coupleId
         playerId = inscriptionResult.playerId
@@ -183,6 +184,12 @@ export async function checkUserAccess(
           return {
             success: false,
             error: 'Tu pareja ha sido eliminada del torneo y no puede acceder a los horarios'
+          }
+        }
+        if (inscriptionResult.isPending) {
+          return {
+            success: false,
+            error: 'Tu inscripción todavía está pendiente de aprobación'
           }
         }
       }
@@ -275,6 +282,7 @@ export async function getScheduleData(
       `)
       .eq('fecha_id', fechaId)
       .eq('is_available', true)
+      .eq('slot_type', 'TIME_RANGE')
       .order('date', { ascending: true })
       .order('start_time', { ascending: true })
 
@@ -426,7 +434,7 @@ export async function getPlayerScheduleData(
     const { data: timeSlots, error: timeSlotsError } = await supabase
       .from('tournament_time_slots')
       .select(`
-        id, date, start_time, end_time, court_name, description,
+        id, date, start_time, end_time, court_name, description, slot_type, is_system,
         couple_time_availability!inner (
           is_available,
           notes
@@ -445,7 +453,7 @@ export async function getPlayerScheduleData(
     // Also get slots where user hasn't marked availability yet
     const { data: allTimeSlots, error: allTimeSlotsError } = await supabase
       .from('tournament_time_slots')
-      .select('id, date, start_time, end_time, court_name, description')
+      .select('id, date, start_time, end_time, court_name, description, slot_type, is_system')
       .eq('fecha_id', fechaId)
       .eq('is_available', true)
       .order('date', { ascending: true })
@@ -494,6 +502,8 @@ export async function getPlayerScheduleData(
         is_available: true,
         max_matches: 1,
         created_at: new Date().toISOString(),
+        slot_type: slot.slot_type === 'FREE_DATE' ? 'FREE_DATE' as const : 'TIME_RANGE' as const,
+        is_system: Boolean(slot.is_system),
         my_availability: availability ? {
           couple_id: accessResult.data?.coupleId!,
           is_available: availability.is_available,
@@ -576,6 +586,7 @@ export async function createTimeSlot(
       .from('tournament_time_slots')
       .select('*')
       .eq('fecha_id', data.fecha_id)
+      .eq('slot_type', 'TIME_RANGE')
 
     // Validate time slot
     const validation = validateTimeSlot(data, existingSlots || [])
@@ -844,6 +855,7 @@ export async function updateTimeSlot(
       .select('*')
       .eq('fecha_id', timeSlot.fecha_id)
       .neq('id', timeSlotId)
+      .eq('slot_type', 'TIME_RANGE')
 
     // Create validation data combining existing data with updates
     const validationData: CreateTimeSlotData = {
@@ -917,7 +929,7 @@ export async function updateCoupleAvailability(
     const { data: timeSlot } = await supabase
       .from('tournament_time_slots')
       .select(`
-        fecha_id,
+        fecha_id, slot_type, is_system,
         tournament_fechas!inner(tournament_id, round_type, bracket_key)
       `)
       .eq('id', data.time_slot_id)
@@ -928,6 +940,10 @@ export async function updateCoupleAvailability(
         success: false,
         error: 'Horario no encontrado'
       }
+    }
+
+    if (timeSlot.slot_type !== 'TIME_RANGE' || timeSlot.is_system) {
+      return { success: false, error: 'Usa la acción de fecha libre para esta opción' }
     }
 
     // Validate user access
@@ -1030,5 +1046,101 @@ export async function updateCoupleAvailability(
       success: false,
       error: getErrorMessage(error)
     }
+  }
+}
+
+export async function updateFreeDatePreference(
+  data: UpdateFreeDatePreferenceData
+): Promise<ActionResult<void>> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) return { success: false, error: 'Usuario no autenticado' }
+    if (data.notes && data.notes.length > 200) {
+      return { success: false, error: 'La nota no puede superar 200 caracteres' }
+    }
+
+    const { data: timeSlot, error: timeSlotError } = await supabase
+      .from('tournament_time_slots')
+      .select(`
+        id, slot_type, is_system,
+        tournament_fechas!inner(tournament_id, round_type, bracket_key)
+      `)
+      .eq('id', data.time_slot_id)
+      .single()
+
+    if (timeSlotError || !timeSlot || timeSlot.slot_type !== 'FREE_DATE' || !timeSlot.is_system) {
+      return { success: false, error: 'La opción de fecha libre no es válida' }
+    }
+
+    const fechaInfo = timeSlot.tournament_fechas as any
+    const accessResult = await checkUserAccess(fechaInfo.tournament_id)
+    if (!accessResult.success || !accessResult.data) return accessResult as ActionResult<void>
+    if (!accessResult.data.isInscribed || !accessResult.data.playerId) {
+      return { success: false, error: 'Solo jugadores inscritos pueden solicitar fecha libre' }
+    }
+    if (accessResult.data.coupleId !== data.couple_id) {
+      return { success: false, error: 'No perteneces a esta pareja' }
+    }
+
+    const belongsToCouple = await playerBelongsToCouple(
+      supabase,
+      accessResult.data.playerId,
+      data.couple_id
+    )
+    if (!belongsToCouple) return { success: false, error: 'No perteneces a esta pareja' }
+
+    const isGoldSilverBracketFecha =
+      fechaInfo.round_type !== 'ZONE' && ['GOLD', 'SILVER'].includes(fechaInfo.bracket_key)
+
+    if (isGoldSilverBracketFecha) {
+      const { data: seedAssignment, error: seedAssignmentError } = await supabase
+        .from('tournament_couple_seeds')
+        .select('bracket_key')
+        .eq('tournament_id', fechaInfo.tournament_id)
+        .eq('couple_id', data.couple_id)
+        .in('bracket_key', ['GOLD', 'SILVER'])
+        .maybeSingle()
+
+      if (seedAssignmentError) throw seedAssignmentError
+      if (!seedAssignment?.bracket_key) {
+        return { success: false, error: 'Tu copa todavía no está definida' }
+      }
+      if (seedAssignment.bracket_key !== fechaInfo.bracket_key) {
+        return { success: false, error: 'Esta fecha no corresponde a la copa de tu pareja' }
+      }
+    }
+
+    if (data.requested) {
+      const { error: upsertError } = await supabase
+        .from('couple_time_availability')
+        .upsert({
+          couple_id: data.couple_id,
+          time_slot_id: data.time_slot_id,
+          is_available: true,
+          notes: data.notes || null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'couple_id,time_slot_id' })
+      if (upsertError) throw upsertError
+    } else {
+      const { error: deleteError } = await supabase
+        .from('couple_time_availability')
+        .delete()
+        .eq('couple_id', data.couple_id)
+        .eq('time_slot_id', data.time_slot_id)
+      if (deleteError) throw deleteError
+    }
+
+    revalidatePath(`/tournaments/${fechaInfo.tournament_id}`)
+    revalidatePath(`/tournaments/${fechaInfo.tournament_id}/schedules`)
+    revalidatePath(`/tournaments/${fechaInfo.tournament_id}/match-scheduling`)
+
+    return {
+      success: true,
+      message: data.requested ? 'Fecha libre solicitada' : 'Solicitud de fecha libre cancelada',
+    }
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) }
   }
 }

@@ -105,13 +105,15 @@ interface PositionsTableProps {
   coupleInscriptions: CoupleInscription[];
   isSingleSetFormat: boolean;
   canManageTournament?: boolean;
+  playerCoupleId?: string | null;
 }
 
 const PositionsTable: React.FC<PositionsTableProps> = ({
   tournament,
   coupleInscriptions,
   isSingleSetFormat,
-  canManageTournament = false
+  canManageTournament = false,
+  playerCoupleId = null
 }) => {
   const [standings, setStandings] = useState<ZonePosition[]>([]);
   const [activeDisqualifications, setActiveDisqualifications] = useState<ActiveDisqualification[]>([]);
@@ -301,8 +303,41 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
         </p>
       </div>
 
+      <div className="space-y-3 md:hidden">
+        {standings.map((zonePosition) => {
+          const isCurrentCouple = zonePosition.couple_id === playerCoupleId;
+          const isDisqualified = disqualificationsByCouple.has(zonePosition.couple_id);
+          return (
+            <article
+              key={zonePosition.couple_id}
+              className={`rounded-2xl border p-4 ${isCurrentCouple ? 'border-primary bg-primary/5 ring-2 ring-primary/15' : 'border-border bg-card'}`}
+            >
+              <div className="flex items-center gap-3">
+                <Badge className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base ${isCurrentCouple ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
+                  {zonePosition.position}
+                </Badge>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-bold">{getCoupleDisplayName(zonePosition)}</p>
+                  <div className="mt-1 flex gap-2">
+                    {isCurrentCouple && <Badge variant="outline" className="border-primary/30 text-primary">Tu pareja</Badge>}
+                    {isDisqualified && <Badge variant="destructive">Descalificada</Badge>}
+                  </div>
+                </div>
+                {getPositionIcon(zonePosition.position)}
+              </div>
+              <div className="mt-4 grid grid-cols-4 gap-2 text-center">
+                <MobileStat label="PJ" value={zonePosition.wins + zonePosition.losses} />
+                <MobileStat label="PG" value={zonePosition.wins} positive />
+                <MobileStat label="PP" value={zonePosition.losses} />
+                <MobileStat label="Dif. games" value={zonePosition.games_difference} positive={zonePosition.games_difference > 0} />
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
       {/* Standings Table */}
-      <div className="rounded-lg border border-slate-200 overflow-hidden shadow-sm">
+      <div className="hidden rounded-lg border border-slate-200 overflow-hidden shadow-sm md:block">
         <Table>
           <TableHeader>
             <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100 hover:from-slate-50 hover:to-slate-100">
@@ -335,7 +370,7 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
 
               return (
                 <React.Fragment key={zonePosition.couple_id}>
-                  <TableRow className={`transition-colors ${isDisqualified ? 'bg-red-50/70 hover:bg-red-50' : getRowBackground(zonePosition.position)}`}>
+                  <TableRow className={`transition-colors ${zonePosition.couple_id === playerCoupleId ? 'bg-primary/5 ring-1 ring-inset ring-primary/20' : isDisqualified ? 'bg-red-50/70 hover:bg-red-50' : getRowBackground(zonePosition.position)}`}>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Badge
@@ -601,3 +636,10 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
 };
 
 export default PositionsTable;
+
+const MobileStat = ({ label, value, positive = false }: { label: string; value: number; positive?: boolean }) => (
+  <div className="rounded-xl bg-muted/70 p-2">
+    <p className={positive ? 'font-bold text-emerald-700' : 'font-bold'}>{value > 0 && label.includes('Dif.') ? `+${value}` : value}</p>
+    <p className="text-[10px] font-semibold text-muted-foreground">{label}</p>
+  </div>
+);

@@ -16,7 +16,7 @@ export interface RoundOption {
 
 // Mapeo de rounds a UI amigable
 const ROUND_LABELS: Record<RoundType, string> = {
-  'ZONE': 'Qually',
+  'ZONE': 'Tabla de posiciones',
   '32VOS': '32vos de Final',
   '16VOS': '16vos de Final',
   '8VOS': 'Octavos de Final',

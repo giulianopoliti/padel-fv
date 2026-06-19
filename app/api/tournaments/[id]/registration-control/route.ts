@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
+import {
+  buildTournamentCapacitySummary,
+  getTournamentCoupleCount,
+} from '@/lib/services/tournament-capacity.service'
 
 interface RegistrationControlRequest {
   registration_locked: boolean
@@ -18,7 +23,7 @@ export async function PATCH(
     // Get current tournament data to validate operation
     const { data: tournament, error: fetchError } = await supabase
       .from('tournaments')
-      .select('id, status, bracket_status, registration_locked')
+      .select('id, status, bracket_status, registration_locked, registration_locked_by_capacity, max_participants')
       .eq('id', tournamentId)
       .single()
 
@@ -55,13 +60,25 @@ export async function PATCH(
       )
     }
 
+    const currentParticipants = await getTournamentCoupleCount(supabase, tournamentId)
+    const capacity = buildTournamentCapacitySummary(tournament.max_participants, currentParticipants)
+
+    if (!registration_locked && capacity.isFull) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Cannot open registrations when tournament is full'
+        },
+        { status: 400 }
+      )
+    }
+
     // Update the registration_locked field
     const { error: updateError } = await supabase
       .from('tournaments')
       .update({
         registration_locked,
-        // Also update the updated_at timestamp if you have one
-        // updated_at: new Date().toISOString()
+        registration_locked_by_capacity: false,
       })
       .eq('id', tournamentId)
 
@@ -73,6 +90,12 @@ export async function PATCH(
       )
     }
 
+    revalidatePath('/')
+    revalidatePath('/panel')
+    revalidatePath('/tournaments')
+    revalidatePath('/tournaments/upcoming')
+    revalidatePath(`/tournaments/${tournamentId}`)
+
     return NextResponse.json({
       success: true,
       message: registration_locked
@@ -80,6 +103,7 @@ export async function PATCH(
         : 'Registrations have been opened successfully',
       data: {
         registration_locked,
+        registration_locked_by_capacity: false,
         tournament_id: tournamentId
       }
     })

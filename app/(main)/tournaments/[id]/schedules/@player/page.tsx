@@ -29,8 +29,8 @@ export default async function PlayerSchedulePage({
 
   // Check if user is inscribed
   const inscriptionResult = await checkUserTournamentInscription(user.id, resolvedParams.id)
-  if (!inscriptionResult.isInscribed) {
-    redirect('/tournaments')
+  if (!inscriptionResult.isInscribed || inscriptionResult.isPending || inscriptionResult.isEliminated) {
+    redirect(`/tournaments/${resolvedParams.id}`)
   }
 
   // Get tournament basic info

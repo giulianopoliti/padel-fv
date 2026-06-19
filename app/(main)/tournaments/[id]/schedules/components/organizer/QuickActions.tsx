@@ -122,7 +122,7 @@ export default function QuickActions({
           </div>
 
           {selectedFecha.round_type === 'ZONE' && (
-            <Badge variant="outline">Fecha Clasificatoria</Badge>
+            <Badge variant="outline">Fecha de posiciones</Badge>
           )}
           {selectedFecha.round_type !== 'ZONE' && (
             <Badge variant="outline">{getBracketLabel(selectedFecha.bracket_key)}</Badge>

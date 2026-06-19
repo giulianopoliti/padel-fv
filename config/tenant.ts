@@ -40,6 +40,14 @@ export interface TenantBranding {
   }
   tournaments: {
     defaultPublicType: "LONG" | "AMERICAN"
+    theme: {
+      className: string
+      primary: string
+      accent: string
+      highlightSurface: string
+      onPrimary: string
+      focusRing: string
+    }
   }
 }
 
@@ -86,6 +94,14 @@ const tenantBranding: Record<TenantBranding["key"], TenantBranding> = {
     },
     tournaments: {
       defaultPublicType: "LONG",
+      theme: {
+        className: "tournament-theme-padel-fv",
+        primary: "#20335d",
+        accent: "#c6de06",
+        highlightSurface: "#f8fde1",
+        onPrimary: "#ffffff",
+        focusRing: "#c6de06",
+      },
     },
   },
   "padel-elite": {
@@ -130,6 +146,14 @@ const tenantBranding: Record<TenantBranding["key"], TenantBranding> = {
     },
     tournaments: {
       defaultPublicType: "AMERICAN",
+      theme: {
+        className: "tournament-theme-padel-elite",
+        primary: "#19214f",
+        accent: "#c7dc77",
+        highlightSurface: "#f2f4a6",
+        onPrimary: "#fdfdf8",
+        focusRing: "#2ac8ff",
+      },
     },
   },
 }

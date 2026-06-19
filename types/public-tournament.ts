@@ -15,6 +15,9 @@ export interface PublicTournamentSummary {
   enablePublicInscriptions?: boolean
   currentParticipants?: number
   maxParticipants?: number | null
+  remainingSlots?: number | null
+  isFull?: boolean
+  hasFewSlots?: boolean
   hideVenue?: boolean
   club: {
     id?: string | null

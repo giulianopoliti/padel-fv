@@ -18,7 +18,9 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
-  EyeOff
+  EyeOff,
+  Home,
+  BarChart3
 } from 'lucide-react'
 import OrganizerLogo from './OrganizerLogo'
 
@@ -42,6 +44,7 @@ interface TournamentLongSidebarProps {
   userRole?: string
   playerInscription?: {
     is_eliminated: boolean
+    is_pending?: boolean
     eliminated_at: string | null
     eliminated_in_round: string | null
   } | null
@@ -61,14 +64,62 @@ interface NavigationItem {
   requiresParticipantVisibility?: boolean
 }
 
-const getNavigationItems = (
+export const getLongNavigationItems = (
   userRole?: string,
   isEliminated?: boolean,
-  canViewParticipantPages: boolean = true
+  canViewParticipantPages: boolean = true,
+  isPending: boolean = false
 ) => {
   const isPlayer = userRole === 'PLAYER'
 
+  if (isPlayer) {
+    const playerItems: NavigationItem[] = [
+      {
+        title: 'Inicio',
+        href: '',
+        icon: Home,
+        description: 'Resumen del torneo',
+        showForEliminated: true
+      },
+      {
+        title: 'Cargar disponibilidad',
+        href: '/schedules',
+        icon: Calendar,
+        description: 'Informar dias y horarios',
+        showForEliminated: false
+      },
+      {
+        title: 'Tablas de posiciones',
+        href: '/qually',
+        icon: BarChart3,
+        description: 'Posiciones del torneo',
+        showForEliminated: true,
+        requiresParticipantVisibility: true
+      },
+      {
+        title: 'Llave',
+        href: '/bracket',
+        icon: Zap,
+        description: 'Llave eliminatoria',
+        showForEliminated: true
+      }
+    ]
+
+    return playerItems.filter(item =>
+      (!isEliminated || item.showForEliminated) &&
+      (!isPending || item.href !== '/schedules') &&
+      (canViewParticipantPages || !item.requiresParticipantVisibility)
+    )
+  }
+
   const baseItems: NavigationItem[] = [
+    {
+      title: 'Inicio',
+      href: '',
+      icon: Home,
+      description: 'Resumen del torneo',
+      showForEliminated: true
+    },
     {
       title: 'Fechas y Horarios',
       href: '/schedules',
@@ -84,18 +135,18 @@ const getNavigationItems = (
       showForEliminated: true
     },
     {
-      title: 'Clasificatoria',
+      title: 'Tablas de posiciones',
       href: '/qually',
-      icon: Trophy,
-      description: 'Fase clasificatoria',
+      icon: BarChart3,
+      description: 'Resultados y posiciones',
       showForEliminated: true,
       requiresParticipantVisibility: true
     },
     {
-      title: 'Llaves',
+      title: 'Llave',
       href: '/bracket',
       icon: Zap,
-      description: 'Llaves eliminatorias',
+      description: 'Llave eliminatoria',
       showForEliminated: true
     },
     {
@@ -142,16 +193,18 @@ export default function TournamentLongSidebar({
   const pathname = usePathname()
 
   const isEliminated = playerInscription?.is_eliminated || false
-  const hasActivePlayerInscription = Boolean(playerInscription && !playerInscription.is_eliminated)
+  const isPending = playerInscription?.is_pending || false
+  const hasActivePlayerInscription = Boolean(playerInscription && !playerInscription.is_eliminated && !playerInscription.is_pending)
   const canViewParticipantPages =
     Boolean(tournament.enable_public_inscriptions) ||
     hasManagePermission ||
     hasActivePlayerInscription
 
-  const navigationItems = getNavigationItems(userRole, isEliminated, canViewParticipantPages)
+  const navigationItems = getLongNavigationItems(userRole, isEliminated, canViewParticipantPages, isPending)
 
   const getIsActive = (href: string) => {
-    return pathname.includes(href)
+    const tournamentHome = `/tournaments/${tournament.id}`
+    return href === '' ? pathname === tournamentHome : pathname.includes(href)
   }
 
   const handleLinkClick = () => {
@@ -172,7 +225,7 @@ export default function TournamentLongSidebar({
         "transition-all duration-300 relative",
         collapsed && !mobile ? "p-3" : "p-6 space-y-4"
       )}>
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 rounded-lg blur-xl" />
+        <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-primary/5 via-transparent to-accent/10 blur-xl" />
 
         <div className="flex items-start gap-3 relative">
           <div className={cn(
@@ -180,17 +233,17 @@ export default function TournamentLongSidebar({
             "bg-gradient-to-br shadow-lg",
             isEliminated
               ? "from-red-500/10 via-red-400/5 to-orange-500/10 border border-red-500/20 shadow-red-500/10"
-              : "from-blue-500/10 via-blue-400/5 to-purple-500/10 border border-blue-500/20 shadow-blue-500/10"
+              : "from-primary/15 via-primary/5 to-accent/15 border border-primary/20 shadow-primary/10"
           )}>
             <div className={cn(
               "absolute inset-0 rounded-xl bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-all duration-500",
-              isEliminated ? "from-red-400/20 to-orange-400/20" : "from-blue-400/20 to-purple-400/20"
+              isEliminated ? "from-red-400/20 to-orange-400/20" : "from-primary/20 to-accent/20"
             )} />
 
             <TrophyIcon className={cn(
               "transition-all duration-300 relative z-10",
               collapsed && !mobile ? "h-5 w-5" : "h-6 w-6",
-              isEliminated ? "text-red-500" : "text-blue-500",
+              isEliminated ? "text-red-500" : "text-primary",
               "drop-shadow-[0_0_8px_currentColor]"
             )} />
           </div>
@@ -257,7 +310,7 @@ export default function TournamentLongSidebar({
                         )}
                         aria-current={isActive ? "page" : undefined}
                       >
-                        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-purple-500/0 to-blue-500/0 opacity-0 group-hover:opacity-10 transition-opacity duration-500" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-accent/20 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
                         <Icon className={cn(
                           "h-4 w-4 flex-shrink-0 transition-all duration-300 relative z-10",

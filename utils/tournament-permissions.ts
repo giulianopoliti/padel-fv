@@ -78,6 +78,9 @@ export interface TournamentAccessResult {
     /** ¿Usuario está eliminado del torneo? */
     isEliminated?: boolean
 
+    /** ¿La inscripción todavía requiere aprobación? */
+    isPending?: boolean
+
     /** ID de la pareja si está inscrito */
     coupleId?: string
 
@@ -301,6 +304,7 @@ export interface UserInscriptionResult {
   coupleId?: string
   playerId?: string
   isEliminated?: boolean
+  isPending?: boolean
   inscriptionDetails?: {
     id: string
     created_at: string
@@ -350,7 +354,8 @@ export async function checkUserTournamentInscription(
         couple_id,
         player_id,
         is_eliminated,
-        couples!inner (
+        is_pending,
+        couples:couple_id (
           id,
           player1_id,
           player2_id,
@@ -383,7 +388,9 @@ export async function checkUserTournamentInscription(
 
     // 3. Find inscription where current player is either player1 or player2
     const userInscription = inscriptions.find(inscription => {
-      const couple = inscription.couples as any
+      if (inscription.player_id === player.id) return true
+      const couple = Array.isArray(inscription.couples) ? inscription.couples[0] : inscription.couples as any
+      if (!couple) return false
       return couple.player1_id === player.id || couple.player2_id === player.id
     })
 
@@ -399,6 +406,7 @@ export async function checkUserTournamentInscription(
       return {
         isInscribed: true,
         isEliminated: true,
+        isPending: false,
         coupleId: userInscription.couple_id,
         playerId: player.id,
         reason: 'La pareja ha sido eliminada del torneo'
@@ -406,8 +414,8 @@ export async function checkUserTournamentInscription(
     }
 
     // 5. Build inscription details
-    const couple = userInscription.couples as any
-    const inscriptionDetails = {
+    const couple = (Array.isArray(userInscription.couples) ? userInscription.couples[0] : userInscription.couples) as any
+    const inscriptionDetails = couple ? {
       id: userInscription.id,
       created_at: userInscription.created_at,
       is_eliminated: userInscription.is_eliminated,
@@ -418,11 +426,12 @@ export async function checkUserTournamentInscription(
         player1_name: `${couple.player1?.first_name || ''} ${couple.player1?.last_name || ''}`.trim(),
         player2_name: `${couple.player2?.first_name || ''} ${couple.player2?.last_name || ''}`.trim()
       }
-    }
+    } : undefined
 
     return {
       isInscribed: true,
       isEliminated: false,
+      isPending: Boolean(userInscription.is_pending),
       coupleId: userInscription.couple_id,
       playerId: player.id,
       inscriptionDetails,
@@ -463,8 +472,8 @@ export async function checkEnhancedTournamentPermissions(
 
   return {
     ...basicPermissions,
-    hasPermission: basicPermissions.hasPermission || inscriptionResult.isInscribed,
-    reason: inscriptionResult.isInscribed
+    hasPermission: basicPermissions.hasPermission || (inscriptionResult.isInscribed && !inscriptionResult.isPending),
+    reason: inscriptionResult.isInscribed && !inscriptionResult.isPending
       ? 'Acceso como jugador inscrito'
       : basicPermissions.reason || inscriptionResult.reason,
     inscriptionResult
@@ -605,10 +614,33 @@ export async function checkTournamentAccess(
           userRole: managementPerms.userRole as any,
           isInscribed: true,
           isEliminated: true,
+          isPending: false,
           coupleId: inscription.coupleId,
           playerId: inscription.playerId,
           source: 'player',
           reason: 'Jugador eliminado del torneo'
+        }
+      }
+    }
+
+    if (inscription.isPending) {
+      return {
+        accessLevel: 'PUBLIC_VIEW',
+        permissions: [
+          'view_public',
+          'view_public_bracket',
+          'view_public_zones',
+          'view_public_matches'
+        ],
+        metadata: {
+          userRole: managementPerms.userRole as any,
+          isInscribed: true,
+          isEliminated: false,
+          isPending: true,
+          coupleId: inscription.coupleId,
+          playerId: inscription.playerId,
+          source: 'player',
+          reason: 'Inscripción pendiente de aprobación'
         }
       }
     }
@@ -630,6 +662,7 @@ export async function checkTournamentAccess(
         userRole: managementPerms.userRole as any,
         isInscribed: true,
         isEliminated: false,
+        isPending: false,
         coupleId: inscription.coupleId,
         playerId: inscription.playerId,
         source: 'player',

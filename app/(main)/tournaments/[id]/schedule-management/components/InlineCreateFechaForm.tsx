@@ -160,7 +160,7 @@ export default function InlineCreateFechaForm({
             </Label>
             <Input
               id="inline-name"
-              placeholder="ej: Clasificatorias, Cuartos de Final..."
+              placeholder="ej: Tabla de posiciones, Cuartos de Final..."
               value={formData.name}
               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
               required

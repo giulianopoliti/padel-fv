@@ -90,8 +90,28 @@ export default function FechaSelector({
 
   return (
     <div className="mb-6 space-y-5">
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:hidden" aria-label="Seleccionar fecha">
+        {selectableFechas.map((fecha) => (
+          <button
+            key={fecha.id}
+            type="button"
+            onClick={() => handleFechaChange(fecha.id)}
+            disabled={isPending}
+            aria-pressed={fecha.id === selectedFechaId}
+            className={`min-h-12 shrink-0 rounded-2xl border px-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              fecha.id === selectedFechaId
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-card text-foreground'
+            }`}
+          >
+            <span className="block text-xs font-bold">Fecha {fecha.fecha_number}</span>
+            <span className="block max-w-36 truncate text-xs opacity-80">{fecha.name}</span>
+          </button>
+        ))}
+      </div>
+
       {/* Fecha Selector */}
-      <Card className="border-2 border-slate-200 shadow-sm">
+      <Card className="hidden border-2 border-border shadow-sm sm:block">
         <CardContent className="p-5">
           <div className="flex flex-col sm:flex-row sm:items-end gap-4">
             <div className="flex-1">
@@ -215,7 +235,7 @@ export default function FechaSelector({
 
       {/* Selected Fecha Info */}
       {selectedFecha && (
-        <Card className="border-l-4 border-l-blue-600 shadow-md bg-gradient-to-r from-white to-blue-50/30">
+          <Card className="border-l-4 border-l-primary bg-card shadow-sm">
           <CardContent className="p-5">
             <div className="flex flex-col sm:flex-row sm:items-start gap-4">
               <div className="flex-1 space-y-3">
@@ -231,7 +251,7 @@ export default function FechaSelector({
                   </Badge>
                   {selectedFecha.round_type === 'ZONE' && (
                     <Badge variant="outline" className="border-2 border-purple-300 text-purple-700 font-medium">
-                      Clasificatoria
+                      Tablas de posiciones
                     </Badge>
                   )}
                   {selectedFecha.round_type !== 'ZONE' && (
@@ -244,7 +264,7 @@ export default function FechaSelector({
                 <Separator />
 
                 {selectedFecha.description && (
-                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <div className="rounded-lg border border-primary/15 bg-primary/5 p-3">
                     <p className="text-sm text-slate-700 font-medium">
                       {selectedFecha.description}
                     </p>
@@ -258,9 +278,9 @@ export default function FechaSelector({
                   </div>
 
                   {(selectedFecha.start_date || selectedFecha.end_date) && (
-                    <div className="flex items-center gap-2 bg-blue-100 px-3 py-2 rounded-lg">
-                      <Clock className="h-4 w-4 text-blue-600" />
-                      <span className="font-medium text-blue-800">
+                    <div className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2">
+                      <Clock className="h-4 w-4 text-primary" />
+                      <span className="font-medium text-primary">
                         {selectedFecha.start_date && selectedFecha.end_date ? (
                           <>{formatDate(selectedFecha.start_date)} - {formatDate(selectedFecha.end_date)}</>
                         ) : selectedFecha.start_date ? (

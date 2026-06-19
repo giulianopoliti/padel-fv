@@ -18,6 +18,9 @@ interface Tournament {
   type?: string
   maxParticipants?: number
   currentParticipants?: number
+  remainingSlots?: number | null
+  isFull?: boolean
+  hasFewSlots?: boolean
   inscriptionsCount?: number
   matchesFinished?: number
   address?: string
@@ -192,11 +195,23 @@ export default function TournamentCard({
           <h3 className="text-base sm:text-lg font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors leading-tight mb-2 min-h-[2.5rem]">
             {tournament.name}
           </h3>
-          {tournament.type && (
-            <Badge variant="outline" className="text-xs font-semibold">
-              {tournament.type === 'AMERICAN' ? 'Americano' : 'Liga'}
-            </Badge>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {tournament.type && (
+              <Badge variant="outline" className="text-xs font-semibold">
+                {tournament.type === 'AMERICAN' ? 'Americano' : 'Liga'}
+              </Badge>
+            )}
+            {tournament.isFull ? (
+              <Badge className="border border-red-200 bg-red-50 text-xs font-semibold text-red-700">
+                Completo
+              </Badge>
+            ) : null}
+            {tournament.hasFewSlots ? (
+              <Badge className="animate-pulse border border-red-200 bg-red-50 text-[10px] font-semibold uppercase tracking-[0.14em] text-red-700">
+                Pocos cupos
+              </Badge>
+            ) : null}
+          </div>
         </div>
 
         <div className="space-y-2 text-xs sm:text-sm text-slate-600 mb-4">

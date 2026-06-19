@@ -87,6 +87,7 @@ export default async function QuallyPage({ params }: QuallyPageProps) {
       tournament={tournament as any}
       coupleInscriptions={coupleInscriptions as any}
       canManageTournament={accessCheck.accessLevel === 'FULL_MANAGEMENT'}
+      playerCoupleId={accessCheck.metadata.coupleId || null}
     />
   );
 }

@@ -107,6 +107,7 @@ export default function PublicTournamentList({
               : "Categoria abierta"
           const priceLabel = formatPrice(tournament.price)
           const categoryLabel = getCategoryLabel(tournament)
+          const canRegister = showRegistration && tournament.status === "NOT_STARTED" && !tournament.isFull
 
           return (
             <article
@@ -157,6 +158,16 @@ export default function PublicTournamentList({
                   <Badge className="tpe-chip rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]">
                     {statusLabel}
                   </Badge>
+                  {tournament.isFull ? (
+                    <Badge className="rounded-full border border-red-400/40 bg-red-500/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-red-100">
+                      Completo
+                    </Badge>
+                  ) : null}
+                  {tournament.hasFewSlots ? (
+                    <Badge className="animate-pulse rounded-full border border-red-400/50 bg-red-500/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-red-100">
+                      Pocos cupos
+                    </Badge>
+                  ) : null}
                   {priceLabel ? (
                     <Badge className="rounded-full border-0 bg-[var(--tpe-lime)] px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--tpe-night)]">
                       <Ticket className="mr-1 h-3.5 w-3.5" />
@@ -167,7 +178,7 @@ export default function PublicTournamentList({
               </div>
 
               <div className="flex flex-col justify-between gap-3">
-                {showRegistration && tournament.status === "NOT_STARTED" ? (
+                {canRegister ? (
                   <PublicRegistrationLauncher
                     tournamentId={tournament.id}
                     tournamentName={tournament.name}
@@ -179,6 +190,10 @@ export default function PublicTournamentList({
                     fullWidth
                     buttonClassName="w-full rounded-full bg-[var(--tpe-lime)] text-sm font-black uppercase tracking-[0.16em] text-[var(--tpe-night)] hover:bg-[#e6ff63]"
                   />
+                ) : showRegistration && tournament.status === "NOT_STARTED" ? (
+                  <div className="rounded-[1.25rem] border border-white/12 bg-white/6 px-4 py-3 text-center text-xs font-bold uppercase tracking-[0.18em] text-white/80">
+                    {tournament.isFull ? "Torneo completo" : "Inscripciones cerradas"}
+                  </div>
                 ) : null}
 
                 <Button

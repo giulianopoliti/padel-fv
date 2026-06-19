@@ -52,7 +52,7 @@ export default function FechaCard({ fecha, tournamentId, onUpdate }: FechaCardPr
               {statusBadge.label}
             </Badge>
             <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
-              {fecha.round_type === 'ZONE' ? 'Clasificatoria' : 'Eliminatoria'}
+              {fecha.round_type === 'ZONE' ? 'Tabla de posiciones' : 'Eliminatoria'}
             </Badge>
             {fecha.round_type !== 'ZONE' && (
               <Badge variant="outline">
@@ -100,7 +100,7 @@ export default function FechaCard({ fecha, tournamentId, onUpdate }: FechaCardPr
             <div className="text-sm">
               <div className="font-medium">Tipo</div>
               <div className="text-gray-600">
-                {fecha.round_type === 'ZONE' ? 'Clasificatoria' : `Eliminatoria (${getBracketLabel(fecha.bracket_key)})`}
+                {fecha.round_type === 'ZONE' ? 'Tabla de posiciones' : `Eliminatoria (${getBracketLabel(fecha.bracket_key)})`}
               </div>
             </div>
           </div>
