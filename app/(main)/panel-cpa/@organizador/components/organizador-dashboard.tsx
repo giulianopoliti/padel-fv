@@ -54,6 +54,7 @@ interface OrganizadorDashboardProps {
   categories: Category[]
   totalPlayers: number
   organizationId: string
+  canResolvePlayerIdentity: boolean
   hasError?: boolean
 }
 
@@ -63,6 +64,7 @@ export default function OrganizadorDashboard({
   categories,
   totalPlayers,
   organizationId,
+  canResolvePlayerIdentity,
   hasError = false
 }: OrganizadorDashboardProps) {
 
@@ -195,6 +197,7 @@ export default function OrganizadorDashboard({
           initialPlayers={players}
           categories={categories}
           organizationId={organizationId}
+          canResolvePlayerIdentity={canResolvePlayerIdentity}
           totalPlayers={totalPlayers}
         />
       </section>

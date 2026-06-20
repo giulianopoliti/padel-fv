@@ -3,7 +3,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, Loader2 } from 'lucide-react'
+import { Search, Loader2, UserRoundCheck } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { PlayerIdentityTransferDialog } from '@/components/players/player-identity-transfer-dialog'
 import { searchPlayersOrganization } from '@/lib/api/supabase-edge'
 import PlayersTableWithActions from '@/components/players/players-table-with-actions'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -33,18 +35,21 @@ interface PlayersSectionClientProps {
   categories: Category[]
   organizationId: string
   totalPlayers: number
+  canResolvePlayerIdentity: boolean
 }
 
 export default function PlayersSectionClient({
   initialPlayers,
   categories,
   organizationId,
-  totalPlayers
+  totalPlayers,
+  canResolvePlayerIdentity
 }: PlayersSectionClientProps) {
   const [players, setPlayers] = useState(initialPlayers)
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [isSearching, setIsSearching] = useState(false)
+  const [showIdentityTransfer, setShowIdentityTransfer] = useState(false)
   const { toast } = useToast()
 
   // Referencia para mantener el foco en el input
@@ -103,6 +108,14 @@ export default function PlayersSectionClient({
 
   return (
     <div className="space-y-4">
+      {canResolvePlayerIdentity && (
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" onClick={() => setShowIdentityTransfer(true)}>
+            <UserRoundCheck className="mr-2 h-4 w-4" />
+            Resolver jugador duplicado
+          </Button>
+        </div>
+      )}
       {/* Búsqueda y Filtros */}
       <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
@@ -151,6 +164,13 @@ export default function PlayersSectionClient({
           onPlayerDelete={() => {}}
         />
       </div>
+      {canResolvePlayerIdentity && (
+        <PlayerIdentityTransferDialog
+          open={showIdentityTransfer}
+          onOpenChange={setShowIdentityTransfer}
+          onTransferred={() => performSearch(debouncedSearch, categoryFilter)}
+        />
+      )}
     </div>
   )
 }

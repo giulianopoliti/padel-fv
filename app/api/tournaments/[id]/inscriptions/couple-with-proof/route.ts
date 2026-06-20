@@ -159,7 +159,6 @@ export async function POST(
     const { error: updateError } = await supabase
       .from('inscriptions')
       .update({
-        is_pending: true,
         payment_proof_status: 'PENDING_REVIEW',
         payment_proof_path: uploadResult.filePath,
         payment_proof_uploaded_at: new Date().toISOString(),

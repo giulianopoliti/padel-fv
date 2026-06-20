@@ -58,7 +58,7 @@ export default async function OrganizadorDashboardPage() {
   // 2. Obtener organization_id del usuario
   const { data: orgMember, error: orgError } = await supabase
     .from("organization_members")
-    .select("organizacion_id")
+    .select("organizacion_id, member_role")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .single()
@@ -120,6 +120,7 @@ export default async function OrganizadorDashboardPage() {
       categories={categories}
       totalPlayers={totalPlayers || 0}
       organizationId={organizationId}
+      canResolvePlayerIdentity={['owner', 'admin'].includes(orgMember.member_role)}
       hasError={!!tournamentsError || !!playersError}
     />
   )

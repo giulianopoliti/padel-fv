@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, Loader2 } from 'lucide-react'
+import { Search, Loader2, UserRoundCheck } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { PlayerIdentityTransferDialog } from '@/components/players/player-identity-transfer-dialog'
 import { searchPlayersOrganization } from '@/lib/api/supabase-edge'
 import { PaginationControl } from '@/components/ui/pagination'
 import PlayersTableWithActions from '@/components/players/players-table-with-actions'
@@ -35,6 +37,7 @@ interface PlayersManagementClientProps {
   initialTotal: number
   initialPage: number
   organizationId: string
+  canResolvePlayerIdentity: boolean
 }
 
 export default function PlayersManagementClient({
@@ -42,7 +45,8 @@ export default function PlayersManagementClient({
   initialCategories,
   initialTotal,
   initialPage,
-  organizationId
+  organizationId,
+  canResolvePlayerIdentity
 }: PlayersManagementClientProps) {
   const [players, setPlayers] = useState(initialPlayers)
   const [total, setTotal] = useState(initialTotal)
@@ -50,6 +54,7 @@ export default function PlayersManagementClient({
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [isSearching, setIsSearching] = useState(false)
+  const [showIdentityTransfer, setShowIdentityTransfer] = useState(false)
   const { toast } = useToast()
 
   // Debounce del searchTerm (300ms)
@@ -116,7 +121,7 @@ export default function PlayersManagementClient({
   return (
     <div className="space-y-6">
       {/* Header con contador */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Mis Jugadores</h1>
           <p className="text-muted-foreground mt-1">
@@ -130,6 +135,12 @@ export default function PlayersManagementClient({
             )}
           </p>
         </div>
+        {canResolvePlayerIdentity && (
+          <Button type="button" variant="outline" onClick={() => setShowIdentityTransfer(true)}>
+            <UserRoundCheck className="mr-2 h-4 w-4" />
+            Resolver jugador duplicado
+          </Button>
+        )}
       </div>
 
       {/* Búsqueda y Filtros */}
@@ -190,6 +201,13 @@ export default function PlayersManagementClient({
             disabled={isSearching}
           />
         </div>
+      )}
+      {canResolvePlayerIdentity && (
+        <PlayerIdentityTransferDialog
+          open={showIdentityTransfer}
+          onOpenChange={setShowIdentityTransfer}
+          onTransferred={() => performSearch(debouncedSearch, currentPage, categoryFilter)}
+        />
       )}
     </div>
   )

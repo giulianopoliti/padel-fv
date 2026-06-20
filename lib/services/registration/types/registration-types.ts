@@ -143,6 +143,7 @@ export interface Tournament {
   category_name?: string
   category_config?: TournamentCategoryConfig | null
   status: string
+  validate_inscriptions: boolean
 }
 
 export interface RegistrationContext {

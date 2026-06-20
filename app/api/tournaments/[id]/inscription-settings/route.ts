@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 import { checkTournamentPermissions } from '@/utils/tournament-permissions'
 
 interface InscriptionSettingsPayload {
+  validate_inscriptions: boolean
   enable_public_inscriptions: boolean
   show_few_slots_alert: boolean
   enable_payment_checkboxes: boolean
@@ -44,6 +45,7 @@ export async function PATCH(
     const { data: currentTournament, error: currentTournamentError } = await supabase
       .from('tournaments')
       .select(`
+        validate_inscriptions,
         enable_public_inscriptions,
         show_few_slots_alert,
         enable_payment_checkboxes,
@@ -61,6 +63,8 @@ export async function PATCH(
       )
     }
 
+    const validateInscriptions =
+      payload.validate_inscriptions ?? currentTournament.validate_inscriptions ?? false
     const enablePublicInscriptions =
       payload.enable_public_inscriptions ?? currentTournament.enable_public_inscriptions ?? true
     const showFewSlotsAlert =
@@ -99,6 +103,7 @@ export async function PATCH(
     }
 
     const updatePayload: Record<string, unknown> = {
+      validate_inscriptions: validateInscriptions,
       enable_public_inscriptions: enablePublicInscriptions,
       show_few_slots_alert: showFewSlotsAlert,
       enable_payment_checkboxes: enablePaymentCheckboxes,

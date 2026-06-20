@@ -33,6 +33,10 @@ import {
 } from '@/lib/services/tournament-zone-membership';
 import { MAX_TOURNAMENT_PRICE } from '@/lib/constants/tournaments';
 import { syncTournamentCapacityRegistrationLock } from '@/lib/services/tournament-capacity.service';
+import {
+  getTournamentInscriptionPendingState,
+  shouldRequireInscriptionValidation,
+} from '@/lib/services/registration/inscription-validation';
 
 
 // Sistema unificado de puntos para TODO el torneo
@@ -1368,7 +1372,7 @@ export async function registerPlayerForTournament(tournamentId: string, playerId
   // First, get tournament info to determine category
   const { data: tournamentData, error: tournamentError } = await supabase
     .from('tournaments')
-    .select('category_name, category_config, gender')
+    .select('category_name, category_config, gender, validate_inscriptions')
     .eq('id', tournamentId)
     .single();
     
@@ -1429,7 +1433,10 @@ export async function registerPlayerForTournament(tournamentId: string, playerId
     .insert({ 
       tournament_id: tournamentId, 
       player_id: playerId, 
-      is_pending: false // Direct registration is not pending
+      is_pending: shouldRequireInscriptionValidation({
+        validateInscriptions: tournamentData.validate_inscriptions,
+        actorRole: 'PLAYER',
+      })
     })
     .select()
     .single();
@@ -2611,12 +2618,18 @@ export async function requestSoloInscription(
 ): Promise<{ success: boolean; message: string; error?: any }> {
   const supabase = await createClient();
   try {
+    const isPending = await getTournamentInscriptionPendingState({
+      supabase,
+      tournamentId,
+      actorRole: 'PLAYER',
+    });
+
     const { error } = await supabase.from("inscriptions").insert([
       {
         player_id: playerId,
         tournament_id: tournamentId,
         phone: phoneNumber,
-        is_pending: true,
+        is_pending: isPending,
       },
     ]);
 
@@ -2645,6 +2658,12 @@ export async function requestCoupleInscription(
 ): Promise<{ success: boolean; message: string; error?: any }> {
   const supabase = await createClient();
   try {
+    const isPending = await getTournamentInscriptionPendingState({
+      supabase,
+      tournamentId,
+      actorRole: 'PLAYER',
+    });
+
     // 1. Find or Create the couple
     // Check if couple exists (player1Id, player2Id)
     const existingCouple1Result = await supabase
@@ -2723,7 +2742,7 @@ export async function requestCoupleInscription(
         // The existing `registerCoupleForTournament` uses `player_id: player1Id` for inscriptions. Let's follow that.
         player_id: player1Id, 
         phone: phoneNumber,
-        is_pending: true,
+        is_pending: isPending,
       },
     ]);
 

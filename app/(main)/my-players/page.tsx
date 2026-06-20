@@ -18,7 +18,7 @@ export default async function MyPlayersPage() {
   // 2. Obtener organization_id del usuario
   const { data: orgMember, error: orgError } = await supabase
     .from("organization_members")
-    .select("organizacion_id")
+    .select("organizacion_id, member_role")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .single()
@@ -52,6 +52,7 @@ export default async function MyPlayersPage() {
         initialTotal={playersResult.total}
         initialPage={1}
         organizationId={organizationId}
+        canResolvePlayerIdentity={['owner', 'admin'].includes(orgMember.member_role)}
       />
     </div>
   )

@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { getTournamentInscriptionPendingState } from '@/lib/services/registration/inscription-validation';
 
 /**
  * Registrar una pareja para un torneo
@@ -23,6 +24,19 @@ export async function registerCoupleForTournament({
     player1Id,
     player2Id
   });
+
+  let isPending: boolean
+  try {
+    isPending = await getTournamentInscriptionPendingState({
+      supabase,
+      tournamentId,
+      actorRole: isOrganizerRegistration ? 'ORGANIZADOR' : 'PLAYER',
+      isOrganizerRegistration,
+    })
+  } catch (error) {
+    console.error('[registerCoupleForTournament] Error loading inscription settings:', error)
+    return { success: false, error: 'No se pudo obtener la configuracion de inscripciones.' }
+  }
   
   // Check if either player is already registered in this tournament (individually or in a couple)
   const { data: existingPlayerInscriptions, error: playerCheckError } = await supabase
@@ -166,7 +180,6 @@ export async function registerCoupleForTournament({
     .select('id')
     .eq('tournament_id', tournamentId)
     .eq('couple_id', coupleId)
-    .eq('is_pending', false)
     .maybeSingle();
     
   if (inscriptionCheckError) {
@@ -188,7 +201,7 @@ export async function registerCoupleForTournament({
       player_id: isOrganizerRegistration ? null : player1Id,
       couple_id: coupleId,
       tournament_id: tournamentId,
-      is_pending: true, // Inscripcion pendiente hasta que el organizador la apruebe
+      is_pending: isPending,
       created_at: new Date().toISOString()
     });
     

@@ -337,7 +337,7 @@ export class RegistrationService {
       // Obtener datos del torneo
       const { data: tournament, error: tournamentError } = await this.supabase
         .from('tournaments')
-        .select('id, name, type, gender, category_name, category_config, status')
+        .select('id, name, type, gender, category_name, category_config, status, validate_inscriptions')
         .eq('id', tournamentId)
         .single()
 
@@ -355,7 +355,8 @@ export class RegistrationService {
           gender: tournament.gender,
           category_name: tournament.category_name,
           category_config: tournament.category_config,
-          status: tournament.status
+          status: tournament.status,
+          validate_inscriptions: tournament.validate_inscriptions ?? false
         },
         user: {
           id: user.id,

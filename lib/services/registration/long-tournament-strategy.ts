@@ -18,6 +18,7 @@ import {
 } from '@/lib/services/tournament-zone-membership'
 import { normalizePlayerDni } from '@/lib/utils/player-dni'
 import { findExistingPlayerByIdentity } from '@/lib/utils/player-identity'
+import { shouldRequireInscriptionValidation } from './inscription-validation'
 import type {
   RegisterCoupleRequest,
   RegisterNewPlayersRequest,
@@ -108,7 +109,11 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
           tournament_id: tournamentId,
           couple_id: coupleId,
           player_id: isOrganizerRegistration ? null : player1Id,
-          is_pending: !isOrganizerRegistration
+          is_pending: shouldRequireInscriptionValidation({
+            validateInscriptions: context.tournament.validate_inscriptions,
+            actorRole: context.user.role,
+            isOrganizerRegistration,
+          })
         })
         .select('id')
         .single()
@@ -245,7 +250,10 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
           player_id: playerId,
           tournament_id: tournamentId,
           couple_id: null,
-          is_pending: false
+          is_pending: shouldRequireInscriptionValidation({
+            validateInscriptions: context.tournament.validate_inscriptions,
+            actorRole: context.user.role,
+          })
         })
         .select('id')
         .single()
@@ -328,7 +336,10 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
           couple_id: null,
           phone: phone || null,
           created_at: new Date().toISOString(),
-          is_pending: false
+          is_pending: shouldRequireInscriptionValidation({
+            validateInscriptions: context.tournament.validate_inscriptions,
+            actorRole: context.user.role,
+          })
         })
         .select('id')
         .single()

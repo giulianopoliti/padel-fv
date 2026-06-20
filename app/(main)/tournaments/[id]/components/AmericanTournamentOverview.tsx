@@ -20,6 +20,7 @@ interface AmericanTournamentOverviewProps {
   metadata: {
     userRole?: 'ADMIN' | 'CLUB' | 'ORGANIZADOR' | 'PLAYER' | 'COACH';
     isInscribed?: boolean;
+    isPending?: boolean;
     isEliminated?: boolean;
     coupleId?: string;
     playerId?: string;

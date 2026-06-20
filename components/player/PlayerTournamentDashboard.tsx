@@ -20,6 +20,7 @@ import CancelRegistrationButton from '@/components/tournament/player/cancel-regi
 import NotRegisteredView from '@/components/tournament/NotRegisteredView'
 import PublicRegistrationLauncher from '@/components/tournament/public-registration-launcher'
 import TournamentHeroDetails from '@/components/tournament/TournamentHeroDetails'
+import TournamentPublicInfoCard from '@/components/tournament/TournamentPublicInfoCard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import type { LongPlayerOverview, LongPlayerOverviewMatch } from '@/lib/services/long-player-overview.shared'
 import type { TournamentPublicInfo } from '@/lib/tournaments/public-tournament-details'
+import { PLAYER_INSCRIPTION_COPY } from '@/lib/tournaments/player-inscription-copy'
 import { cn } from '@/lib/utils'
 import { Gender } from '@/types'
 
@@ -262,7 +264,7 @@ const PendingRegistrationView = ({
         <div className="flex items-start gap-3">
           <Clock3 className="mt-0.5 h-6 w-6 shrink-0 text-amber-700" />
           <div>
-            <h2 className="text-xl font-bold text-amber-950">Inscripcion pendiente de aprobacion</h2>
+            <h2 className="text-xl font-bold text-amber-950">{PLAYER_INSCRIPTION_COPY.pendingTitle}</h2>
             <p className="mt-2 text-sm text-amber-900">
               El organizador recibio tu solicitud. Cuando la apruebe vas a poder cargar disponibilidad y acceder a todas las funciones de jugador.
             </p>
@@ -270,6 +272,9 @@ const PendingRegistrationView = ({
         </div>
       </CardContent>
     </Card>
+    {tournament.publicInfo && (
+      <TournamentPublicInfoCard publicInfo={tournament.publicInfo} showSchedule={false} />
+    )}
     <div className="flex justify-end">
       <CancelRegistrationButton
         tournamentId={tournamentId}

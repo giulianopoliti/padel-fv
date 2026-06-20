@@ -6,11 +6,12 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { AlertTriangle, Eye, Landmark, Loader2, Receipt } from "lucide-react"
+import { AlertTriangle, Eye, Landmark, Loader2, Receipt, ShieldCheck } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
 interface InscriptionAutomationFormProps {
   tournamentId: string
+  initialValidateInscriptions: boolean
   initialEnablePublicInscriptions: boolean
   initialShowFewSlotsAlert: boolean
   initialEnablePaymentCheckboxes: boolean
@@ -22,6 +23,7 @@ interface InscriptionAutomationFormProps {
 type SaveState = "idle" | "saving" | "saved" | "error"
 
 interface PersistPatch {
+  validate_inscriptions?: boolean
   enable_public_inscriptions?: boolean
   show_few_slots_alert?: boolean
   enable_payment_checkboxes?: boolean
@@ -83,6 +85,7 @@ function SettingCard({
 
 export default function InscriptionAutomationForm({
   tournamentId,
+  initialValidateInscriptions,
   initialEnablePublicInscriptions,
   initialShowFewSlotsAlert,
   initialEnablePaymentCheckboxes,
@@ -90,6 +93,7 @@ export default function InscriptionAutomationForm({
   initialTransferAlias,
   initialTransferAmount,
 }: InscriptionAutomationFormProps) {
+  const [validateInscriptions, setValidateInscriptions] = useState(initialValidateInscriptions)
   const [enablePublicInscriptions, setEnablePublicInscriptions] = useState(initialEnablePublicInscriptions)
   const [showFewSlotsAlert, setShowFewSlotsAlert] = useState(initialShowFewSlotsAlert)
   const [enablePaymentCheckboxes, setEnablePaymentCheckboxes] = useState(initialEnablePaymentCheckboxes)
@@ -99,6 +103,7 @@ export default function InscriptionAutomationForm({
     initialTransferAmount !== null && initialTransferAmount !== undefined ? String(initialTransferAmount) : ""
   )
 
+  const [validationStatus, setValidationStatus] = useState<SaveState>("idle")
   const [publicStatus, setPublicStatus] = useState<SaveState>("idle")
   const [fewSlotsStatus, setFewSlotsStatus] = useState<SaveState>("idle")
   const [checkboxStatus, setCheckboxStatus] = useState<SaveState>("idle")
@@ -214,6 +219,36 @@ export default function InscriptionAutomationForm({
         description: checked
           ? "El organizador ya puede marcar pagos manualmente."
           : "El panel oculta el seguimiento manual de pagos.",
+      })
+    }
+  }
+
+  const handleValidationToggle = async (checked: boolean) => {
+    setValidateInscriptions(checked)
+
+    const result = await persistSettings(
+      { validate_inscriptions: checked },
+      {
+        onStart: () => setValidationStatus("saving"),
+        onSuccess: () => setValidationStatus("saved"),
+        onError: (message) => {
+          setValidationStatus("error")
+          setValidateInscriptions((current) => !current)
+          toast({
+            title: "No se pudo actualizar la validacion",
+            description: message,
+            variant: "destructive",
+          })
+        },
+      }
+    )
+
+    if (result.success) {
+      toast({
+        title: checked ? "Validacion activada" : "Validacion desactivada",
+        description: checked
+          ? "Las nuevas inscripciones de jugadores requeriran aprobacion."
+          : "Las inscripciones pendientes fueron aprobadas y las nuevas ingresaran directamente.",
       })
     }
   }
@@ -345,6 +380,46 @@ export default function InscriptionAutomationForm({
 
   return (
     <div className="space-y-5">
+      <SettingCard
+        icon={<ShieldCheck className="h-4 w-4 text-emerald-600" />}
+        title="Validar inscripciones"
+        description="Decide si las inscripciones realizadas por jugadores requieren aprobacion del organizador."
+        status={validationStatus}
+      >
+        <div className="flex flex-col gap-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge
+                variant={validateInscriptions ? "default" : "secondary"}
+                className={validateInscriptions ? "bg-emerald-600 hover:bg-emerald-600" : ""}
+              >
+                {validateInscriptions ? "Requiere aprobacion" : "Inscripcion directa"}
+              </Badge>
+              <span className="text-sm font-medium text-slate-900">
+                {validateInscriptions
+                  ? "El organizador valida cada nueva inscripcion"
+                  : "Los jugadores quedan inscriptos automaticamente"}
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Al desactivarla, las inscripciones pendientes actuales se aprueban automaticamente.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Label htmlFor="validate-inscriptions" className="text-sm font-medium">
+              Validar inscripciones
+            </Label>
+            <Switch
+              id="validate-inscriptions"
+              checked={validateInscriptions}
+              onCheckedChange={handleValidationToggle}
+              disabled={validationStatus === "saving"}
+            />
+          </div>
+        </div>
+      </SettingCard>
+
       <SettingCard
         icon={<Eye className="h-4 w-4 text-blue-600" />}
         title="Vista publica de inscripciones"

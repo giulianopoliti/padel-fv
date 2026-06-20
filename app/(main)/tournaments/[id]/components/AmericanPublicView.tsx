@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Calendar, MapPin, Trophy, Users, XCircle } from "lucide-react";
+import { Calendar, CheckCircle2, MapPin, Trophy, Users, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import PublicRegistrationLauncher from "@/components/tournament/public-registration-launcher";
@@ -11,6 +11,7 @@ import type { TournamentPublicInfo } from "@/lib/tournaments/public-tournament-d
 import { Gender } from "@/types";
 import type { AccessLevel, TournamentPermission } from "@/utils/tournament-permissions";
 import { shouldShowFewSlotsAlert } from "@/lib/tournaments/few-slots-visibility";
+import { PLAYER_INSCRIPTION_COPY } from "@/lib/tournaments/player-inscription-copy";
 
 interface AmericanPublicViewProps {
   tournamentId: string;
@@ -20,6 +21,7 @@ interface AmericanPublicViewProps {
   metadata: {
     userRole?: "ADMIN" | "CLUB" | "ORGANIZADOR" | "PLAYER" | "COACH";
     isInscribed?: boolean;
+    isPending?: boolean;
     coupleId?: string;
     playerId?: string;
     source?: "admin" | "club_owner" | "organization_member" | "player" | "public";
@@ -52,10 +54,12 @@ export default function AmericanPublicView({
   const isAuthenticated = !!metadata.userRole;
   const canRegister = metadata.userRole === "PLAYER";
   const isGuest = !isAuthenticated;
+  const isInscribed = Boolean(metadata.isInscribed);
+  const isPending = Boolean(metadata.isPending);
   const isFull = Boolean(tournament.is_full);
   const hasFewSlots = Boolean(tournament.has_few_slots);
   const showFewSlotsAlert = tournament.show_few_slots_alert !== false;
-  const canShowRegistration = (isGuest || canRegister) && !isCanceled && !isFull;
+  const canShowRegistration = (isGuest || canRegister) && !isInscribed && !isCanceled && !isFull;
 
   const registrationLauncher = (
     <PublicRegistrationLauncher
@@ -172,6 +176,24 @@ export default function AmericanPublicView({
               </div>
             )}
 
+            {isInscribed && !isCanceled ? (
+              <div className="mx-auto mt-8 max-w-md rounded-lg border border-emerald-200/70 bg-emerald-600/90 p-4 text-white shadow-lg backdrop-blur-sm">
+                <div className="flex items-center justify-center gap-2">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <p className="text-base font-semibold">
+                    {isPending
+                      ? PLAYER_INSCRIPTION_COPY.pendingTitle
+                      : PLAYER_INSCRIPTION_COPY.confirmedTitle}
+                  </p>
+                </div>
+                <p className="mt-2 text-sm text-emerald-50">
+                  {isPending
+                    ? "Los organizadores deben aprobarla antes de confirmar tu participación."
+                    : "Tu inscripción fue confirmada correctamente."}
+                </p>
+              </div>
+            ) : null}
+
             {isFull && !isCanceled ? (
               <div className="mt-8 max-w-md mx-auto">
                 <div className="rounded-lg border border-red-200/70 bg-red-600/90 p-4 text-white shadow-[0_0_28px_rgba(220,38,38,0.45)] backdrop-blur-sm">
@@ -203,7 +225,7 @@ export default function AmericanPublicView({
             </Card>
           ) : null}
 
-          {canRegister && !isGuest && !isFull && (
+          {canRegister && !isGuest && !isInscribed && !isFull && (
             <Card className="bg-blue-50 border-blue-200">
               <CardContent className="pt-6">
                 <div className="text-center space-y-4">
