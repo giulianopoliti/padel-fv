@@ -10,6 +10,7 @@ import TournamentPublicInfoCard from "@/components/tournament/TournamentPublicIn
 import type { TournamentPublicInfo } from "@/lib/tournaments/public-tournament-details";
 import { Gender } from "@/types";
 import type { AccessLevel, TournamentPermission } from "@/utils/tournament-permissions";
+import { shouldShowFewSlotsAlert } from "@/lib/tournaments/few-slots-visibility";
 
 interface AmericanPublicViewProps {
   tournamentId: string;
@@ -53,6 +54,7 @@ export default function AmericanPublicView({
   const isGuest = !isAuthenticated;
   const isFull = Boolean(tournament.is_full);
   const hasFewSlots = Boolean(tournament.has_few_slots);
+  const showFewSlotsAlert = tournament.show_few_slots_alert !== false;
   const canShowRegistration = (isGuest || canRegister) && !isCanceled && !isFull;
 
   const registrationLauncher = (
@@ -78,7 +80,7 @@ export default function AmericanPublicView({
               <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
                 Torneo Americano
               </Badge>
-              {hasFewSlots ? (
+              {shouldShowFewSlotsAlert(showFewSlotsAlert, hasFewSlots) ? (
                 <Badge className="animate-pulse border border-red-200/70 bg-red-600 text-white shadow-[0_0_24px_rgba(220,38,38,0.45)]">
                   Pocos cupos
                 </Badge>

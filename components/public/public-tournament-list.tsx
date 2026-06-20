@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Gender } from "@/types"
 import type { PublicTournamentSummary } from "@/types/public-tournament"
+import { shouldShowFewSlotsAlert } from "@/lib/tournaments/few-slots-visibility"
 
 interface PublicTournamentListProps {
   tournaments: PublicTournamentSummary[]
@@ -163,7 +164,7 @@ export default function PublicTournamentList({
                       Completo
                     </Badge>
                   ) : null}
-                  {tournament.hasFewSlots ? (
+                  {shouldShowFewSlotsAlert(tournament.showFewSlotsAlert, tournament.hasFewSlots) ? (
                     <Badge className="animate-pulse rounded-full border border-red-200/90 bg-red-600 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white shadow-[0_0_24px_rgba(220,38,38,0.45)]">
                       Pocos cupos
                     </Badge>

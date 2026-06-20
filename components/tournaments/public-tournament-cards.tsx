@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Gender } from "@/types"
 import { getTenantBranding } from "@/config/tenant"
+import { shouldShowFewSlotsAlert } from "@/lib/tournaments/few-slots-visibility"
 import { CalendarDays, Clock3, MapPin, Tag, Trophy } from "lucide-react"
 
 export interface PublicTournamentSummary {
@@ -27,6 +28,7 @@ export interface PublicTournamentSummary {
   remainingSlots?: number | null
   isFull?: boolean
   hasFewSlots?: boolean
+  showFewSlotsAlert?: boolean
   hideVenue?: boolean
   club?: {
     id?: string | null
@@ -245,7 +247,7 @@ export function PublicTournamentCards({
                         Completo
                       </Badge>
                     ) : null}
-                    {tournament.hasFewSlots ? (
+                    {shouldShowFewSlotsAlert(tournament.showFewSlotsAlert, tournament.hasFewSlots) ? (
                       <Badge className="animate-pulse rounded-full border border-red-200/90 bg-red-600 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white shadow-[0_0_24px_rgba(220,38,38,0.45)]">
                         Pocos cupos
                       </Badge>

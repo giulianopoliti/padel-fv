@@ -670,7 +670,8 @@ export const getUser = async (): Promise<User | null> => {
         description,
         price,
         status,
-        enable_public_inscriptions
+        enable_public_inscriptions,
+        show_few_slots_alert
       `)
       .eq("club_id", clubId)
       .gte("start_date", new Date().toISOString())
@@ -735,6 +736,7 @@ export const getUser = async (): Promise<User | null> => {
           price: tournament.price,
           status: tournament.status,
           enablePublicInscriptions: Boolean(tournament.enable_public_inscriptions),
+          showFewSlotsAlert: tournament.show_few_slots_alert !== false,
           maxParticipants: tournament.max_participants,
           currentParticipants: tournament.currentParticipants || 0,
           registrations: `${tournament.currentParticipants || 0}/${tournament.max_participants || 0}`,

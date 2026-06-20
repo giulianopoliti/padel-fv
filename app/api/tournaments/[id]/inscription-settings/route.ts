@@ -5,6 +5,7 @@ import { checkTournamentPermissions } from '@/utils/tournament-permissions'
 
 interface InscriptionSettingsPayload {
   enable_public_inscriptions: boolean
+  show_few_slots_alert: boolean
   enable_payment_checkboxes: boolean
   enable_transfer_proof: boolean
   transfer_alias: string | null
@@ -44,6 +45,7 @@ export async function PATCH(
       .from('tournaments')
       .select(`
         enable_public_inscriptions,
+        show_few_slots_alert,
         enable_payment_checkboxes,
         enable_transfer_proof,
         transfer_alias,
@@ -61,6 +63,8 @@ export async function PATCH(
 
     const enablePublicInscriptions =
       payload.enable_public_inscriptions ?? currentTournament.enable_public_inscriptions ?? true
+    const showFewSlotsAlert =
+      payload.show_few_slots_alert ?? currentTournament.show_few_slots_alert ?? true
     const enablePaymentCheckboxes =
       payload.enable_payment_checkboxes ?? currentTournament.enable_payment_checkboxes ?? false
     const enableTransferProof =
@@ -96,6 +100,7 @@ export async function PATCH(
 
     const updatePayload: Record<string, unknown> = {
       enable_public_inscriptions: enablePublicInscriptions,
+      show_few_slots_alert: showFewSlotsAlert,
       enable_payment_checkboxes: enablePaymentCheckboxes,
       enable_transfer_proof: enableTransferProof,
       transfer_alias: transferAlias,
@@ -117,6 +122,9 @@ export async function PATCH(
     revalidatePath(`/tournaments/${tournamentId}`)
     revalidatePath(`/tournaments/${tournamentId}/settings`, 'layout')
     revalidatePath(`/tournaments/${tournamentId}/inscriptions`)
+    revalidatePath('/tournaments')
+    revalidatePath('/panel')
+    revalidatePath('/')
 
     return NextResponse.json({
       success: true,

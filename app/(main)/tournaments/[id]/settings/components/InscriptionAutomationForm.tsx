@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Eye, Landmark, Loader2, Receipt } from "lucide-react"
+import { AlertTriangle, Eye, Landmark, Loader2, Receipt } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
 interface InscriptionAutomationFormProps {
   tournamentId: string
   initialEnablePublicInscriptions: boolean
+  initialShowFewSlotsAlert: boolean
   initialEnablePaymentCheckboxes: boolean
   initialEnableTransferProof: boolean
   initialTransferAlias: string | null
@@ -22,6 +23,7 @@ type SaveState = "idle" | "saving" | "saved" | "error"
 
 interface PersistPatch {
   enable_public_inscriptions?: boolean
+  show_few_slots_alert?: boolean
   enable_payment_checkboxes?: boolean
   enable_transfer_proof?: boolean
   transfer_alias?: string | null
@@ -82,12 +84,14 @@ function SettingCard({
 export default function InscriptionAutomationForm({
   tournamentId,
   initialEnablePublicInscriptions,
+  initialShowFewSlotsAlert,
   initialEnablePaymentCheckboxes,
   initialEnableTransferProof,
   initialTransferAlias,
   initialTransferAmount,
 }: InscriptionAutomationFormProps) {
   const [enablePublicInscriptions, setEnablePublicInscriptions] = useState(initialEnablePublicInscriptions)
+  const [showFewSlotsAlert, setShowFewSlotsAlert] = useState(initialShowFewSlotsAlert)
   const [enablePaymentCheckboxes, setEnablePaymentCheckboxes] = useState(initialEnablePaymentCheckboxes)
   const [enableTransferProof, setEnableTransferProof] = useState(initialEnableTransferProof)
   const [transferAlias, setTransferAlias] = useState(initialTransferAlias || "")
@@ -96,6 +100,7 @@ export default function InscriptionAutomationForm({
   )
 
   const [publicStatus, setPublicStatus] = useState<SaveState>("idle")
+  const [fewSlotsStatus, setFewSlotsStatus] = useState<SaveState>("idle")
   const [checkboxStatus, setCheckboxStatus] = useState<SaveState>("idle")
   const [transferToggleStatus, setTransferToggleStatus] = useState<SaveState>("idle")
   const [transferFieldsStatus, setTransferFieldsStatus] = useState<SaveState>("idle")
@@ -209,6 +214,36 @@ export default function InscriptionAutomationForm({
         description: checked
           ? "El organizador ya puede marcar pagos manualmente."
           : "El panel oculta el seguimiento manual de pagos.",
+      })
+    }
+  }
+
+  const handleFewSlotsToggle = async (checked: boolean) => {
+    setShowFewSlotsAlert(checked)
+
+    const result = await persistSettings(
+      { show_few_slots_alert: checked },
+      {
+        onStart: () => setFewSlotsStatus("saving"),
+        onSuccess: () => setFewSlotsStatus("saved"),
+        onError: (message) => {
+          setFewSlotsStatus("error")
+          setShowFewSlotsAlert((current) => !current)
+          toast({
+            title: "No se pudo actualizar el aviso de cupos",
+            description: message,
+            variant: "destructive",
+          })
+        },
+      }
+    )
+
+    if (result.success) {
+      toast({
+        title: checked ? "Aviso de pocos cupos visible" : "Aviso de pocos cupos oculto",
+        description: checked
+          ? "Se mostrara cuando queden dos lugares o menos."
+          : "El conteo sigue privado y tampoco se mostrara el aviso rojo.",
       })
     }
   }
@@ -340,6 +375,44 @@ export default function InscriptionAutomationForm({
               checked={enablePublicInscriptions}
               onCheckedChange={handlePublicToggle}
               disabled={publicStatus === "saving"}
+            />
+          </div>
+        </div>
+      </SettingCard>
+
+      <SettingCard
+        icon={<AlertTriangle className="h-4 w-4 text-red-600" />}
+        title="Aviso de pocos cupos"
+        description="Muestra una alerta roja cuando quedan dos lugares o menos, sin revelar el total de inscriptos."
+        status={fewSlotsStatus}
+      >
+        <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge
+                variant={showFewSlotsAlert ? "default" : "secondary"}
+                className={showFewSlotsAlert ? "bg-red-600 hover:bg-red-600" : ""}
+              >
+                {showFewSlotsAlert ? "Visible" : "Oculto"}
+              </Badge>
+              <span className="text-sm font-medium text-slate-900">
+                {showFewSlotsAlert ? "Los jugadores veran la alerta" : "No se mostrara la alerta"}
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Este ajuste es independiente de la vista publica y viene activado por defecto.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Label htmlFor="few-slots-alert" className="text-sm font-medium">
+              Mostrar pocos cupos
+            </Label>
+            <Switch
+              id="few-slots-alert"
+              checked={showFewSlotsAlert}
+              onCheckedChange={handleFewSlotsToggle}
+              disabled={fewSlotsStatus === "saving"}
             />
           </div>
         </div>

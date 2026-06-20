@@ -52,6 +52,7 @@ export default async function SettingsInscripcionesPage({
           <InscriptionAutomationForm
             tournamentId={tournament.id}
             initialEnablePublicInscriptions={tournament.enable_public_inscriptions ?? true}
+            initialShowFewSlotsAlert={tournament.show_few_slots_alert ?? true}
             initialEnablePaymentCheckboxes={tournament.enable_payment_checkboxes ?? false}
             initialEnableTransferProof={tournament.enable_transfer_proof ?? false}
             initialTransferAlias={tournament.transfer_alias ?? null}

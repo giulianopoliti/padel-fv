@@ -25,6 +25,7 @@ export const getTournamentSettingsData = cache(async (tournamentId: string) => {
       registration_locked,
       bracket_status,
       enable_public_inscriptions,
+      show_few_slots_alert,
       enable_payment_checkboxes,
       enable_transfer_proof,
       transfer_alias,

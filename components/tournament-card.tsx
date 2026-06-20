@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Trophy, Calendar, MapPin, ChevronRight, Building2 } from "lucide-react"
 import { getStorageUrl } from "@/utils/storage-url"
+import { shouldShowFewSlotsAlert } from "@/lib/tournaments/few-slots-visibility"
 
 // Types
 interface Tournament {
@@ -21,6 +22,7 @@ interface Tournament {
   remainingSlots?: number | null
   isFull?: boolean
   hasFewSlots?: boolean
+  showFewSlotsAlert?: boolean
   inscriptionsCount?: number
   matchesFinished?: number
   address?: string
@@ -206,7 +208,7 @@ export default function TournamentCard({
                 Completo
               </Badge>
             ) : null}
-            {tournament.hasFewSlots ? (
+            {shouldShowFewSlotsAlert(tournament.showFewSlotsAlert, tournament.hasFewSlots) ? (
               <Badge className="animate-pulse border border-red-300 bg-red-600 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-[0_0_18px_rgba(220,38,38,0.4)]">
                 Pocos cupos
               </Badge>

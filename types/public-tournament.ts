@@ -18,6 +18,7 @@ export interface PublicTournamentSummary {
   remainingSlots?: number | null
   isFull?: boolean
   hasFewSlots?: boolean
+  showFewSlotsAlert?: boolean
   hideVenue?: boolean
   club: {
     id?: string | null

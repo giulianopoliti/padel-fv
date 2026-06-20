@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Gender } from "@/types"
 import { isTournamentGenderFilter } from "@/lib/tournaments/gender-filtering"
+import { shouldShowFewSlotsAlert } from "@/lib/tournaments/few-slots-visibility"
 import { formatDateLabel, formatPrice, formatTimeLabel } from "./panel-formatters"
 
 interface PlayerUpcomingTournamentsSectionProps {
@@ -143,7 +144,7 @@ export default function PlayerUpcomingTournamentsSection({
                       Completo
                     </Badge>
                   ) : null}
-                  {tournament.has_few_slots ? (
+                  {shouldShowFewSlotsAlert(tournament.show_few_slots_alert, tournament.has_few_slots) ? (
                     <Badge className="animate-pulse rounded-full border border-red-200/90 bg-red-600 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white shadow-[0_0_24px_rgba(220,38,38,0.45)]">
                       Pocos cupos
                     </Badge>
@@ -182,7 +183,7 @@ export default function PlayerUpcomingTournamentsSection({
                   <Badge className="tpe-chip rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]">
                     {statusLabel}
                   </Badge>
-                  {typeof tournament.max_participants === "number" ? (
+                  {tournament.enable_public_inscriptions && typeof tournament.max_participants === "number" ? (
                     <Badge className="rounded-full border border-white/15 bg-white/6 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white/90">
                       <Users className="mr-1 h-3.5 w-3.5" />
                       {tournament.current_inscriptions}/{tournament.max_participants} parejas

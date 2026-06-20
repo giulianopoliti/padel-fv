@@ -98,6 +98,8 @@ export type UpcomingTournament = {
   is_inscribed: boolean
   is_full: boolean
   has_few_slots: boolean
+  show_few_slots_alert: boolean
+  enable_public_inscriptions: boolean
   enable_transfer_proof?: boolean
   transfer_alias?: string | null
   transfer_amount?: number | null
@@ -311,6 +313,8 @@ export async function getPlayerUpcomingTournaments(
         is_inscribed: inscribedTournamentIds.has(tournament.id),
         is_full: capacity.isFull,
         has_few_slots: capacity.hasFewSlots,
+        show_few_slots_alert: tournament.showFewSlotsAlert !== false,
+        enable_public_inscriptions: Boolean(tournament.enablePublicInscriptions),
         enable_transfer_proof: tournament.enableTransferProof || false,
         transfer_alias: tournament.transferAlias || null,
         transfer_amount: tournament.transferAmount || null,

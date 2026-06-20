@@ -37,6 +37,7 @@ interface ClientTournament {
   remaining_slots: number | null;
   is_full: boolean;
   has_few_slots: boolean;
+  show_few_slots_alert: boolean;
   hide_venue: boolean;
   club_id: string | null;
   organization_id: string | null;
@@ -86,6 +87,7 @@ const serializeTournamentForClient = (
   remaining_slots: capacity.remainingSlots,
   is_full: capacity.isFull,
   has_few_slots: capacity.hasFewSlots,
+  show_few_slots_alert: tournament.show_few_slots_alert !== false,
   hide_venue: Boolean(tournament.hide_venue),
   club_id: tournament.club_id ?? null,
   organization_id: tournament.organization_id ?? null,
