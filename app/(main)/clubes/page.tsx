@@ -46,20 +46,6 @@ export default async function ClubesPage() {
 
         {/* 🚀 OPTIMIZACIÓN: Pasar datos del servidor al componente cliente */}
         <ClubesClientComponent initialClubes={clubes} userRole={userRole} />
-
-        {/* Register Club CTA */}
-        {userRole && userRole !== "CLUB" && (
-          <div className="flex justify-center mt-16">
-            <Link
-              href="/clubs/register"
-              className="inline-flex items-center bg-gradient-to-r from-slate-600 to-slate-800 hover:from-slate-700 hover:to-slate-900 text-white rounded-xl shadow-lg px-8 py-4 font-medium transition-all duration-300"
-            >
-              <Building2 className="mr-3 h-5 w-5" />
-              Registrar Mi Club
-              <ChevronRight className="ml-2 h-5 w-5" />
-            </Link>
-          </div>
-        )}
       </div>
     </div>
   )
