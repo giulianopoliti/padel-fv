@@ -65,6 +65,7 @@ export interface RegisterCoupleRequest {
 
 export interface RegisterNewPlayersRequest {
   tournamentId: string
+  isOrganizerRegistration?: boolean
   player1: {
     firstName: string
     lastName: string

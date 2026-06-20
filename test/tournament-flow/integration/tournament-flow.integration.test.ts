@@ -210,6 +210,153 @@ describeDb('tournament flow integration: zones, inscriptions, and brackets', () 
     expect(countRows(`select count(*) from public.inscriptions where tournament_id = '${ids.tournamentLong}' and couple_id = '${ids.couples[0]}';`)).toBe(0)
   })
 
+  it('database rejects a zone_couple without a matching tournament inscription', () => {
+    setupDb(seedLongTournamentSql)
+
+    expect(() => execSql(`
+      insert into public.zone_couples (zone_id, couple_id)
+      values ('${ids.zoneLong}', '${ids.couples[0]}');
+    `)).toThrow('zone couple requires a matching tournament inscription')
+
+    expect(countRows(`select count(*) from public.zone_couples where zone_id = '${ids.zoneLong}';`)).toBe(0)
+  })
+
+  it('raw inscription deletion cannot leave zone membership mirrors behind', () => {
+    setupDb(`
+      ${seedLongTournamentSql}
+      ${seedInscriptionsSql(ids.tournamentLong, [ids.couples[0]])}
+      insert into public.zone_positions (tournament_id, zone_id, couple_id, position, is_definitive, points, wins, losses, games_for, games_against, games_difference, player_score_total, sets_for, sets_against, sets_difference)
+      values ('${ids.tournamentLong}', '${ids.zoneLong}', '${ids.couples[0]}', 1, false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+      insert into public.zone_couples (zone_id, couple_id)
+      values ('${ids.zoneLong}', '${ids.couples[0]}');
+    `)
+
+    execSql(`
+      delete from public.inscriptions
+      where tournament_id = '${ids.tournamentLong}'
+        and couple_id = '${ids.couples[0]}';
+    `)
+
+    expect(countRows(`select count(*) from public.zone_positions where tournament_id = '${ids.tournamentLong}';`)).toBe(0)
+    expect(countRows(`select count(*) from public.zone_couples where zone_id = '${ids.zoneLong}';`)).toBe(0)
+  })
+
+  it('allows an individual inscription to be converted to a couple inscription', () => {
+    setupDb(`
+      ${seedLongTournamentSql}
+      insert into public.inscriptions (player_id, tournament_id, couple_id, is_pending, es_prueba)
+      values ('${ids.players[0]}', '${ids.tournamentLong}', null, true, true);
+    `)
+
+    execSql(`
+      update public.inscriptions
+      set couple_id = '${ids.couples[0]}', is_pending = false
+      where tournament_id = '${ids.tournamentLong}'
+        and player_id = '${ids.players[0]}';
+    `)
+
+    expect(countRows(`
+      select count(*)
+      from public.inscriptions
+      where tournament_id = '${ids.tournamentLong}'
+        and couple_id = '${ids.couples[0]}'
+        and is_pending = false;
+    `)).toBe(1)
+  })
+
+  it('atomically adds, swaps, moves, and removes zone memberships', () => {
+    setupDb(`
+      ${seedAmericanTournamentSql}
+      insert into public.zones (id, tournament_id, name, capacity, max_couples, rounds_per_couple, es_prueba)
+      values ('${ids.zoneAmericanB}', '${ids.tournamentAmerican}', 'Zona B', 3, 3, 2, true);
+      ${seedInscriptionsSql(ids.tournamentAmerican, [ids.couples[0], ids.couples[1]])}
+    `)
+
+    execSql(`
+      select public.apply_zone_membership_changes(
+        '${ids.tournamentAmerican}',
+        '[
+          {"couple_id":"${ids.couples[0]}","from_zone_id":null,"to_zone_id":"${ids.zoneAmerican}","to_position":1},
+          {"couple_id":"${ids.couples[1]}","from_zone_id":null,"to_zone_id":"${ids.zoneAmericanB}","to_position":1}
+        ]'::jsonb
+      );
+    `)
+
+    expect(countRows(`select count(*) from public.zone_positions where tournament_id = '${ids.tournamentAmerican}';`)).toBe(2)
+    expect(countRows(`select count(*) from public.zone_couples where zone_id in ('${ids.zoneAmerican}', '${ids.zoneAmericanB}');`)).toBe(2)
+
+    execSql(`
+      select public.apply_zone_membership_changes(
+        '${ids.tournamentAmerican}',
+        '[
+          {"couple_id":"${ids.couples[0]}","from_zone_id":"${ids.zoneAmerican}","to_zone_id":"${ids.zoneAmericanB}","to_position":1},
+          {"couple_id":"${ids.couples[1]}","from_zone_id":"${ids.zoneAmericanB}","to_zone_id":"${ids.zoneAmerican}","to_position":1}
+        ]'::jsonb
+      );
+    `)
+
+    expect(countRows(`select count(*) from public.zone_positions where zone_id = '${ids.zoneAmericanB}' and couple_id = '${ids.couples[0]}';`)).toBe(1)
+    expect(countRows(`select count(*) from public.zone_positions where zone_id = '${ids.zoneAmerican}' and couple_id = '${ids.couples[1]}';`)).toBe(1)
+
+    execSql(`
+      select public.apply_zone_membership_changes(
+        '${ids.tournamentAmerican}',
+        '[{"couple_id":"${ids.couples[0]}","from_zone_id":"${ids.zoneAmericanB}","to_zone_id":null,"to_position":null}]'::jsonb
+      );
+    `)
+
+    expect(countRows(`select count(*) from public.zone_positions where tournament_id = '${ids.tournamentAmerican}' and couple_id = '${ids.couples[0]}';`)).toBe(0)
+    expect(countRows(`select count(*) from public.zone_couples where couple_id = '${ids.couples[0]}';`)).toBe(0)
+  })
+
+  it('rolls back the entire membership batch when one change is invalid', () => {
+    setupDb(`
+      ${seedAmericanTournamentSql}
+      ${seedInscriptionsSql(ids.tournamentAmerican, [ids.couples[0]])}
+      insert into public.zone_positions (tournament_id, zone_id, couple_id, position, is_definitive, points, wins, losses, games_for, games_against, games_difference, player_score_total, sets_for, sets_against, sets_difference)
+      values ('${ids.tournamentAmerican}', '${ids.zoneAmerican}', '${ids.couples[0]}', 1, false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+      insert into public.zone_couples (zone_id, couple_id)
+      values ('${ids.zoneAmerican}', '${ids.couples[0]}');
+    `)
+
+    expect(() => execSql(`
+      select public.apply_zone_membership_changes(
+        '${ids.tournamentAmerican}',
+        '[
+          {"couple_id":"${ids.couples[0]}","from_zone_id":"${ids.zoneAmerican}","to_zone_id":null,"to_position":null},
+          {"couple_id":"${ids.couples[1]}","from_zone_id":null,"to_zone_id":"${ids.zoneAmerican}","to_position":2}
+        ]'::jsonb
+      );
+    `)).toThrow('target couple does not have a valid tournament inscription')
+
+    expect(countRows(`select count(*) from public.zone_positions where tournament_id = '${ids.tournamentAmerican}' and couple_id = '${ids.couples[0]}';`)).toBe(1)
+    expect(countRows(`select count(*) from public.zone_couples where zone_id = '${ids.zoneAmerican}' and couple_id = '${ids.couples[0]}';`)).toBe(1)
+  })
+
+  it('atomic ranking replacement preserves existing positions when validation fails', () => {
+    setupDb(`
+      ${seedLongTournamentSql}
+      ${seedInscriptionsSql(ids.tournamentLong, [ids.couples[0], ids.couples[1]])}
+      insert into public.zone_positions (tournament_id, zone_id, couple_id, position, is_definitive, points, wins, losses, games_for, games_against, games_difference, player_score_total, sets_for, sets_against, sets_difference)
+      values
+        ('${ids.tournamentLong}', '${ids.zoneLong}', '${ids.couples[0]}', 1, false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        ('${ids.tournamentLong}', '${ids.zoneLong}', '${ids.couples[1]}', 2, false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    `)
+
+    expect(() => execSql(`
+      select public.replace_zone_positions(
+        '${ids.tournamentLong}',
+        '${ids.zoneLong}',
+        '[
+          {"couple_id":"${ids.couples[0]}","position":1},
+          {"couple_id":"${ids.couples[2]}","position":2}
+        ]'::jsonb
+      );
+    `)).toThrow('position payload contains a non-member or unregistered couple')
+
+    expect(countRows(`select count(*) from public.zone_positions where tournament_id = '${ids.tournamentLong}';`)).toBe(2)
+  })
+
   it('syncs zone metadata when a fourth couple is added and allows a third match', async () => {
     setupDb(`
       ${seedAmericanTournamentSql}

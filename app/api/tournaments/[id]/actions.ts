@@ -12,8 +12,12 @@ import { generatePlaceholderBracket } from '@/lib/services/bracket-generation-or
 import { ZoneFixturePlanner } from '@/lib/services/zone-fixture-planner.service';
 import { ZoneRulesSyncService } from '@/lib/services/zone-rules-sync.service';
 import {
-  ensureCanonicalZoneMembership,
-} from '@/lib/services/tournament-zone-membership';
+  replaceZonePositionsAtomically,
+} from '@/lib/services/zone-position/atomic-position-persistence';
+import {
+  applyAuthorizedZoneMembershipChanges,
+  assertTournamentManagementPermission,
+} from '@/lib/services/zone-position/zone-membership-transaction.service';
 // import { Database } from "../../../../database.types"; // File not found
 
 // -----------------------------------------------------------------------------
@@ -276,6 +280,7 @@ export type ZoneSkeleton = {
   } 
 
 export async function createTournamentZones(tournamentId: string) {
+  await assertTournamentManagementPermission(tournamentId)
   const supabase = await createClient();
   const couples = await getTournamentCoupleInscriptions(tournamentId);
   const { data: tournament, error: tournamentError } = await supabase
@@ -312,7 +317,7 @@ export async function createTournamentZones(tournamentId: string) {
     name: z.name,
     capacity: z.couples.length, // capacidad real (3 o 4)
     max_couples: z.capacity ?? z.couples.length,
-    rounds_per_couple: z.rounds_per_couple || null,
+    rounds_per_couple: 'rounds_per_couple' in z ? z.rounds_per_couple || null : null,
   }));
 
   const { data: insertedZones, error: insertZonesErr } = await supabase
@@ -328,59 +333,29 @@ export async function createTournamentZones(tournamentId: string) {
     idByName[z.name] = z.id;
   });
 
-  // 3) Preparar links zone_couples (mantener por compatibilidad)
-  const links: { zone_id: string; couple_id: string }[] = [];
-  zones.forEach((z) => {
-    const zoneId = idByName[z.name];
-    z.couples.forEach((c) => {
-      links.push({ zone_id: zoneId, couple_id: c.couple_id });
-    });
-  });
-
-  if (links.length > 0) {
-    const { error: linkErr } = await supabase.from("zone_couples").insert(links);
-    if (linkErr) throw new Error(linkErr.message);
-  }
-
-  // 3.5) ✅ NUEVO: Insertar en zone_positions (nueva fuente de verdad)
-  const zonePositionsToInsert: any[] = [];
+  const membershipChanges: Array<{
+    couple_id: string
+    from_zone_id: null
+    to_zone_id: string
+    to_position: number
+  }> = [];
 
   zones.forEach((z) => {
     const zoneId = idByName[z.name];
     let position = 1; // Contador de posición por zona
 
     z.couples.forEach((c) => {
-      zonePositionsToInsert.push({
-        tournament_id: tournamentId,
-        zone_id: zoneId,
+      membershipChanges.push({
         couple_id: c.couple_id,
-        position: position++,
-        is_definitive: false,
-        points: 0,
-        wins: 0,
-        losses: 0,
-        games_for: 0,
-        games_against: 0,
-        games_difference: 0,
-        player_score_total: 0,
-        sets_for: 0,
-        sets_against: 0,
-        sets_difference: 0
+        from_zone_id: null,
+        to_zone_id: zoneId,
+        to_position: position++,
       });
     });
   });
 
-  if (zonePositionsToInsert.length > 0) {
-    const { error: positionsErr } = await supabase
-      .from("zone_positions")
-      .insert(zonePositionsToInsert);
-
-    if (positionsErr) {
-      console.error('[createTournamentZones] Error insertando en zone_positions:', positionsErr);
-      throw new Error(`Error creando posiciones de zona: ${positionsErr.message}`);
-    }
-
-    console.log(`✅ [createTournamentZones] Insertadas ${zonePositionsToInsert.length} posiciones en zone_positions`);
+  if (membershipChanges.length > 0) {
+    await applyAuthorizedZoneMembershipChanges(tournamentId, membershipChanges);
   }
 
   // 4) Devolver zonas con IDs asignados
@@ -508,6 +483,12 @@ export async function addCoupleToZone(
   zoneId: string,
   capacity: 3 | 4 | 5 = 3
 ): Promise<{ success: boolean; message?: string }> {
+  try {
+    await assertTournamentManagementPermission(tournamentId)
+  } catch (permissionError: any) {
+    return createApiResponse({ success: false, message: permissionError.message })
+  }
+
   const supabase = await createClient();
 
   // 1. Validar zona ↔ torneo
@@ -547,19 +528,15 @@ export async function addCoupleToZone(
   }
 
   // 5. ✅ SIEMPRE insertar en zone_positions (nueva fuente de verdad)
-  const membershipResult = await ensureCanonicalZoneMembership({
-    supabase,
-    tournamentId,
-    zoneId,
-    coupleId,
-  });
-
-  if (!membershipResult.success) {
-    return createApiResponse({ success: false, message: membershipResult.error || "Error al asignar zona" });
-  }
-
-  if (membershipResult.mirrorWarning) {
-    console.warn('[addCoupleToZone] zone_couples mirror warning:', membershipResult.mirrorWarning);
+  try {
+    await applyAuthorizedZoneMembershipChanges(tournamentId, [{
+      couple_id: coupleId,
+      from_zone_id: null,
+      to_zone_id: zoneId,
+      to_position: current + 1,
+    }]);
+  } catch (membershipError: any) {
+    return createApiResponse({ success: false, message: membershipError.message || "Error al asignar zona" });
   }
 
   const syncResult = await ZoneRulesSyncService.syncZoneRulesForZone(supabase, zoneId);
@@ -571,6 +548,10 @@ export async function addCoupleToZone(
     await updateZonePositions(tournamentId, zoneId);
   } catch (recalcError: any) {
     console.error('[addCoupleToZone] Error recalculando posiciones:', recalcError);
+    return createApiResponse({
+      success: false,
+      message: `La pareja fue asignada, pero no se pudo recalcular la zona: ${recalcError.message}`,
+    });
   }
 
   return createApiResponse({ success: true });
@@ -590,6 +571,12 @@ export async function moveCoupleToZone(
   coupleId: string,
   capacityDest: 3 | 4 | 5 = 3
 ): Promise<{ success: boolean; message?: string }> {
+  try {
+    await assertTournamentManagementPermission(tournamentId)
+  } catch (permissionError: any) {
+    return createApiResponse({ success: false, message: permissionError.message })
+  }
+
   const supabase = await createClient();
 
   // 1. Validar zonas ↔ torneo
@@ -629,48 +616,17 @@ export async function moveCoupleToZone(
 
   // 5. Operaciones: borrar + insertar (zone_couples y zone_positions)
   // 5.1. Eliminar de zone_couples origen (mantener compatibilidad)
-  await supabase
-    .from("zone_couples")
-    .delete()
-    .eq("zone_id", fromZoneId)
-    .eq("couple_id", coupleId);
-
-  // 5.2. ✅ Eliminar de zone_positions origen (fuente de verdad)
-  const { error: deleteZonePositionError } = await supabase
-    .from("zone_positions")
-    .delete()
-    .eq("zone_id", fromZoneId)
-    .eq("couple_id", coupleId);
-
-  if (deleteZonePositionError) {
-    // Rollback: restaurar en zone_couples
-    await supabase
-      .from("zone_couples")
-      .insert({ zone_id: fromZoneId, couple_id: coupleId });
-
-    return createApiResponse({ success: false, message: deleteZonePositionError.message });
-  }
-
-  const destinationMembershipResult = await ensureCanonicalZoneMembership({
-    supabase,
-    tournamentId,
-    zoneId: toZoneId,
-    coupleId,
-    position: nextPosition,
-  });
-
-  if (!destinationMembershipResult.success) {
-    await ensureCanonicalZoneMembership({
-      supabase,
-      tournamentId,
-      zoneId: fromZoneId,
-      coupleId,
-      position: 1,
-    });
-
+  try {
+    await applyAuthorizedZoneMembershipChanges(tournamentId, [{
+      couple_id: coupleId,
+      from_zone_id: fromZoneId,
+      to_zone_id: toZoneId,
+      to_position: nextPosition,
+    }]);
+  } catch (membershipError: any) {
     return createApiResponse({
       success: false,
-      message: destinationMembershipResult.error || "Error al mover pareja",
+      message: membershipError.message || "Error al mover pareja",
     });
   }
 
@@ -685,6 +641,10 @@ export async function moveCoupleToZone(
     await updateZonePositions(tournamentId, toZoneId);
   } catch (recalcError: any) {
     console.error('[moveCoupleToZone] Error recalculando posiciones:', recalcError);
+    return createApiResponse({
+      success: false,
+      message: `La pareja fue movida, pero no se pudieron recalcular las zonas: ${recalcError.message}`,
+    });
   }
 
   return createApiResponse({ success: true });
@@ -706,6 +666,12 @@ export async function swapCouplesBetweenZones(
   if (zoneId1 === zoneId2) return createApiResponse({ success: false, message: "Las zonas son iguales" });
   if (coupleId1 === coupleId2) return createApiResponse({ success: false, message: "Las parejas son iguales" });
 
+  try {
+    await assertTournamentManagementPermission(tournamentId)
+  } catch (permissionError: any) {
+    return createApiResponse({ success: false, message: permissionError.message })
+  }
+
   const supabase = await createClient();
 
   // Validar zonas ↔ torneo
@@ -723,49 +689,42 @@ export async function swapCouplesBetweenZones(
     });
   }
 
-  // Operaciones secuenciales: eliminar ambos vínculos y reinsertar cruzados
-
-  // 1. Eliminar de zone_couples (mantener compatibilidad)
-  await supabase
-    .from("zone_couples")
-    .delete()
-    .or(
-      `and(zone_id.eq.${zoneId1},couple_id.eq.${coupleId1}),` +
-      `and(zone_id.eq.${zoneId2},couple_id.eq.${coupleId2})`
-    );
-
-  // 2. ✅ Eliminar de zone_positions (fuente de verdad)
-  const { error: deletePositionsError } = await supabase
+  const { data: currentPositions, error: positionsError } = await supabase
     .from("zone_positions")
-    .delete()
+    .select("zone_id, couple_id, position")
+    .eq("tournament_id", tournamentId)
     .or(
       `and(zone_id.eq.${zoneId1},couple_id.eq.${coupleId1}),` +
       `and(zone_id.eq.${zoneId2},couple_id.eq.${coupleId2})`
     );
 
-  if (deletePositionsError) return createApiResponse({ success: false, message: deletePositionsError.message });
-
-  const membership1 = await ensureCanonicalZoneMembership({
-    supabase,
-    tournamentId,
-    zoneId: zoneId1,
-    coupleId: coupleId2,
-    position: 1,
-  });
-
-  const membership2 = await ensureCanonicalZoneMembership({
-    supabase,
-    tournamentId,
-    zoneId: zoneId2,
-    coupleId: coupleId1,
-    position: 1,
-  });
-
-  if (!membership1.success || !membership2.success) {
+  if (positionsError || currentPositions?.length !== 2) {
     return createApiResponse({
       success: false,
-      message: membership1.error || membership2.error || "Error al intercambiar parejas",
+      message: positionsError?.message || "No se encontraron ambas membresías para intercambiar",
     });
+  }
+
+  const position1 = currentPositions.find((position) => position.couple_id === coupleId1)?.position
+  const position2 = currentPositions.find((position) => position.couple_id === coupleId2)?.position
+
+  try {
+    await applyAuthorizedZoneMembershipChanges(tournamentId, [
+      {
+        couple_id: coupleId1,
+        from_zone_id: zoneId1,
+        to_zone_id: zoneId2,
+        to_position: position2 || 1,
+      },
+      {
+        couple_id: coupleId2,
+        from_zone_id: zoneId2,
+        to_zone_id: zoneId1,
+        to_position: position1 || 1,
+      },
+    ]);
+  } catch (membershipError: any) {
+    return createApiResponse({ success: false, message: membershipError.message || "Error al intercambiar parejas" });
   }
 
   const swapSyncResults = await ZoneRulesSyncService.syncZoneRulesForZones(supabase, [zoneId1, zoneId2]);
@@ -779,6 +738,10 @@ export async function swapCouplesBetweenZones(
     await updateZonePositions(tournamentId, zoneId2);
   } catch (recalcError: any) {
     console.error('[swapCouplesBetweenZones] Error recalculando posiciones:', recalcError);
+    return createApiResponse({
+      success: false,
+      message: `Las parejas fueron intercambiadas, pero no se pudieron recalcular las zonas: ${recalcError.message}`,
+    });
   }
 
   return createApiResponse({ success: true });
@@ -2129,7 +2092,7 @@ function isPositionDefinitive(
  * Update zone positions in database using the NEW ranking system
  * This replaces the legacy updateZonePositionsAction with the improved algorithm
  */
-async function updateZonePositions(tournamentId: string, zoneId: string): Promise<void> {
+export async function updateZonePositions(tournamentId: string, zoneId: string): Promise<void> {
   try {
     console.log(`[updateZonePositions] Starting NEW system update for zone ${zoneId} in tournament ${tournamentId}`)
     
@@ -2244,25 +2207,12 @@ async function updateZonePositions(tournamentId: string, zoneId: string): Promis
       return
     }
 
-    // Delete existing positions for this zone first
-    const { error: deleteError } = await supabase
-      .from('zone_positions')
-      .delete()
-      .eq('tournament_id', tournamentId)
-      .eq('zone_id', zoneId)
-
-    if (deleteError) {
-      throw new Error(`Error clearing existing positions: ${deleteError.message}`)
-    }
-
     // 🚀 NEW: Use definitive position analyzer instead of hardcoded is_definitive
     console.log(`[updateZonePositions] 📊 Analyzing definitive positions for zone ${zoneId}`)
     const definitiveAnalyzer = new CorrectedDefinitiveAnalyzer()
     
     // First insert positions with is_definitive = false temporarily
     const tempPositionRecords = rankedCouples.map((position: any) => ({
-      tournament_id: tournamentId,
-      zone_id: zoneId,
       couple_id: position.coupleId,
       position: position.position,
       is_definitive: false, // 🔒 Start with false, analyzer will set to true when appropriate
@@ -2275,17 +2225,21 @@ async function updateZonePositions(tournamentId: string, zoneId: string): Promis
       player_score_total: position.totalPlayerScore,
       tie_info: position.positionTieInfo,
       calculated_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      sets_for: position.setsWon || 0,
+      sets_against: position.setsLost || 0,
+      sets_difference: position.setsDifference || 0,
     }))
 
-    // Insert temporary positions
-    const { data: tempPositions, error: tempSaveError } = await supabase
-      .from('zone_positions')
-      .insert(tempPositionRecords)
-      .select()
+    await replaceZonePositionsAtomically(supabase, tournamentId, zoneId, tempPositionRecords)
 
-    if (tempSaveError) {
-      throw new Error(`Error saving temporary positions: ${tempSaveError.message}`)
+    const { data: tempPositions, error: tempPositionsError } = await supabase
+      .from('zone_positions')
+      .select('*')
+      .eq('tournament_id', tournamentId)
+      .eq('zone_id', zoneId)
+
+    if (tempPositionsError) {
+      throw new Error(`Error reading saved positions: ${tempPositionsError.message}`)
     }
 
     // 🎯 PHASE-AWARE: Only run definitive analysis in BRACKET_PHASE
@@ -2336,12 +2290,6 @@ async function updateZonePositions(tournamentId: string, zoneId: string): Promis
       console.log(`[updateZonePositions] ✅ Zone rankings calculated, positions remain non-definitive until BRACKET_PHASE`)
       // In ZONE_PHASE, positions are saved with is_definitive = false (already set above)
       savedPositions = tempPositions
-    }
-
-    const saveError = tempSaveError
-
-    if (saveError) {
-      throw new Error(`Error saving positions: ${saveError}`)
     }
 
     console.log(`[updateZonePositions] ✅ Successfully updated ${savedPositions.length} positions using NEW system for zone ${zoneId}`)
@@ -2924,6 +2872,12 @@ export async function validateAndMoveCoupleToZone(
   targetZoneId: string,
   fromZoneId?: string
 ) {
+  try {
+    await assertTournamentManagementPermission(tournamentId)
+  } catch (permissionError: any) {
+    return { success: false, error: permissionError.message }
+  }
+
   const supabase = await createClient()
   
   // 1. Validar restricciones
@@ -2936,28 +2890,28 @@ export async function validateAndMoveCoupleToZone(
     }
   }
   
-  // 2. Proceder con el movimiento
   try {
-    // Si viene de otra zona, remover primero
-    if (fromZoneId) {
-      await supabase
-        .from('zone_couples')
-        .delete()
-        .eq('zone_id', fromZoneId)
-        .eq('couple_id', coupleId)
-    }
-    
-    // Agregar a la nueva zona
-    const { error } = await supabase
-      .from('zone_couples')
-      .insert([{
-        zone_id: targetZoneId,
-        couple_id: coupleId,
-        tournament_id: tournamentId
-      }])
-    
-    if (error) throw error
-    
+    const { data: maxPosition, error: positionError } = await supabase
+      .from('zone_positions')
+      .select('position')
+      .eq('tournament_id', tournamentId)
+      .eq('zone_id', targetZoneId)
+      .order('position', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (positionError) throw positionError
+
+    await applyAuthorizedZoneMembershipChanges(tournamentId, [{
+      couple_id: coupleId,
+      from_zone_id: fromZoneId || null,
+      to_zone_id: targetZoneId,
+      to_position: (maxPosition?.position || 0) + 1,
+    }])
+
+    if (fromZoneId) await updateZonePositions(tournamentId, fromZoneId)
+    await updateZonePositions(tournamentId, targetZoneId)
+
     return { success: true }
     
   } catch (error: any) {
@@ -3207,26 +3161,11 @@ export async function updateZonePositionsAction(
       }
     }
 
-    // Delete existing positions for this zone first
-    const { error: deleteError } = await supabase
-      .from('zone_positions')
-      .delete()
-      .eq('tournament_id', tournamentId)
-      .eq('zone_id', zoneId)
-
-    if (deleteError) {
-      return {
-        success: false,
-        error: `Error clearing existing positions: ${deleteError.message}`
-      }
-    }
-
     // Insert new positions
     const positionRecords = rankedCouples.map((position: any) => ({
-      tournament_id: tournamentId,
-      zone_id: zoneId,
       couple_id: position.coupleId,
       position: position.position,
+      is_definitive: false,
       points: position.points || 0,
       wins: position.matchesWon,
       losses: position.matchesLost,
@@ -3236,29 +3175,29 @@ export async function updateZonePositionsAction(
       player_score_total: position.totalPlayerScore,
       tie_info: position.positionTieInfo,
       calculated_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      sets_for: position.setsWon || 0,
+      sets_against: position.setsLost || 0,
+      sets_difference: position.setsDifference || 0,
     }))
 
-    const { data: savedPositions, error: saveError } = await supabase
-      .from('zone_positions')
-      .insert(positionRecords)
-      .select()
-
-    if (saveError) {
+    let savedCount: number
+    try {
+      savedCount = await replaceZonePositionsAtomically(supabase, tournamentId, zoneId, positionRecords)
+    } catch (saveError: any) {
       return {
         success: false,
-        error: `Error saving positions: ${saveError.message}`
+        error: saveError.message
       }
     }
 
-    console.log(`[updateZonePositionsAction] Successfully updated ${savedPositions.length} positions for zone ${zoneId}`)
+    console.log(`[updateZonePositionsAction] Successfully updated ${savedCount} positions for zone ${zoneId}`)
     
     // 7. Note: Cache invalidation will be handled by the client
     
     return {
       success: true,
-      positionsUpdated: savedPositions.length,
-      message: `Successfully updated ${savedPositions.length} zone positions`
+      positionsUpdated: savedCount,
+      message: `Successfully updated ${savedCount} zone positions`
     }
     
   } catch (error: any) {

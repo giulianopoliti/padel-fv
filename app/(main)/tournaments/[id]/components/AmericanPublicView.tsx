@@ -51,6 +51,9 @@ export default function AmericanPublicView({
   const isAuthenticated = !!metadata.userRole;
   const canRegister = metadata.userRole === "PLAYER";
   const isGuest = !isAuthenticated;
+  const isFull = Boolean(tournament.is_full);
+  const hasFewSlots = Boolean(tournament.has_few_slots);
+  const canShowRegistration = (isGuest || canRegister) && !isCanceled && !isFull;
 
   const registrationLauncher = (
     <PublicRegistrationLauncher
@@ -75,6 +78,16 @@ export default function AmericanPublicView({
               <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
                 Torneo Americano
               </Badge>
+              {hasFewSlots ? (
+                <Badge className="animate-pulse border border-red-200/70 bg-red-600 text-white shadow-[0_0_24px_rgba(220,38,38,0.45)]">
+                  Pocos cupos
+                </Badge>
+              ) : null}
+              {isFull ? (
+                <Badge className="border border-red-200/80 bg-red-700 text-white shadow-[0_0_28px_rgba(220,38,38,0.55)]">
+                  Completo
+                </Badge>
+              ) : null}
               {isCanceled && (
                 <Badge variant="destructive" className="bg-red-600 text-white border-red-700 gap-2">
                   <XCircle className="h-3 w-3" />
@@ -150,12 +163,21 @@ export default function AmericanPublicView({
               </div>
             )}
 
-            {(isGuest || canRegister) && !isCanceled && (
+            {canShowRegistration && (
               <div className="mt-8 space-y-4">
                 <p className="text-blue-100 text-lg">Queres participar en este torneo?</p>
                 <div className="flex justify-center">{registrationLauncher}</div>
               </div>
             )}
+
+            {isFull && !isCanceled ? (
+              <div className="mt-8 max-w-md mx-auto">
+                <div className="rounded-lg border border-red-200/70 bg-red-600/90 p-4 text-white shadow-[0_0_28px_rgba(220,38,38,0.45)] backdrop-blur-sm">
+                  <p className="text-base font-semibold">Cupo completo</p>
+                  <p className="mt-2 text-sm text-red-50">Ya no se aceptan nuevas inscripciones para este torneo.</p>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -164,7 +186,7 @@ export default function AmericanPublicView({
         <div className="max-w-4xl mx-auto space-y-6">
           <TournamentPublicInfoCard publicInfo={publicInfo} />
 
-          {isGuest && (
+          {isGuest && !isFull ? (
             <Card className="bg-blue-50 border-blue-200">
               <CardContent className="pt-6">
                 <div className="text-center space-y-4">
@@ -177,9 +199,9 @@ export default function AmericanPublicView({
                 </div>
               </CardContent>
             </Card>
-          )}
+          ) : null}
 
-          {canRegister && !isGuest && (
+          {canRegister && !isGuest && !isFull && (
             <Card className="bg-blue-50 border-blue-200">
               <CardContent className="pt-6">
                 <div className="text-center space-y-4">

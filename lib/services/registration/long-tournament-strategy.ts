@@ -59,6 +59,14 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
         return { success: false, error: permissionCheck.error }
       }
 
+      if (request.isOrganizerRegistration && !permissionCheck.isOrganizer) {
+        return { success: false, error: 'No tiene permisos para registrar como organizador.' }
+      }
+
+      const isOrganizerRegistration = Boolean(
+        request.isOrganizerRegistration && permissionCheck.isOrganizer
+      )
+
       // Categorizar jugadores si es necesario
       const categorizationResult = await this.categorizePlayers(player1Id, player2Id, context)
       if (!categorizationResult.success) {
@@ -99,8 +107,8 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
         .insert({
           tournament_id: tournamentId,
           couple_id: coupleId,
-          player_id: request.isOrganizerRegistration ? null : player1Id,
-          is_pending: request.isOrganizerRegistration ? false : true
+          player_id: isOrganizerRegistration ? null : player1Id,
+          is_pending: !isOrganizerRegistration
         })
         .select('id')
         .single()
@@ -183,7 +191,8 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
       return await this.registerCouple({
         tournamentId,
         player1Id: player1Result.playerId,
-        player2Id: player2Result.playerId
+        player2Id: player2Result.playerId,
+        isOrganizerRegistration: request.isOrganizerRegistration,
       }, context)
 
     } catch (error) {
@@ -647,7 +656,7 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
 
   // ===== MÉTODOS AUXILIARES PRIVADOS (REUTILIZADOS) =====
 
-  private async checkRegistrationPermissions(context: RegistrationContext): Promise<{ success: boolean; error?: string }> {
+  private async checkRegistrationPermissions(context: RegistrationContext): Promise<{ success: boolean; isOrganizer?: boolean; error?: string }> {
     const { user, tournament, supabase } = context
 
     try {
@@ -662,13 +671,13 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
           .single()
 
         if (userProfile?.role === 'PLAYER') {
-          return { success: true }
+          return { success: true, isOrganizer: false }
         }
 
         return { success: false, error: 'No tienes permisos para inscribir parejas en este torneo' }
       }
 
-      return { success: true }
+      return { success: true, isOrganizer: true }
 
     } catch (error) {
       console.error('[LongStrategy] Error verificando permisos:', error)
@@ -728,12 +737,16 @@ export class LongTournamentStrategy extends BaseRegistrationStrategy {
           )
         `)
         .eq('tournament_id', tournamentId)
-        .or(`player_id.eq.${player1Id},player_id.eq.${player2Id}`)
+        .not('couple_id', 'is', null)
 
       if (existingInscriptions && existingInscriptions.length > 0) {
         const playerInCouple = existingInscriptions.some((inscription: any) => {
-          if (inscription.couples) {
-            const { player1_id, player2_id } = inscription.couples
+          const couple = Array.isArray(inscription.couples)
+            ? inscription.couples[0]
+            : inscription.couples
+
+          if (couple) {
+            const { player1_id, player2_id } = couple
             return player1_id === player1Id || player1_id === player2Id || 
                    player2_id === player1Id || player2_id === player2Id
           }

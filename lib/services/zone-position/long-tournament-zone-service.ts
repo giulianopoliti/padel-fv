@@ -188,11 +188,15 @@ async function attemptLegacyFallback(
   
   const legacyService = new ZonePositionService()
   const result = await legacyService.updateZonePositionsInDatabase(tournamentId, zoneId)
+
+  if (!result.success) {
+    throw new Error(result.error || 'Legacy zone position update failed')
+  }
   
   console.log(`✅ Legacy fallback completed successfully`)
   
   return {
-    updatedCouples: result.updatedCouples || 0
+    updatedCouples: result.positionsUpdated
   }
 }
 

@@ -1,4 +1,6 @@
 import { ZoneRulesSyncService } from '@/lib/services/zone-rules-sync.service'
+import { applyZoneMembershipChangesAtomically } from '@/lib/services/zone-position/atomic-position-persistence'
+import { createClientServiceRole } from '@/utils/supabase/server'
 
 type SupabaseClientLike = any
 
@@ -102,6 +104,22 @@ export const ensureCanonicalZoneMembership = async ({
   mirrorZoneCouples = true,
 }: EnsureZoneMembershipParams): Promise<EnsureZoneMembershipResult> => {
   try {
+    const { data: inscription, error: inscriptionError } = await supabase
+      .from('inscriptions')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+      .eq('couple_id', coupleId)
+      .maybeSingle()
+
+    if (inscriptionError || !inscription) {
+      return {
+        success: false,
+        zoneId,
+        coupleId,
+        error: inscriptionError?.message || 'La pareja no tiene una inscripcion valida en el torneo',
+      }
+    }
+
     const { data: existingPosition, error: existingError } = await supabase
       .from('zone_positions')
       .select('id')
@@ -214,38 +232,17 @@ export const removeTournamentCoupleMembership = async ({
   coupleId,
   deleteInscription = false,
 }: RemoveTournamentCoupleMembershipParams): Promise<RemoveTournamentCoupleMembershipResult> => {
-  const { data: tournamentZones, error: zonesError } = await supabase
-    .from('zones')
-    .select('id')
-    .eq('tournament_id', tournamentId)
-
-  if (zonesError) {
-    return { success: false, zonesCount: 0, error: zonesError.message }
-  }
-
-  const zoneIds = (tournamentZones || []).map((zone: { id: string }) => zone.id)
-
-  const { error: positionsError } = await supabase
+  const { data: memberships, error: membershipsError } = await supabase
     .from('zone_positions')
-    .delete()
+    .select('zone_id')
     .eq('tournament_id', tournamentId)
     .eq('couple_id', coupleId)
 
-  if (positionsError) {
-    return { success: false, zonesCount: zoneIds.length, error: positionsError.message }
+  if (membershipsError) {
+    return { success: false, zonesCount: 0, error: membershipsError.message }
   }
 
-  if (zoneIds.length > 0) {
-    const { error: zoneCouplesError } = await supabase
-      .from('zone_couples')
-      .delete()
-      .eq('couple_id', coupleId)
-      .in('zone_id', zoneIds)
-
-    if (zoneCouplesError) {
-      return { success: false, zonesCount: zoneIds.length, error: zoneCouplesError.message }
-    }
-  }
+  const zoneIds = (memberships || []).map((membership: { zone_id: string }) => membership.zone_id)
 
   if (deleteInscription) {
     const { error: inscriptionError } = await supabase
@@ -256,6 +253,22 @@ export const removeTournamentCoupleMembership = async ({
 
     if (inscriptionError) {
       return { success: false, zonesCount: zoneIds.length, error: inscriptionError.message }
+    }
+  } else if (zoneIds.length > 0) {
+    try {
+      const serviceClient = await createClientServiceRole()
+      await applyZoneMembershipChangesAtomically(
+        serviceClient,
+        tournamentId,
+        zoneIds.map((zoneId: string) => ({
+          couple_id: coupleId,
+          from_zone_id: zoneId,
+          to_zone_id: null,
+          to_position: null,
+        }))
+      )
+    } catch (error: any) {
+      return { success: false, zonesCount: zoneIds.length, error: error.message }
     }
   }
 

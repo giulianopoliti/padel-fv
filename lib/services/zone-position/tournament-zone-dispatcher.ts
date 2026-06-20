@@ -101,10 +101,24 @@ async function updateWithLegacySystem(
   
   const legacyService = new ZonePositionService()
   const result = await legacyService.updateZonePositionsInDatabase(tournamentId, zoneId)
+
+  if (!result.success) {
+    return {
+      success: false,
+      updatedCouples: 0,
+      systemUsed: 'legacy',
+      tournamentType: tournament.type,
+      appliedCriteria: [],
+      hasUnresolvedTies: false,
+      calculationTime: 0,
+      error: result.error || 'Legacy zone position update failed',
+      fallbackUsed: false,
+    }
+  }
   
   return {
     success: true,
-    updatedCouples: result.updatedCouples || 0,
+    updatedCouples: result.positionsUpdated,
     systemUsed: 'legacy',
     tournamentType: tournament.type,
     appliedCriteria: ['hardcoded_american_criteria'], // Legacy system uses hardcoded criteria

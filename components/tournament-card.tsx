@@ -202,12 +202,12 @@ export default function TournamentCard({
               </Badge>
             )}
             {tournament.isFull ? (
-              <Badge className="border border-red-200 bg-red-50 text-xs font-semibold text-red-700">
+              <Badge className="border border-red-300 bg-red-700 text-xs font-black text-white shadow-[0_0_18px_rgba(220,38,38,0.32)]">
                 Completo
               </Badge>
             ) : null}
             {tournament.hasFewSlots ? (
-              <Badge className="animate-pulse border border-red-200 bg-red-50 text-[10px] font-semibold uppercase tracking-[0.14em] text-red-700">
+              <Badge className="animate-pulse border border-red-300 bg-red-600 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-[0_0_18px_rgba(220,38,38,0.4)]">
                 Pocos cupos
               </Badge>
             ) : null}

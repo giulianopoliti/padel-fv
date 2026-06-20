@@ -17,21 +17,23 @@ import type { LongPlayerOverview } from '@/lib/services/long-player-overview.sha
 interface Tournament {
   id: string;
   name: string;
-  type: string;
-  status: string;
-  gender?: Gender;
-  price?: string | null;
+  type: string | null;
+  status: string | null;
+  gender?: Gender | string | null;
+  price?: string | number | null;
   enable_transfer_proof?: boolean;
   transfer_alias?: string | null;
   transfer_amount?: number | null;
+  is_full?: boolean;
+  has_few_slots?: boolean;
   start_date: string | null;
   end_date: string | null;
-  category_name?: string;
+  category_name?: string | null;
   clubes?: {
     name: string;
-    phone?: string;
-    address?: string;
-  };
+    phone?: string | null;
+    address?: string | null;
+  } | null;
 }
 
 interface TournamentStats {
@@ -105,9 +107,9 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({
         tournament={{
           id: tournament.id,
           name: tournament.name,
-          category: tournament.category_name,
-          status: tournament.status,
-          gender: tournament.gender,
+          category: tournament.category_name ?? undefined,
+          status: tournament.status ?? undefined,
+          gender: (tournament.gender as Gender | null) ?? undefined,
           price: tournament.price,
           enable_transfer_proof: tournament.enable_transfer_proof,
           transfer_alias: tournament.transfer_alias,
@@ -145,13 +147,15 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({
           tournament={{
             id: tournament.id,
             name: tournament.name,
-            category: tournament.category_name,
-            status: tournament.status,
-            gender: tournament.gender,
+            category: tournament.category_name ?? undefined,
+            status: tournament.status ?? undefined,
+            gender: (tournament.gender as Gender | null) ?? undefined,
             price: tournament.price,
             enable_transfer_proof: tournament.enable_transfer_proof,
             transfer_alias: tournament.transfer_alias,
             transfer_amount: tournament.transfer_amount,
+            is_full: tournament.is_full,
+            has_few_slots: tournament.has_few_slots,
             publicInfo,
           }}
         />

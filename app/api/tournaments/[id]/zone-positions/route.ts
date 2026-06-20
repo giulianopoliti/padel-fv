@@ -1,8 +1,10 @@
-import { createClient } from '@/utils/supabase/server';
+import { createClient, createClientServiceRole } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { ZoneStatsCalculator, ZoneRankingEngine } from '@/lib/services/zone-position';
 import { serialize } from '@/utils/serialization';
 import type { CoupleData, MatchData } from '@/lib/services/zone-position/types';
+import { replaceZonePositionsAtomically } from '@/lib/services/zone-position/atomic-position-persistence';
+import { assertTournamentManagementPermission } from '@/lib/services/zone-position/zone-membership-transaction.service';
 
 /**
  * GET /api/tournaments/[id]/zone-positions?zoneId=<zoneId>
@@ -165,8 +167,9 @@ export async function POST(
   
   try {
     const { id: tournamentId } = await params;
+    await assertTournamentManagementPermission(tournamentId);
     const body = await request.json();
-    const { zoneId, forceRecalculate = false } = body as {
+    const { zoneId } = body as {
       zoneId: string;
       forceRecalculate?: boolean;
     };
@@ -205,8 +208,6 @@ export async function POST(
 
     // Prepare data for insertion/update
     const positionRecords = positions.map((position: any) => ({
-      tournament_id: tournamentId,
-      zone_id: zoneId,
       couple_id: position.coupleId,
       position: position.position,
       is_definitive: true,
@@ -219,46 +220,34 @@ export async function POST(
       player_score_total: position.totalPlayerScore,
       tie_info: position.positionTieInfo,
       calculated_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      sets_for: position.setsWon || 0,
+      sets_against: position.setsLost || 0,
+      sets_difference: position.setsDifference || 0,
     }));
 
-    // Delete existing records for this zone if force recalculate
-    if (forceRecalculate) {
-      const { error: deleteError } = await supabase
-        .from('zone_positions')
-        .delete()
-        .eq('tournament_id', tournamentId)
-        .eq('zone_id', zoneId);
+    const serviceClient = await createClientServiceRole();
+    const savedCount = await replaceZonePositionsAtomically(
+      serviceClient,
+      tournamentId,
+      zoneId,
+      positionRecords
+    );
 
-      if (deleteError) {
-        return NextResponse.json(
-          { success: false, error: `Error clearing existing positions: ${deleteError.message}` },
-          { status: 500 }
-        );
-      }
-    }
-
-    // Insert new positions using upsert
-    const { data: savedPositions, error: saveError } = await supabase
+    const { data: savedPositions, error: readError } = await serviceClient
       .from('zone_positions')
-      .upsert(positionRecords, {
-        onConflict: 'tournament_id,zone_id,couple_id'
-      })
-      .select();
+      .select('*')
+      .eq('tournament_id', tournamentId)
+      .eq('zone_id', zoneId)
+      .order('position');
 
-    if (saveError) {
-      return NextResponse.json(
-        { success: false, error: `Error saving positions: ${saveError.message}` },
-        { status: 500 }
-      );
-    }
+    if (readError) throw new Error(`Error reading saved positions: ${readError.message}`);
 
     return NextResponse.json(serialize({
       success: true,
       data: {
         zoneId,
         tournamentId,
-        savedPositions: savedPositions?.length || 0,
+        savedPositions: savedCount,
         positions: savedPositions
       }
     }));

@@ -3,6 +3,10 @@ import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import { mapTournamentToPublicInfo } from '@/lib/tournaments/public-tournament-details';
 import { getTournamentCategoryDisplay } from '@/lib/services/tournament-category-config';
+import {
+  buildTournamentCapacitySummary,
+  getTournamentCoupleCount,
+} from '@/lib/services/tournament-capacity.service';
 import { checkTournamentAccess } from '@/utils/tournament-permissions';
 import { ensureSerializable } from '@/utils/serialization';
 import AmericanTournamentOverview from './components/AmericanTournamentOverview';
@@ -30,6 +34,9 @@ interface ClientTournament {
   description: string | null;
   award: string | null;
   max_participants: number | null;
+  remaining_slots: number | null;
+  is_full: boolean;
+  has_few_slots: boolean;
   hide_venue: boolean;
   club_id: string | null;
   organization_id: string | null;
@@ -52,7 +59,14 @@ interface ClientTournament {
   } | null;
 }
 
-const serializeTournamentForClient = (tournament: any): ClientTournament => ({
+const serializeTournamentForClient = (
+  tournament: any,
+  capacity: {
+    remainingSlots: number | null;
+    isFull: boolean;
+    hasFewSlots: boolean;
+  },
+): ClientTournament => ({
   id: tournament.id,
   name: tournament.name ?? '',
   type: tournament.type ?? null,
@@ -69,6 +83,9 @@ const serializeTournamentForClient = (tournament: any): ClientTournament => ({
   description: tournament.description ?? null,
   award: tournament.award ?? null,
   max_participants: tournament.max_participants ?? null,
+  remaining_slots: capacity.remainingSlots,
+  is_full: capacity.isFull,
+  has_few_slots: capacity.hasFewSlots,
   hide_venue: Boolean(tournament.hide_venue),
   club_id: tournament.club_id ?? null,
   organization_id: tournament.organization_id ?? null,
@@ -145,6 +162,9 @@ export default async function TournamentPage({ params }: TournamentPageProps) {
     notFound();
   }
 
+  const currentCouples = await getTournamentCoupleCount(supabase, tournamentId)
+  const capacity = buildTournamentCapacitySummary(tournament.max_participants ?? null, currentCouples)
+
   // ========================================
   // VERIFICAR PERMISOS CON SISTEMA V2
   // ========================================
@@ -153,7 +173,7 @@ export default async function TournamentPage({ params }: TournamentPageProps) {
 
   // ✅ Sistema V2: Una sola llamada, soporte GUEST, type-safe
   const access = await checkTournamentAccess(user?.id || null, tournamentId);
-  const clientTournament = ensureSerializable(serializeTournamentForClient(tournament));
+  const clientTournament = ensureSerializable(serializeTournamentForClient(tournament, capacity));
   const clientAccess = {
     accessLevel: access.accessLevel,
     permissions: [...access.permissions],

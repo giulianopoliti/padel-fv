@@ -20,6 +20,7 @@ import type { CoupleData, MatchData } from '../../zone-position/types'
 import type { RankingConfiguration } from '../types/ranking-configuration.types'
 import { ConfigurableRankingEngine, type ConfigurableRankingResult } from '../engines/configurable-ranking-engine'
 import { DefaultStatsDataProviderFactory } from '../providers/stats-data-provider-factory'
+import { replaceZonePositionsAtomically } from '../../zone-position/atomic-position-persistence'
 
 export interface ZonePositionRecord {
   tournament_id: string
@@ -179,10 +180,10 @@ export class ConfigurableRankingService implements IConfigurableRankingService {
     const supabase = await createClient()
     
     const { data, error } = await supabase
-      .from('zone_couples')
+      .from('zone_positions')
       .select(`
         couple_id,
-        couples!inner (
+        couples!zone_positions_couple_id_fkey (
           id,
           player1_id,
           player2_id,
@@ -201,7 +202,6 @@ export class ConfigurableRankingService implements IConfigurableRankingService {
         )
       `)
       .eq('zone_id', zoneId)
-      .eq('es_prueba', false)
     
     if (error) {
       throw new Error(`Failed to fetch couples in zone ${zoneId}: ${error.message}`)
@@ -255,11 +255,10 @@ export class ConfigurableRankingService implements IConfigurableRankingService {
     const supabase = await createClient()
     
     // Prepare zone position records
-    const zonePositions: Omit<ZonePositionRecord, 'id'>[] = rankingResult.rankedCouples.map(stats => ({
-      tournament_id: tournamentId,
-      zone_id: zoneId,
+    const zonePositions = rankingResult.rankedCouples.map(stats => ({
       couple_id: stats.coupleId,
       position: stats.position,
+      points: 0,
       wins: stats.matchesWon,
       losses: stats.matchesLost,
       sets_for: stats.setsWon,
@@ -270,32 +269,11 @@ export class ConfigurableRankingService implements IConfigurableRankingService {
       games_difference: stats.gamesDifference,
       player_score_total: stats.totalPlayerScore,
       tie_info: stats.positionTieInfo || null,
-      calculated_at: new Date(),
+      calculated_at: new Date().toISOString(),
       is_definitive: !rankingResult.calculationMetadata.hasUnresolvedTies
     }))
-    
-    // Delete existing positions for this zone
-    const { error: deleteError } = await supabase
-      .from('zone_positions')
-      .delete()
-      .eq('tournament_id', tournamentId)
-      .eq('zone_id', zoneId)
-    
-    if (deleteError) {
-      throw new Error(`Failed to clear existing zone positions: ${deleteError.message}`)
-    }
-    
-    // Insert new positions
-    const { data, error: insertError } = await supabase
-      .from('zone_positions')
-      .insert(zonePositions)
-      .select('id')
-    
-    if (insertError) {
-      throw new Error(`Failed to insert zone positions: ${insertError.message}`)
-    }
-    
-    return (data || []).length
+
+    return replaceZonePositionsAtomically(supabase, tournamentId, zoneId, zonePositions)
   }
   
   /**

@@ -185,13 +185,12 @@ export default function CoupleRegistrationAdvanced({
     }
   }
 
-  // Ejecutar el registro de la pareja (jugadores existentes)
-  // isOrganizerRegistration = true porque este componente es usado por organizadores/clubs
+  // Ejecutar el registro preservando el contexto real del usuario.
   const executeRegistration = async (player1Id: string, player2Id: string) => {
-    console.log("[CoupleRegistrationAdvanced] Ejecutando registro de pareja existente (organizador)");
+    console.log("[CoupleRegistrationAdvanced] Ejecutando registro de pareja existente");
     console.log("Player IDs:", { player1Id, player2Id });
     
-    const result = await registerCoupleForTournament(tournamentId, player1Id, player2Id, true)
+    const result = await registerCoupleForTournament(tournamentId, player1Id, player2Id, isClubMode)
     
     if (result.success) {
       toast({
@@ -283,6 +282,7 @@ export default function CoupleRegistrationAdvanced({
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
+            isOrganizerRegistration: isClubMode,
             player1: {
               firstName: player1.newPlayerData!.first_name,
               lastName: player1.newPlayerData!.last_name,

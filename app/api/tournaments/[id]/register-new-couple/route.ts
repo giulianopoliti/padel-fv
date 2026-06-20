@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { getUser } from "@/app/api/users";
 
 interface RegisterNewCoupleRequest {
+  isOrganizerRegistration?: boolean;
   player1: {
     firstName: string;
     lastName: string;
@@ -52,7 +53,7 @@ export async function POST(
     const tournamentId = resolvedParams.id;
     const requestBody: RegisterNewCoupleRequest = await request.json();
 
-    const { player1, player2 } = requestBody;
+    const { player1, player2, isOrganizerRegistration } = requestBody;
 
     if (!player1 || !player2) {
       return Response.json(
@@ -132,6 +133,7 @@ export async function POST(
 
     const strategyRequest = {
       tournamentId,
+      isOrganizerRegistration: Boolean(isOrganizerRegistration),
       player1: {
         firstName: player1.firstName,
         lastName: player1.lastName,

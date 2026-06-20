@@ -7,6 +7,7 @@ import { createClient } from '@/utils/supabase/server'
 import type { CoupleData, MatchData, ZonePositionResult } from './types'
 import { ZoneStatsCalculator } from './zone-stats-calculator'
 import { ZoneRankingEngine } from './zone-ranking-engine'
+import { replaceZonePositionsAtomically } from './atomic-position-persistence'
 
 export class ZonePositionService {
   private statsCalculator: ZoneStatsCalculator
@@ -69,21 +70,7 @@ export class ZonePositionService {
       const positionResult = await this.calculateZonePositions(zoneId)
       const supabase = await createClient()
       
-      // Delete existing positions for this zone
-      const { error: deleteError } = await supabase
-        .from('zone_positions')
-        .delete()
-        .eq('tournament_id', tournamentId)
-        .eq('zone_id', zoneId)
-      
-      if (deleteError) {
-        return { success: false, error: deleteError.message, positionsUpdated: 0 }
-      }
-      
-      // Insert new positions
       const positionsToInsert = positionResult.couples.map(couple => ({
-        tournament_id: tournamentId,
-        zone_id: zoneId,
         couple_id: couple.coupleId,
         position: couple.position,
         is_definitive: positionResult.zoneCompleted,
@@ -94,21 +81,23 @@ export class ZonePositionService {
         games_against: couple.gamesLost,
         games_difference: couple.gamesDifference,
         player_score_total: couple.totalPlayerScore,
-        tie_info: couple.positionTieInfo,
-        calculated_at: positionResult.calculatedAt.toISOString()
+        tie_info: couple.positionTieInfo || null,
+        calculated_at: positionResult.calculatedAt.toISOString(),
+        sets_for: couple.setsWon,
+        sets_against: couple.setsLost,
+        sets_difference: couple.setsDifference,
       }))
-      
-      const { error: insertError } = await supabase
-        .from('zone_positions')
-        .insert(positionsToInsert)
-      
-      if (insertError) {
-        return { success: false, error: insertError.message, positionsUpdated: 0 }
-      }
+
+      const positionsUpdated = await replaceZonePositionsAtomically(
+        supabase,
+        tournamentId,
+        zoneId,
+        positionsToInsert
+      )
       
       return { 
         success: true, 
-        positionsUpdated: positionsToInsert.length 
+        positionsUpdated,
       }
       
     } catch (error) {
@@ -131,7 +120,7 @@ export class ZonePositionService {
     
     // Fetch couples in the zone
     const { data: zoneCouples, error: zoneCouplesError } = await supabase
-      .from('zone_couples')
+      .from('zone_positions')
       .select(`
         couple_id,
         couples:couple_id (

@@ -963,6 +963,7 @@ export async function revertMatchStatistics(
   matchId: string
 ): Promise<ActionResult> {
   try {
+    let zoneRecalculated = false
     const supabase = await createClient()
     
     // Verify user authentication
@@ -1051,6 +1052,7 @@ export async function revertMatchStatistics(
       )
       
       if (zoneUpdateResult.success) {
+        zoneRecalculated = true
         console.log(`✅ Zone positions recalculated after reverting match ${matchId}`)
       } else {
         console.warn(`⚠️ Zone position recalculation failed: ${zoneUpdateResult.error}`)
@@ -1068,7 +1070,7 @@ export async function revertMatchStatistics(
       data: {
         matchId,
         revertedSets: existingSets.length,
-        zoneRecalculated: true
+        zoneRecalculated
       }
     }
 
@@ -1139,10 +1141,14 @@ export async function modifyMatchResult(
     
     if (updateResult.success) {
       revalidatePath(`/tournaments/${existingMatch.tournament_id}/match-scheduling`)
+
+      const zoneUpdateError = updateResult.data?.zoneUpdate?.error
       
       return {
         success: true,
-        message: `Resultado modificado exitosamente: ${matchResultData.result_couple1}-${matchResultData.result_couple2} sets`,
+        message: zoneUpdateError
+          ? `Resultado modificado, pero no se pudieron actualizar las posiciones: ${zoneUpdateError}`
+          : `Resultado modificado exitosamente: ${matchResultData.result_couple1}-${matchResultData.result_couple2} sets`,
         data: {
           operation: 'modify',
           matchId,

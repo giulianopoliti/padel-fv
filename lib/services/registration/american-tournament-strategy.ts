@@ -55,6 +55,14 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
         return { success: false, error: permissionCheck.error }
       }
 
+      if (request.isOrganizerRegistration && !permissionCheck.isOrganizer) {
+        return { success: false, error: 'No tiene permisos para registrar como organizador.' }
+      }
+
+      const isOrganizerRegistration = Boolean(
+        request.isOrganizerRegistration && permissionCheck.isOrganizer
+      )
+
       // Categorizar jugadores si es necesario
       const categorizationResult = await this.categorizePlayers(player1Id, player2Id, context)
       if (!categorizationResult.success) {
@@ -99,8 +107,8 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
         .insert({
           tournament_id: tournamentId,
           couple_id: coupleId,
-          player_id: request.isOrganizerRegistration ? null : player1Id,
-          is_pending: request.isOrganizerRegistration ? false : true
+          player_id: isOrganizerRegistration ? null : player1Id,
+          is_pending: !isOrganizerRegistration
         })
         .select('id')
         .single()
@@ -158,7 +166,8 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
       return await this.registerCouple({
         tournamentId,
         player1Id: player1Result.playerId,
-        player2Id: player2Result.playerId
+        player2Id: player2Result.playerId,
+        isOrganizerRegistration: request.isOrganizerRegistration,
       }, context)
 
     } catch (error) {
@@ -403,40 +412,7 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
       console.log(`[AmericanStrategy] Pareja ${coupleId} no tiene partidos - procede con eliminación`)
 
       // 1. Eliminar de zone_couples si está asignada a alguna zona
-      const { data: zonesData } = await supabase
-        .from('zones')
-        .select('id')
-        .eq('tournament_id', tournamentId)
-
-      if (zonesData && zonesData.length > 0) {
-        const zoneIds = zonesData.map((z: { id: string }) => z.id)
-
-        // Eliminar de zone_couples
-        const { error: zoneCouplesError } = await supabase
-          .from('zone_couples')
-          .delete()
-          .eq('couple_id', coupleId)
-          .in('zone_id', zoneIds)
-
-        if (zoneCouplesError) {
-          console.error('[AmericanStrategy] Error eliminando de zone_couples:', zoneCouplesError)
-        } else {
-          console.log(`[AmericanStrategy] Pareja ${coupleId} eliminada de zone_couples`)
-        }
-
-        // Eliminar de zone_positions
-        const { error: zonePositionsError } = await supabase
-          .from('zone_positions')
-          .delete()
-          .eq('couple_id', coupleId)
-          .eq('tournament_id', tournamentId)
-
-        if (zonePositionsError) {
-          console.error('[AmericanStrategy] Error eliminando de zone_positions:', zonePositionsError)
-        } else {
-          console.log(`[AmericanStrategy] Pareja ${coupleId} eliminada de zone_positions`)
-        }
-      }
+      // Deleting the inscription triggers atomic cleanup of both zone tables.
 
       // 2. Eliminar inscripción
       const { error: deleteError } = await supabase
@@ -454,7 +430,7 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
       return {
         success: true,
         message: 'Pareja eliminada correctamente del torneo.',
-        removedFromZones: zonesData && zonesData.length > 0
+        removedFromZones: true
       }
 
     } catch (error) {
@@ -487,7 +463,7 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
 
   // ===== MÉTODOS AUXILIARES PRIVADOS =====
 
-  private async checkRegistrationPermissions(context: RegistrationContext): Promise<{ success: boolean; error?: string }> {
+  private async checkRegistrationPermissions(context: RegistrationContext): Promise<{ success: boolean; isOrganizer?: boolean; error?: string }> {
     const { user, tournament, supabase } = context
 
     try {
@@ -504,13 +480,13 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
           .single()
 
         if (userProfile?.role === 'PLAYER') {
-          return { success: true } // Los jugadores pueden auto-registrarse
+          return { success: true, isOrganizer: false } // Los jugadores pueden auto-registrarse
         }
 
         return { success: false, error: 'No tienes permisos para inscribir parejas en este torneo' }
       }
 
-      return { success: true }
+      return { success: true, isOrganizer: true }
 
     } catch (error) {
       console.error('[AmericanStrategy] Error verificando permisos:', error)
@@ -571,13 +547,17 @@ export class AmericanTournamentStrategy extends BaseRegistrationStrategy {
           )
         `)
         .eq('tournament_id', tournamentId)
-        .or(`player_id.eq.${player1Id},player_id.eq.${player2Id}`)
+        .not('couple_id', 'is', null)
 
       if (existingInscriptions && existingInscriptions.length > 0) {
         // Verificar si alguno está en una pareja
         const playerInCouple = existingInscriptions.some((inscription: any) => {
-          if (inscription.couples) {
-            const { player1_id, player2_id } = inscription.couples
+          const couple = Array.isArray(inscription.couples)
+            ? inscription.couples[0]
+            : inscription.couples
+
+          if (couple) {
+            const { player1_id, player2_id } = couple
             return player1_id === player1Id || player1_id === player2Id || 
                    player2_id === player1Id || player2_id === player2Id
           }
