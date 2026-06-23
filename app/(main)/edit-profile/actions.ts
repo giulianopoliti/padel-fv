@@ -629,39 +629,6 @@ export async function completeClubProfile(prevState: ClubFormState, formData: Fo
       }
     }
     
-    // 4. Handle Password Change (if fields are present and valid)
-    const currentPassword = formData.get('currentPassword') as string;
-    const newPassword = formData.get('newPassword') as string;
-    const confirmNewPassword = formData.get('confirmNewPassword') as string;
-
-    if (newPassword) { // Only attempt password change if newPassword is provided
-        if (!currentPassword) {
-            return { success: false, message: "Debes ingresar tu contraseña actual para cambiarla.", errors: { currentPassword: ["Contraseña actual requerida."] } };
-        }
-        if (newPassword !== confirmNewPassword) {
-            return { success: false, message: "Las nuevas contraseñas no coinciden.", errors: { newPassword: ["Las contraseñas no coinciden."], confirmNewPassword: ["Las contraseñas no coinciden."] } };
-        }
-        if (newPassword.length < 6) { // Example minimum length
-            return { success: false, message: "La nueva contraseña debe tener al menos 6 caracteres.", errors: { newPassword: ["Mínimo 6 caracteres."] } };
-        }
-
-        // Verify current password (optional but recommended if not handled by Supabase Auth update inherently)
-        // Supabase auth.updateUser handles current password verification if you provide the old password in a specific way, 
-        // but it is often simpler to re-authenticate or use a dedicated password change function.
-        // For simplicity, directly attempting to update the user with the new password.
-        const { error: passwordUpdateError } = await supabase.auth.updateUser({ password: newPassword });
-
-        if (passwordUpdateError) {
-            console.error("Error updating club password:", passwordUpdateError);
-            if (passwordUpdateError.message.includes("New password should be different from the old password.")){
-                 return { success: false, message: "La nueva contraseña debe ser diferente a la actual.", errors: { newPassword: ["Debe ser diferente a la actual."] } };
-            }
-            return { success: false, message: `Error al cambiar la contraseña: ${passwordUpdateError.message}`, errors: { newPassword: [`Error: ${passwordUpdateError.message}`] } };
-        }
-        // If password update is successful, the main success message will cover it.
-    }
-
-
     return { success: true, message: "Perfil del club actualizado con éxito.", errors: null };
 
   } catch (error: any) {

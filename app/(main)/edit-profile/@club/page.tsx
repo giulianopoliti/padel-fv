@@ -366,7 +366,7 @@ export default function EditClubProfilePage() {
                 <p className="text-gray-600 max-w-2xl">{sectionInfo.description}</p>
               </div>
 
-              {activeSection !== "gallery" ? (
+              {activeSection !== "gallery" && activeSection !== "security" ? (
                 <form action={formAction} className="max-w-3xl space-y-6">
                   {clubProfileData?.role && <input type="hidden" name="role" defaultValue={clubProfileData.role} />}
                   <div className="bg-white rounded-lg border border-gray-200 p-6">{renderActiveSection()}</div>

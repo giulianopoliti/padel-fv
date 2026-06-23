@@ -5,6 +5,16 @@ import { AlertCircle, CalendarDays, CalendarX2, Check, Circle, Clock, Info, User
 import { toast } from 'sonner'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -173,15 +183,6 @@ export default function PlayerView({ tournamentId, fechaId, userAccess }: Player
         </AccordionItem>
       </Accordion>
 
-      {freeDateSlot && (
-        <FreeDateRequestCard
-          timeSlot={freeDateSlot}
-          onPreferenceChange={handleFreeDateChange}
-          saving={savingSlotId === freeDateSlot.id}
-          disabled={!canEdit}
-        />
-      )}
-
       {playableTimeSlots.length === 0 ? (
         <Card><CardContent className="p-8 text-center"><Clock className="mx-auto h-10 w-10 text-muted-foreground" /><h3 className="mt-3 font-semibold">Sin horarios publicados</h3><p className="mt-1 text-sm text-muted-foreground">El organizador todavia no configuro horarios para esta fecha.</p></CardContent></Card>
       ) : (
@@ -196,6 +197,15 @@ export default function PlayerView({ tournamentId, fechaId, userAccess }: Player
             />
           ))}
         </div>
+      )}
+
+      {freeDateSlot && (
+        <FreeDateRequestCard
+          timeSlot={freeDateSlot}
+          onPreferenceChange={handleFreeDateChange}
+          saving={savingSlotId === freeDateSlot.id}
+          disabled={!canEdit}
+        />
       )}
     </div>
   )
@@ -213,9 +223,9 @@ const FreeDateRequestCard = ({ timeSlot, onPreferenceChange, saving, disabled }:
   const [requested, setRequested] = useState(initialRequested)
   const [notes, setNotes] = useState(timeSlot.my_availability?.notes || '')
   const [savedNotes, setSavedNotes] = useState(timeSlot.my_availability?.notes || '')
+  const [confirmationOpen, setConfirmationOpen] = useState(false)
 
-  const handleToggleRequest = async () => {
-    const nextRequested = !requested
+  const handleRequestChange = async (nextRequested: boolean) => {
     setRequested(nextRequested)
     const saved = await onPreferenceChange(timeSlot.id, nextRequested, nextRequested ? notes : undefined)
     if (!saved) setRequested(!nextRequested)
@@ -225,6 +235,20 @@ const FreeDateRequestCard = ({ timeSlot, onPreferenceChange, saving, disabled }:
     }
   }
 
+  const handlePrimaryAction = () => {
+    if (requested) {
+      void handleRequestChange(false)
+      return
+    }
+
+    setConfirmationOpen(true)
+  }
+
+  const handleConfirmRequest = () => {
+    setConfirmationOpen(false)
+    void handleRequestChange(true)
+  }
+
   const handleNotesBlur = async () => {
     if (!requested || notes === savedNotes) return
     const saved = await onPreferenceChange(timeSlot.id, true, notes)
@@ -232,51 +256,71 @@ const FreeDateRequestCard = ({ timeSlot, onPreferenceChange, saving, disabled }:
   }
 
   return (
-    <Card className={requested ? 'border-amber-400 bg-amber-50/80' : 'border-primary/25 bg-primary/5'}>
-      <CardContent className="space-y-4 p-4 sm:p-5">
-        <div className="flex items-start gap-3">
-          <div className={requested ? 'rounded-xl bg-amber-500 p-3 text-white' : 'rounded-xl bg-primary p-3 text-primary-foreground'}>
-            <CalendarX2 className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-lg font-bold">¿Necesitan fecha libre?</h3>
-              {requested && <span className="rounded-full bg-amber-200 px-2.5 py-1 text-xs font-bold text-amber-900">Fecha libre solicitada</span>}
+    <>
+      <Card className={requested ? 'border-amber-400 bg-amber-50/80' : 'border-border bg-card'}>
+        <CardContent className="space-y-4 p-4 sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className={requested ? 'rounded-xl bg-amber-500 p-3 text-white' : 'rounded-xl bg-muted p-3 text-muted-foreground'}>
+              <CalendarX2 className="h-5 w-5" />
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">El pedido aplica a ambos integrantes y significa que prefieren no jugar durante esta fecha.</p>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-lg font-bold">No podemos jugar este finde</h3>
+                {requested && <span className="rounded-full bg-amber-200 px-2.5 py-1 text-xs font-bold text-amber-900">Fecha libre solicitada</span>}
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">Usa esta opción solamente si ninguno de los horarios de arriba les sirve.</p>
+            </div>
           </div>
-        </div>
 
-        <Button
-          type="button"
-          variant={requested ? 'outline' : 'default'}
-          className={requested ? 'min-h-12 w-full border-amber-500 bg-white text-amber-900 hover:bg-amber-100' : 'min-h-12 w-full'}
-          onClick={() => void handleToggleRequest()}
-          disabled={saving || disabled}
-          aria-pressed={requested}
-        >
-          <CalendarX2 className="mr-2 h-4 w-4" />
-          {requested ? 'Cancelar pedido' : 'Quiero fecha libre'}
-        </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className={requested ? 'min-h-12 w-full border-amber-500 bg-white text-amber-900 hover:bg-amber-100' : 'min-h-12 w-full'}
+            onClick={handlePrimaryAction}
+            disabled={saving || disabled}
+            aria-pressed={requested}
+          >
+            <CalendarX2 className="mr-2 h-4 w-4" />
+            {requested ? 'Cancelar fecha libre' : 'No podemos jugar este finde'}
+          </Button>
 
-        {requested && (
-          <div className="space-y-2">
-            <label htmlFor={`free-date-note-${timeSlot.id}`} className="text-sm font-semibold">Nota opcional</label>
-            <Textarea
-              id={`free-date-note-${timeSlot.id}`}
-              value={notes}
-              onChange={event => setNotes(event.target.value)}
-              onBlur={() => void handleNotesBlur()}
-              disabled={saving || disabled}
-              maxLength={200}
-              rows={2}
-              placeholder="Ej: esta semana no podemos jugar"
-            />
-          </div>
-        )}
-        {saving && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Circle className="h-3 w-3 animate-pulse fill-current" />Guardando solicitud...</p>}
-      </CardContent>
-    </Card>
+          {requested && (
+            <div className="space-y-2">
+              <label htmlFor={`free-date-note-${timeSlot.id}`} className="text-sm font-semibold">Motivo opcional</label>
+              <p className="text-xs text-muted-foreground">Los horarios en los que pueden jugar se cargan arriba.</p>
+              <Textarea
+                id={`free-date-note-${timeSlot.id}`}
+                value={notes}
+                onChange={event => setNotes(event.target.value)}
+                onBlur={() => void handleNotesBlur()}
+                disabled={saving || disabled}
+                maxLength={200}
+                rows={2}
+                placeholder="Ej: estamos de viaje este fin de semana"
+              />
+            </div>
+          )}
+          {saving && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Circle className="h-3 w-3 animate-pulse fill-current" />Guardando solicitud...</p>}
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={confirmationOpen} onOpenChange={setConfirmationOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Confirmás que no pueden jugar en ningún horario este finde?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta opción indica que ninguno de los horarios publicados les sirve. Si pueden jugar en algún horario, márquenlo arriba.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Volver a los horarios</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmRequest} className="bg-amber-600 text-white hover:bg-amber-700">
+              Confirmar fecha libre
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 

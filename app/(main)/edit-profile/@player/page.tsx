@@ -321,15 +321,17 @@ export default function EditProfilePage() {
                     )}
                   </TabsContent>
 
-                  <div className="sticky bottom-0 pt-4 pb-4 px-4 bg-gradient-to-t from-white via-white to-transparent">
-                    <Button
-                      type="submit"
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                      disabled={isPending || isFetchingData}
-                    >
-                      {isPending ? "Actualizando..." : "Guardar Cambios"}
-                    </Button>
-                  </div>
+                  {activeSection !== "security" && (
+                    <div className="sticky bottom-0 pt-4 pb-4 px-4 bg-gradient-to-t from-white via-white to-transparent">
+                      <Button
+                        type="submit"
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                        disabled={isPending || isFetchingData}
+                      >
+                        {isPending ? "Actualizando..." : "Guardar Cambios"}
+                      </Button>
+                    </div>
+                  )}
                 </form>
               </Tabs>
             </div>
@@ -342,21 +344,25 @@ export default function EditProfilePage() {
                 <p className="text-gray-600 max-w-2xl">{sectionInfo.description}</p>
               </div>
 
-              <form action={formAction} className="max-w-3xl space-y-6">
-                {userProfileData?.role && <input type="hidden" name="role" value={userProfileData.role} />}
+              {activeSection === "security" ? (
+                <div className="max-w-3xl space-y-6">{renderActiveSection()}</div>
+              ) : (
+                <form action={formAction} className="max-w-3xl space-y-6">
+                  {userProfileData?.role && <input type="hidden" name="role" value={userProfileData.role} />}
 
-                {renderActiveSection()}
+                  {renderActiveSection()}
 
-                <div className="sticky bottom-0 pt-6 pb-4 -mx-4 px-4 bg-gradient-to-t from-white via-white to-transparent">
-                  <Button
-                    type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                    disabled={isPending || isFetchingData}
-                  >
-                    {isPending ? "Actualizando..." : "Guardar Cambios"}
-                  </Button>
-                </div>
-              </form>
+                  <div className="sticky bottom-0 pt-6 pb-4 -mx-4 px-4 bg-gradient-to-t from-white via-white to-transparent">
+                    <Button
+                      type="submit"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                      disabled={isPending || isFetchingData}
+                    >
+                      {isPending ? "Actualizando..." : "Guardar Cambios"}
+                    </Button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </div>

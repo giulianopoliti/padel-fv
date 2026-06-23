@@ -1,12 +1,13 @@
 import { createClient } from "@/utils/supabase/server"
+import { getPasswordErrorMessage, MIN_PASSWORD_LENGTH } from "@/lib/auth-password-errors"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
   const { password } = (await request.json()) as { password?: string }
 
-  if (!password || password.length < 6) {
+  if (!password || password.length < MIN_PASSWORD_LENGTH) {
     return NextResponse.json(
-      { error: "La contrasena debe tener al menos 6 caracteres." },
+      { error: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.` },
       { status: 400 },
     )
   }
@@ -31,14 +32,10 @@ export async function POST(request: Request) {
       status: error.status,
     })
 
-    const normalizedMessage = error.message.toLowerCase()
-    const message = normalizedMessage.includes("different from the old password")
-      ? "La nueva contrasena tiene que ser distinta a la anterior."
-      : normalizedMessage.includes("session")
-      ? "La sesion de recuperacion expiro. Pedi un link nuevo."
-      : `No se pudo actualizar la contrasena: ${error.message}`
-
-    return NextResponse.json({ error: message }, { status: error.status || 400 })
+    return NextResponse.json(
+      { error: getPasswordErrorMessage(error, "recovery") },
+      { status: error.status || 400 },
+    )
   }
 
   await supabase.auth.signOut({ scope: "local" })

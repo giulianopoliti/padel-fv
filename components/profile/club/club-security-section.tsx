@@ -1,7 +1,7 @@
 "use client"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Mail, KeyRound, AlertCircle } from "lucide-react"
+import { PasswordChangeForm } from "@/components/profile/password-change-form"
+import { Mail, AlertCircle } from "lucide-react"
 
 interface ClubSecuritySectionProps {
   userEmail?: string | null
@@ -27,53 +27,7 @@ export function ClubSecuritySection({ userEmail }: ClubSecuritySectionProps) {
         </div>
       )}
 
-      <div className="space-y-4">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="bg-blue-100 w-8 h-8 rounded-lg flex items-center justify-center">
-            <KeyRound className="h-4 w-4 text-blue-600" />
-          </div>
-          <h4 className="text-lg font-medium text-gray-900">Cambiar Contraseña</h4>
-        </div>
-
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="currentPassword" className="text-sm font-medium text-gray-700">
-              Contraseña Actual
-            </Label>
-            <Input
-              id="currentPassword"
-              name="currentPassword"
-              type="password"
-              placeholder="••••••••"
-              className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="newPassword" className="text-sm font-medium text-gray-700">
-              Nueva Contraseña
-            </Label>
-            <Input
-              id="newPassword"
-              name="newPassword"
-              type="password"
-              placeholder="••••••••"
-              className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirmNewPassword" className="text-sm font-medium text-gray-700">
-              Confirmar Nueva Contraseña
-            </Label>
-            <Input
-              id="confirmNewPassword"
-              name="confirmNewPassword"
-              type="password"
-              placeholder="••••••••"
-              className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-      </div>
+      <PasswordChangeForm />
 
       <div className="bg-amber-50 rounded-lg border border-amber-200 p-4">
         <div className="flex items-start gap-3">

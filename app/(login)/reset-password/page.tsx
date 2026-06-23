@@ -11,6 +11,7 @@ import Link from "next/link"
 import { ArrowLeft, Lock, Eye, EyeOff, CheckCircle } from "lucide-react"
 import CPALogo from "@/components/ui/cpa-logo"
 import { createClient } from "@/utils/supabase/client"
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth-password-errors"
 
 export default function ResetPasswordPage() {
   const { toast } = useToast()
@@ -96,8 +97,8 @@ export default function ResetPasswordPage() {
       return
     }
 
-    if (password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres.")
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`)
       setIsSubmitting(false)
       return
     }
@@ -118,7 +119,10 @@ export default function ResetPasswordPage() {
           password,
         }),
       })
-      const result = (await response.json()) as { success?: boolean; error?: string }
+      const contentType = response.headers.get("content-type") || ""
+      const result = contentType.includes("application/json")
+        ? ((await response.json()) as { success?: boolean; error?: string })
+        : { error: "No se pudo completar el recupero. Pedi un nuevo link e intentalo otra vez." }
 
       if (!response.ok || result.error) {
         console.error("Error updating password:", result.error)
@@ -267,7 +271,7 @@ export default function ResetPasswordPage() {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder={`Mínimo ${MIN_PASSWORD_LENGTH} caracteres`}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isSubmitting}
