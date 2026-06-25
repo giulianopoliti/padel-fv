@@ -45,8 +45,8 @@ export default async function ClubesPage() {
         </div>
 
         {/* 🚀 OPTIMIZACIÓN: Pasar datos del servidor al componente cliente */}
-        <ClubesClientComponent initialClubes={clubes} userRole={userRole} />
-      </div>
+        <ClubesClientComponent initialClubes={clubes} userRole={userRole} /> 
+      </div> 
     </div>
   )
 }
