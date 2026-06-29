@@ -1,10 +1,11 @@
+import * as XLSX from "xlsx"
 import {
   applyOrganizerMatchesFilters,
-  buildOrganizerMatchesCsv,
   getDefaultOrganizerMatchesFilters,
   parseOrganizerMatchesFilters,
   type OrganizerMatchRow,
 } from "@/lib/organizer-matches-shared"
+import { buildOrganizerMatchesXlsx } from "@/lib/organizer-matches-export"
 
 const baseMatch = (overrides: Partial<OrganizerMatchRow>): OrganizerMatchRow => ({
   matchId: "match-1",
@@ -71,16 +72,34 @@ describe("organizer matches helpers", () => {
     expect(result[0].matchId).toBe("match-inherited")
   })
 
-  it("builds csv content with BOM and effective club name", () => {
-    const csv = buildOrganizerMatchesCsv([
+  it("builds xlsx content without match id and with tournament id", () => {
+    const workbookBuffer = buildOrganizerMatchesXlsx([
       baseMatch({
         effectiveClubName: "Club Central",
       }),
     ])
+    const workbook = XLSX.read(workbookBuffer, { type: "buffer" })
+    const worksheet = workbook.Sheets.Partidos
+    const rows = XLSX.utils.sheet_to_json<string[]>(worksheet, { header: 1 })
+    const headers = rows[0]
 
-    expect(csv.startsWith("\uFEFF")).toBe(true)
-    expect(csv).toContain("Club Central")
-    expect(csv).toContain("Torneo Apertura")
+    expect(headers).toEqual([
+      "Fecha",
+      "Hora inicio",
+      "Hora fin",
+      "Club",
+      "Cancha",
+      "Torneo",
+      "Ronda",
+      "Estado",
+      "Pareja 1",
+      "Pareja 2",
+      "ID torneo",
+    ])
+    expect(headers).not.toContain("ID partido")
+    expect(rows[1]).toContain("Club Central")
+    expect(rows[1]).toContain("Torneo Apertura")
+    expect(rows[1]).toContain("tournament-1")
   })
 
   it("hides past matches by default and allows them when includePast is true", () => {

@@ -209,7 +209,6 @@ export const buildOrganizerMatchesCsv = (matches: OrganizerMatchRow[]): string =
     "Estado",
     "Pareja 1",
     "Pareja 2",
-    "ID partido",
     "ID torneo",
   ]
 
@@ -224,7 +223,6 @@ export const buildOrganizerMatchesCsv = (matches: OrganizerMatchRow[]): string =
     getStatusLabel(match.status),
     match.couple1Display,
     match.couple2Display,
-    match.matchId,
     match.tournamentId,
   ])
 

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from "next/link"
+import { useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { format, parseISO } from "date-fns"
 import { es } from "date-fns/locale"
@@ -100,10 +101,22 @@ export default function OrganizerMatchesClient({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const filters = buildFilterState(initialFilters)
+  const [filters, setFilters] = useState(() => buildFilterState(initialFilters))
+  const [currentIncludePast, setCurrentIncludePast] = useState(Boolean(initialFilters.includePast))
   const defaultFilterState = buildFilterState(defaultOrganizerFilters)
 
-  const currentIncludePast = searchParams.get("includePast") === "true" || Boolean(initialFilters.includePast)
+  useEffect(() => {
+    setFilters(buildFilterState(initialFilters))
+    setCurrentIncludePast(Boolean(initialFilters.includePast))
+  }, [
+    initialFilters.fromDate,
+    initialFilters.fromTime,
+    initialFilters.toDate,
+    initialFilters.toTime,
+    initialFilters.clubId,
+    initialFilters.status,
+    initialFilters.includePast,
+  ])
 
   const buildUrlSearchParams = ({
     nextFilters = filters,
@@ -149,35 +162,41 @@ export default function OrganizerMatchesClient({
   }
 
   const syncFiltersToUrl = (nextFilters: OrganizerMatchFiltersState) => {
+    setFilters(nextFilters)
     const params = buildUrlSearchParams({ nextFilters })
     const queryString = params.toString()
     router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+    router.refresh()
   }
 
   const exportHref = (() => {
     const params = new URLSearchParams()
 
-    params.set("fromDate", initialFilters.fromDate)
-    params.set("fromTime", initialFilters.fromTime)
-    params.set("toDate", initialFilters.toDate)
-    params.set("toTime", initialFilters.toTime)
-    if (initialFilters.clubId) params.set("clubId", initialFilters.clubId)
-    if (initialFilters.status) params.set("status", initialFilters.status)
-    if (initialFilters.includePast) params.set("includePast", "true")
+    params.set("fromDate", filters.fromDate)
+    params.set("fromTime", filters.fromTime)
+    params.set("toDate", filters.toDate)
+    params.set("toTime", filters.toTime)
+    if (filters.selectedClubId !== "all") params.set("clubId", filters.selectedClubId)
+    if (filters.selectedStatus !== "all") params.set("status", filters.selectedStatus)
+    if (currentIncludePast) params.set("includePast", "true")
 
     return `/api/panel/matches/export?${params.toString()}`
   })()
 
   const toggleIncludePast = () => {
-    const params = buildUrlSearchParams({ includePast: !currentIncludePast })
+    const nextIncludePast = !currentIncludePast
+    setCurrentIncludePast(nextIncludePast)
+    const params = buildUrlSearchParams({ includePast: nextIncludePast })
     const queryString = params.toString()
-    router.replace(`${pathname}?${queryString}`, { scroll: false })
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+    router.refresh()
   }
 
   const navigateToPage = (page: number) => {
     const params = buildUrlSearchParams({ page })
     const queryString = params.toString()
-    router.replace(`${pathname}?${queryString}`, { scroll: false })
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+    router.refresh()
   }
 
   return (
@@ -205,7 +224,7 @@ export default function OrganizerMatchesClient({
           <Button asChild>
             <a href={exportHref}>
               <Download className="h-4 w-4" />
-              Exportar CSV
+              Exportar Excel
             </a>
           </Button>
         </div>

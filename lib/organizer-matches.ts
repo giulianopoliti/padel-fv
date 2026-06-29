@@ -326,7 +326,6 @@ export async function getOrganizationScheduledMatchesPage(
 
 export { applyOrganizerMatchesFilters } from "@/lib/organizer-matches-shared"
 export {
-  buildOrganizerMatchesCsv,
   getRoundLabel,
   getStatusLabel,
   parseOrganizerMatchesFilters,

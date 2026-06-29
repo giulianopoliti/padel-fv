@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/utils/supabase/server"
+import { buildOrganizerMatchesXlsx } from "@/lib/organizer-matches-export"
 import {
-  buildOrganizerMatchesCsv,
   getOrganizationScheduledMatches,
   parseOrganizerMatchesFilters,
 } from "@/lib/organizer-matches"
@@ -44,17 +44,17 @@ export async function GET(request: NextRequest) {
   )
 
   const matches = await getOrganizationScheduledMatches(orgMember.organizacion_id, filters)
-  const csvContent = buildOrganizerMatchesCsv(matches)
+  const excelContent = buildOrganizerMatchesXlsx(matches)
   const filenameDate =
     filters.fromDate === filters.toDate
       ? filters.fromDate
       : `${filters.fromDate}_a_${filters.toDate}`
 
-  return new NextResponse(csvContent, {
+  return new NextResponse(new Uint8Array(excelContent), {
     status: 200,
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="partidos-organizacion-${filenameDate}.csv"`,
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="partidos-organizacion-${filenameDate}.xlsx"`,
       "Cache-Control": "no-store",
     },
   })
