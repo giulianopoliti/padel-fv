@@ -9,6 +9,7 @@ const corsHeaders = {
 interface TournamentRequest {
   organizationId: string
   limit?: number
+  statusFilter?: string[]
 }
 
 serve(async (req) => {
@@ -52,7 +53,7 @@ serve(async (req) => {
     console.log('[get-organization-tournaments] User authenticated:', user.id)
 
     const body: TournamentRequest = await req.json()
-    const { organizationId, limit = 3 } = body
+    const { organizationId, limit = 3, statusFilter } = body
 
     if (!organizationId) {
       return new Response(
@@ -80,7 +81,7 @@ serve(async (req) => {
     console.log('[get-organization-tournaments] Fetching tournaments...')
 
     // Query 1: Fetch torneos base
-    const { data: tournaments, error: tournamentsError } = await supabaseClient
+    let query = supabaseClient
       .from('tournaments')
       .select(`
         id,
@@ -100,10 +101,18 @@ serve(async (req) => {
         )
       `)
       .eq('organization_id', organizationId)
-      .neq('status', 'CANCELED')
       .eq('es_prueba', false)
       .order('created_at', { ascending: false })
-      .limit(limit)
+
+    if (statusFilter && statusFilter.length > 0) {
+      query = query.in('status', statusFilter)
+    }
+
+    if (limit) {
+      query = query.limit(limit)
+    }
+
+    const { data: tournaments, error: tournamentsError } = await query
 
     if (tournamentsError) {
       console.error('[get-organization-tournaments] Error fetching tournaments:', tournamentsError)

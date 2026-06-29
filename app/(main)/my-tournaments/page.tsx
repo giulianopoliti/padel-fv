@@ -8,6 +8,7 @@ import Link from "next/link"
 import TournamentCard from "@/app/(main)/panel/@organizador/components/tournament-card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DuplicateTournamentDialog } from "./components/duplicate-tournament-dialog"
+import { RestoreTournamentButton } from "./components/restore-tournament-button"
 
 // Componente de carga para usar con Suspense
 function TournamentsLoading() {
@@ -47,6 +48,14 @@ function TournamentCardWithDuplicate({
       {(tournament.type === "LONG" || tournament.type === "AMERICAN") && (
         <div className="absolute bottom-4 right-4 z-20">
           <DuplicateTournamentDialog
+            tournamentId={tournament.id}
+            tournamentName={tournament.name}
+          />
+        </div>
+      )}
+      {tournament.status === "CANCELED" && (
+        <div className="absolute bottom-4 left-4 z-20">
+          <RestoreTournamentButton
             tournamentId={tournament.id}
             tournamentName={tournament.name}
           />

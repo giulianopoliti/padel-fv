@@ -34,7 +34,7 @@ export default function QuickActions({
         return <CheckCircle2 className="h-4 w-4 text-green-600" />
       case 'COMPLETED':
         return <CheckCircle2 className="h-4 w-4 text-blue-600" />
-      case 'CANCELLED':
+      case 'CANCELED':
         return <AlertCircle className="h-4 w-4 text-red-600" />
       default:
         return <Clock className="h-4 w-4 text-yellow-600" />
@@ -47,7 +47,7 @@ export default function QuickActions({
         return 'bg-green-100 text-green-800'
       case 'COMPLETED':
         return 'bg-blue-100 text-blue-800'
-      case 'CANCELLED':
+      case 'CANCELED':
         return 'bg-red-100 text-red-800'
       default:
         return 'bg-yellow-100 text-yellow-800'

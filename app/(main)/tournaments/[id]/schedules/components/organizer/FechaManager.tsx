@@ -41,7 +41,7 @@ export default function FechaManager({
         return <Badge variant="default">Activa</Badge>
       case 'COMPLETED':
         return <Badge variant="secondary">Completada</Badge>
-      case 'CANCELLED':
+      case 'CANCELED':
         return <Badge variant="destructive">Cancelada</Badge>
       default:
         return <Badge variant="outline">Pendiente</Badge>

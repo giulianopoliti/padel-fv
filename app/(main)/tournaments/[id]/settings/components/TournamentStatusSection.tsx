@@ -29,7 +29,7 @@ const STATUS_CONFIG = {
     color: 'bg-green-100 text-green-800 border-green-300',
     description: 'El torneo ha concluido'
   },
-  CANCELLED: {
+  CANCELED: {
     label: 'Cancelado',
     color: 'bg-red-100 text-red-800 border-red-300',
     description: 'El torneo fue cancelado'
@@ -111,8 +111,8 @@ export default function TournamentStatusSection({
               <SelectItem value="COMPLETED">
                 {STATUS_CONFIG.COMPLETED.label}
               </SelectItem>
-              <SelectItem value="CANCELLED">
-                {STATUS_CONFIG.CANCELLED.label}
+              <SelectItem value="CANCELED">
+                {STATUS_CONFIG.CANCELED.label}
               </SelectItem>
             </SelectContent>
           </Select>

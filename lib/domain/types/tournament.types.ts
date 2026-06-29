@@ -26,7 +26,7 @@ export type TournamentStatus =
   | 'MATCHES_READY'
   | 'ELIMINATION';
 
-export type MatchStatus = 'PENDING' | 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED';
+export type MatchStatus = 'PENDING' | 'IN_PROGRESS' | 'FINISHED' | 'CANCELED';
 
 export type MatchRound = 'ZONE' | '32VOS' | '16VOS' | '8VOS' | '4TOS' | 'SEMIFINAL' | 'FINAL';
 
