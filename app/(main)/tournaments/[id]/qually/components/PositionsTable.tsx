@@ -304,6 +304,11 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
       </div>
 
       <div className="space-y-3 md:hidden">
+        {!isSingleSetFormat && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-800">
+            Desempate LONG: PG, Dif. sets, Dif. games
+          </div>
+        )}
         {standings.map((zonePosition) => {
           const isCurrentCouple = zonePosition.couple_id === playerCoupleId;
           const isDisqualified = disqualificationsByCouple.has(zonePosition.couple_id);
@@ -325,11 +330,25 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
                 </div>
                 {getPositionIcon(zonePosition.position)}
               </div>
-              <div className="mt-4 grid grid-cols-4 gap-2 text-center">
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                 <MobileStat label="PJ" value={zonePosition.wins + zonePosition.losses} />
                 <MobileStat label="PG" value={zonePosition.wins} positive />
                 <MobileStat label="PP" value={zonePosition.losses} />
-                <MobileStat label="Dif. games" value={zonePosition.games_difference} positive={zonePosition.games_difference > 0} />
+              </div>
+              <div className={`mt-2 grid ${isSingleSetFormat ? 'grid-cols-1' : 'grid-cols-2'} gap-2 text-center`}>
+                {!isSingleSetFormat && (
+                  <MobileStat
+                    label="Dif. sets"
+                    value={zonePosition.sets_difference}
+                    positive={zonePosition.sets_difference > 0}
+                    priority
+                  />
+                )}
+                <MobileStat
+                  label="Dif. games"
+                  value={zonePosition.games_difference}
+                  positive={zonePosition.games_difference > 0}
+                />
               </div>
             </article>
           );
@@ -637,8 +656,26 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
 
 export default PositionsTable;
 
-const MobileStat = ({ label, value, positive = false }: { label: string; value: number; positive?: boolean }) => (
-  <div className="rounded-xl bg-muted/70 p-2">
+const MobileStat = ({
+  label,
+  value,
+  positive = false,
+  priority = false
+}: {
+  label: string;
+  value: number;
+  positive?: boolean;
+  priority?: boolean;
+}) => (
+  <div className={`rounded-xl p-2 ${
+    priority
+      ? value > 0
+        ? 'bg-emerald-50 ring-1 ring-emerald-200'
+        : value < 0
+          ? 'bg-rose-50 ring-1 ring-rose-200'
+          : 'bg-slate-50 ring-1 ring-slate-200'
+      : 'bg-muted/70'
+  }`}>
     <p className={positive ? 'font-bold text-emerald-700' : 'font-bold'}>{value > 0 && label.includes('Dif.') ? `+${value}` : value}</p>
     <p className="text-[10px] font-semibold text-muted-foreground">{label}</p>
   </div>
