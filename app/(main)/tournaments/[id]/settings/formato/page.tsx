@@ -65,6 +65,8 @@ export default async function SettingsFormatoPage({ params }: SettingsFormatoPag
             <Badge variant="outline">{tournament.status || 'NOT_STARTED'}</Badge>
             {resolvedFormat.qualificationSource === 'GLOBAL_STANDINGS' ? (
               <Badge variant="secondary">Tabla general</Badge>
+            ) : resolvedFormat.qualificationSource === 'HYBRID_FIRSTS_GLOBAL_REST_ZONES' ? (
+              <Badge variant="secondary">Hibrido</Badge>
             ) : (
               <Badge variant="secondary">Ranking por zona</Badge>
             )}

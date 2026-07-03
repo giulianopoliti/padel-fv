@@ -154,9 +154,15 @@ export class ZoneAnalysisTriggerService {
     zoneId: string, 
     definitivePositions: any[]
   ): Promise<void> {
-    if (await this.shouldResolveGlobalPlaceholders(tournamentId)) {
+    const resolutionScope = await this.getPlaceholderResolutionScope(tournamentId)
+
+    if (resolutionScope === 'GLOBAL_STANDINGS') {
       await this.triggerGlobalPlaceholderResolution(tournamentId)
       return
+    }
+
+    if (resolutionScope === 'HYBRID_FIRSTS_GLOBAL_REST_ZONES') {
+      await this.triggerGlobalPlaceholderResolution(tournamentId)
     }
 
     if (definitivePositions.length === 0) {
@@ -170,6 +176,10 @@ export class ZoneAnalysisTriggerService {
     let totalResolved = 0
 
     for (const position of definitivePositions) {
+      if (resolutionScope === 'HYBRID_FIRSTS_GLOBAL_REST_ZONES' && position.position === 1) {
+        continue
+      }
+
       try {
         const result = await placeholderResolver.resolveFromZonePosition(
           tournamentId,
@@ -193,7 +203,9 @@ export class ZoneAnalysisTriggerService {
     console.log(`🎯 [ZONE-TRIGGER] Placeholder resolution completed: ${totalResolved} total seeds resolved for zone ${zoneId}`)
   }
 
-  private async shouldResolveGlobalPlaceholders(tournamentId: string): Promise<boolean> {
+  private async getPlaceholderResolutionScope(
+    tournamentId: string
+  ): Promise<'ZONE_POSITIONS' | 'GLOBAL_STANDINGS' | 'HYBRID_FIRSTS_GLOBAL_REST_ZONES'> {
     const supabase = await createClient()
 
     const { data: tournament, error } = await supabase
@@ -204,11 +216,11 @@ export class ZoneAnalysisTriggerService {
 
     if (error || !tournament) {
       console.error(`[ZONE-TRIGGER] Error loading tournament format: ${error?.message || 'Tournament not found'}`)
-      return false
+      return 'ZONE_POSITIONS'
     }
 
     const rules = TournamentFormatRulesService.resolve({ tournament })
-    return rules.qualificationSource === 'GLOBAL_STANDINGS'
+    return rules.qualificationSource
   }
 
   private async triggerGlobalPlaceholderResolution(tournamentId: string): Promise<void> {

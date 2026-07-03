@@ -51,6 +51,16 @@ describe('tournament-format-policy', () => {
       format_config: getTournamentFormatPreset('AMERICAN_MULTI_ZONE_GLOBAL_3'),
     }
 
+    const wrappedHybridMZ2 = {
+      type: 'AMERICAN',
+      format_config: getTournamentFormatPreset('AMERICAN_MULTI_ZONE_HYBRID_2'),
+    }
+
+    const wrappedHybridMZ3 = {
+      type: 'AMERICAN',
+      format_config: getTournamentFormatPreset('AMERICAN_MULTI_ZONE_HYBRID_3'),
+    }
+
     const wrappedLong = {
       type: 'LONG',
       format_config: getTournamentFormatPreset('LONG_SINGLE_ZONE_BRACKET'),
@@ -60,6 +70,8 @@ describe('tournament-format-policy', () => {
     expect(shouldWrapLegacyEndpointsWithCanonicalFlow(wrappedMZ3)).toBe(true)
     expect(shouldWrapLegacyEndpointsWithCanonicalFlow(wrappedGlobalMZ2)).toBe(true)
     expect(shouldWrapLegacyEndpointsWithCanonicalFlow(wrappedGlobalMZ3)).toBe(true)
+    expect(shouldWrapLegacyEndpointsWithCanonicalFlow(wrappedHybridMZ2)).toBe(true)
+    expect(shouldWrapLegacyEndpointsWithCanonicalFlow(wrappedHybridMZ3)).toBe(true)
     expect(shouldWrapLegacyEndpointsWithCanonicalFlow(wrappedLong)).toBe(true)
     expect(shouldWrapLegacyEndpointsWithCanonicalFlow({ type: 'AMERICAN', format_config: null })).toBe(false)
   })
@@ -69,6 +81,8 @@ describe('tournament-format-policy', () => {
     expect(isRuntimeAmericanMultiZonePreset('AMERICAN_MULTI_ZONE_3')).toBe(true)
     expect(isRuntimeAmericanMultiZonePreset('AMERICAN_MULTI_ZONE_GLOBAL_2')).toBe(true)
     expect(isRuntimeAmericanMultiZonePreset('AMERICAN_MULTI_ZONE_GLOBAL_3')).toBe(true)
+    expect(isRuntimeAmericanMultiZonePreset('AMERICAN_MULTI_ZONE_HYBRID_2')).toBe(true)
+    expect(isRuntimeAmericanMultiZonePreset('AMERICAN_MULTI_ZONE_HYBRID_3')).toBe(true)
     expect(isRuntimeAmericanMultiZonePreset('AMERICAN_SINGLE_ZONE_2_BRACKET')).toBe(false)
 
     expect(
@@ -88,6 +102,12 @@ describe('tournament-format-policy', () => {
     ).toBe(true)
     expect(
       canSwitchAmericanMultiZoneRuntime('AMERICAN_MULTI_ZONE_GLOBAL_2', 'AMERICAN_MULTI_ZONE_GLOBAL_3')
+    ).toBe(true)
+    expect(
+      canSwitchAmericanMultiZoneRuntime('AMERICAN_MULTI_ZONE_HYBRID_2', 'AMERICAN_MULTI_ZONE_GLOBAL_3')
+    ).toBe(true)
+    expect(
+      canSwitchAmericanMultiZoneRuntime('AMERICAN_MULTI_ZONE_3', 'AMERICAN_MULTI_ZONE_HYBRID_3')
     ).toBe(true)
     expect(
       canSwitchAmericanMultiZoneRuntime('AMERICAN_MULTI_ZONE_GLOBAL_2', 'AMERICAN_SINGLE_ZONE_2_BRACKET')

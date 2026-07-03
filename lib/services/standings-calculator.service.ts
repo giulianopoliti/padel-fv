@@ -11,6 +11,7 @@ export interface StandingStats {
   gamesAgainst: number
   gamesDifference: number
   gamesWon: number
+  totalPlayerScore?: number
 }
 
 export interface StandingEntry {
@@ -81,6 +82,7 @@ const toStandingEntry = (
     gamesAgainst: rankedCouple.gamesLost,
     gamesDifference: rankedCouple.gamesDifference,
     gamesWon: rankedCouple.gamesWon,
+    totalPlayerScore: rankedCouple.totalPlayerScore || 0,
   },
   tieInfo: rankedCouple.positionTieInfo || null,
 })

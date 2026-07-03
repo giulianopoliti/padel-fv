@@ -60,8 +60,8 @@ describe('PlaceholderBracketGenerator - American Format Seeding', () => {
       expect(seeds).toHaveLength(6)
 
       // Verificar orden by-zones: 1A, 1B, 2A, 2B, 3A, 3B
-      expect(seeds[0].placeholder_label || 'couple').toContain('1A')
-      expect(seeds[1].placeholder_label || 'couple').toContain('1B')
+      expect(seeds[0].couple_id).toBe('couple-A1')
+      expect(seeds[1].couple_id).toBe('couple-B1')
       expect(seeds[2].placeholder_label || 'couple').toContain('2A')
       expect(seeds[3].placeholder_label || 'couple').toContain('2B')
       expect(seeds[4].placeholder_label || 'couple').toContain('3A')
@@ -91,9 +91,9 @@ describe('PlaceholderBracketGenerator - American Format Seeding', () => {
       expect(seeds).toHaveLength(8)
 
       // Verificar orden: 1A, 1B, 2A, 2B, 3A, 3B, 4A, 4B
-      const labels = seeds.map(s => s.placeholder_label || `couple-${s.couple_id?.split('-')[1]}`)
+      const labels = seeds.map(s => s.placeholder_label || s.couple_id)
       expect(labels).toEqual(
-        expect.arrayContaining(['1A', '1B', '2A', '2B', '3A', '3B', '4A', '4B'])
+        expect.arrayContaining(['couple-A1', 'couple-B1', 'couple-A2', '2B', '3A', '3B', '4A', '4B'])
       )
 
       // Verificar posición 4 está presente (tu fix reciente)

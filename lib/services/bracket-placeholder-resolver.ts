@@ -113,7 +113,9 @@ export async function getNewDefinitivePositions(
   return definitivePositions
 }
 
-async function shouldUseGlobalStandings(tournamentId: string): Promise<boolean> {
+type PlaceholderResolutionScope = 'ZONE_POSITIONS' | 'GLOBAL_STANDINGS' | 'HYBRID_FIRSTS_GLOBAL_REST_ZONES'
+
+async function getPlaceholderResolutionScope(tournamentId: string): Promise<PlaceholderResolutionScope> {
   const supabase = await createClientServiceRole()
 
   const { data: tournament, error } = await supabase
@@ -124,11 +126,11 @@ async function shouldUseGlobalStandings(tournamentId: string): Promise<boolean> 
 
   if (error || !tournament) {
     console.error(`[BRACKET-RESOLVER] Error loading tournament format: ${error?.message || 'Tournament not found'}`)
-    return false
+    return 'ZONE_POSITIONS'
   }
 
   const rules = TournamentFormatRulesService.resolve({ tournament })
-  return rules.qualificationSource === 'GLOBAL_STANDINGS'
+  return rules.qualificationSource
 }
 
 export async function getGlobalDefinitivePositions(
@@ -152,6 +154,41 @@ export async function getGlobalDefinitivePositions(
   })
 
   return definitivePositions
+}
+
+export async function getHybridDefinitivePositions(
+  tournamentId: string,
+  zoneId: string
+): Promise<DefinitivePosition[]> {
+  console.log(`[BRACKET-RESOLVER] Getting hybrid definitive positions`)
+
+  const [entries, zonePositions] = await Promise.all([
+    QualificationSourceService.getQualifiedEntries(tournamentId),
+    getNewDefinitivePositions(tournamentId, zoneId),
+  ])
+
+  const definitiveFirsts = entries
+    .filter((entry) => (
+      entry.isDefinitive &&
+      entry.coupleId &&
+      entry.zoneId === null &&
+      entry.localPosition === 1 &&
+      entry.globalPosition
+    ))
+    .map((entry) => ({
+      zoneId: null,
+      position: entry.globalPosition!,
+      coupleId: entry.coupleId!,
+      isDefinitive: true,
+    }))
+
+  const definitiveZoneRest = zonePositions.filter((position) => position.position > 1)
+
+  console.log(
+    `[BRACKET-RESOLVER] Hybrid definitive positions: ${definitiveFirsts.length} first slots, ${definitiveZoneRest.length} zone slots`
+  )
+
+  return [...definitiveFirsts, ...definitiveZoneRest]
 }
 
 /**
@@ -514,9 +551,12 @@ export class BracketPlaceholderResolver {
     try {
       // PASO 1: Buscar posiciones definitivas de la zona actualizada
       console.log(`📍 [BRACKET-RESOLVER] STEP 1/5: Getting definitive positions`)
-      const definitivePositions = await shouldUseGlobalStandings(tournamentId)
+      const resolutionScope = await getPlaceholderResolutionScope(tournamentId)
+      const definitivePositions = resolutionScope === 'GLOBAL_STANDINGS'
         ? await getGlobalDefinitivePositions(tournamentId)
-        : await getNewDefinitivePositions(tournamentId, zoneId)
+        : resolutionScope === 'HYBRID_FIRSTS_GLOBAL_REST_ZONES'
+          ? await getHybridDefinitivePositions(tournamentId, zoneId)
+          : await getNewDefinitivePositions(tournamentId, zoneId)
       
       if (definitivePositions.length === 0) {
         console.log(`📭 [BRACKET-RESOLVER] No definitive positions found - nothing to resolve`)

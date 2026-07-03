@@ -128,7 +128,9 @@ export class PlaceholderBracketGenerator {
   ): Promise<PlaceholderSeed[]> {
     const qualifiedEntries = await QualificationSourceService.getQualifiedEntries(tournamentId, { bracketKey })
 
-    const seeds = qualifiedEntries.map((entry, index) => this.entryToSeed(entry, index + 1, bracketKey))
+    const seeds = qualifiedEntries.map((entry, index) => (
+      PlaceholderBracketGenerator.entryToSeed(entry, index + 1, bracketKey)
+    ))
     const bracketSeeding = this.buildBracketSeeding(seeds.length)
 
     seeds.forEach((seed, index) => {
@@ -140,17 +142,22 @@ export class PlaceholderBracketGenerator {
     return seeds
   }
 
-  private entryToSeed(entry: QualifiedEntry, seed: number, bracketKey: BracketKey): PlaceholderSeed {
+  static entryToSeed(entry: QualifiedEntry, seed: number, bracketKey: BracketKey): PlaceholderSeed {
+    const isPlaceholder = !entry.isDefinitive
+    const placeholderPosition = entry.zoneId === null
+      ? entry.globalPosition
+      : entry.localPosition
+
     return {
       bracket_key: bracketKey,
       seed,
       bracket_position: 0,
       couple_id: entry.isDefinitive ? entry.coupleId : null,
-      placeholder_zone_id: entry.isDefinitive ? null : entry.zoneId,
-      placeholder_position: entry.isDefinitive ? null : entry.localPosition || entry.globalPosition,
-      placeholder_label: entry.label,
-      is_placeholder: !entry.isDefinitive,
-      created_as_placeholder: !entry.isDefinitive,
+      placeholder_zone_id: isPlaceholder ? entry.zoneId : null,
+      placeholder_position: isPlaceholder ? placeholderPosition : null,
+      placeholder_label: isPlaceholder ? entry.label : null,
+      is_placeholder: isPlaceholder,
+      created_as_placeholder: isPlaceholder,
     }
   }
 

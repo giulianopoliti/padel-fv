@@ -140,7 +140,7 @@ const tournamentSchema = z.object({
   extra_club_ids: z.array(z.string()).default([]),
   price: z.number().int('El precio debe ser un numero entero').min(0, 'El precio no puede ser negativo').max(MAX_TOURNAMENT_PRICE, 'El precio es demasiado alto').optional(),
   award: z.string().optional(),
-  american_multizone_algorithm: z.enum(['SERPENTINE_BY_ZONE', 'GLOBAL_STANDINGS']).optional(),
+  american_multizone_algorithm: z.enum(['SERPENTINE_BY_ZONE', 'GLOBAL_STANDINGS', 'HYBRID_FIRSTS_GLOBAL_REST_ZONES']).optional(),
   american_zone_matches_per_couple: z.enum(['2', '3']).optional(),
   american_couples_per_zone: z.enum(['2', '3', 'ALL']).optional(),
   single_bracket_advance_count: z.number().int().min(2, 'Minimo 2 parejas').optional(),
@@ -255,7 +255,11 @@ const getPresetMeta = (presetId: string) => {
 
   const zoneLabel = preset.zoneMode === 'MULTI_ZONE' ? 'Multiples zonas' : 'Zona unica';
   const stageLabel = preset.zoneStage === 'ROUND_ROBIN' ? 'Todos contra todos' : `${preset.targetMatchesPerCouple ?? 0} partidos por pareja`;
-  const qualificationLabel = preset.qualificationSource === 'GLOBAL_STANDINGS' ? 'Tabla general' : 'Posiciones por zona';
+  const qualificationLabel = preset.qualificationSource === 'GLOBAL_STANDINGS'
+    ? 'Tabla general'
+    : preset.qualificationSource === 'HYBRID_FIRSTS_GLOBAL_REST_ZONES'
+      ? 'Primeros por tabla general'
+      : 'Posiciones por zona';
   const bracketLabel = preset.bracketMode === 'SINGLE'
     ? 'Llave unica'
     : preset.bracketMode === 'GOLD_SILVER'
@@ -1351,7 +1355,11 @@ export default function TournamentCreateForm() {
                                             variant="outline"
                                             className={cn('border-current/20 bg-transparent', isSelected ? 'text-white' : 'text-slate-600')}
                                           >
-                                            {option.id === 'GLOBAL_STANDINGS' ? 'Tabla general' : 'Posiciones por zona'}
+                                            {option.id === 'GLOBAL_STANDINGS'
+                                              ? 'Tabla general'
+                                              : option.id === 'HYBRID_FIRSTS_GLOBAL_REST_ZONES'
+                                                ? 'Primeros por tabla general'
+                                                : 'Posiciones por zona'}
                                           </Badge>
                                         </div>
                                       </button>

@@ -21,6 +21,22 @@ export interface MockZonePosition {
   is_definitive: boolean
 }
 
+const createEmptyQuery = () => {
+  const query = {
+    eq: () => query,
+    neq: () => query,
+    in: () => query,
+    order: () => Promise.resolve({ data: [], error: null }),
+    single: () => Promise.resolve({ data: null, error: null }),
+    maybeSingle: () => Promise.resolve({ data: null, error: null }),
+    then: (resolve: (value: { data: any[]; error: null }) => void) => (
+      Promise.resolve({ data: [], error: null }).then(resolve)
+    ),
+  }
+
+  return query
+}
+
 /**
  * Crea mock de zonas con nombres consistentes (Zona A, Zona B, etc.)
  */
@@ -154,13 +170,7 @@ export function createSupabaseMock(
       }
 
       return {
-        select: () => ({
-          eq: () => ({
-            order: () => Promise.resolve({ data: [], error: null }),
-            single: () => Promise.resolve({ data: null, error: null }),
-            in: () => Promise.resolve({ data: [], error: null })
-          })
-        })
+        select: () => createEmptyQuery()
       }
     }
   }

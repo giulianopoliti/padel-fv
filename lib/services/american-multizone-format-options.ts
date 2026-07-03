@@ -1,6 +1,6 @@
 import type { TournamentFormatConfigV2, TournamentFormatPresetId } from '@/types/tournament-format-v2'
 
-export type AmericanMultiZoneAlgorithm = 'SERPENTINE_BY_ZONE' | 'GLOBAL_STANDINGS'
+export type AmericanMultiZoneAlgorithm = 'SERPENTINE_BY_ZONE' | 'GLOBAL_STANDINGS' | 'HYBRID_FIRSTS_GLOBAL_REST_ZONES'
 export type AmericanMultiZoneMatchesPerCouple = 2 | 3
 
 export const AMERICAN_MULTI_ZONE_FORMAT_OPTIONS: Array<{
@@ -18,6 +18,11 @@ export const AMERICAN_MULTI_ZONE_FORMAT_OPTIONS: Array<{
     label: 'Americano multizona tabla general',
     description: 'Clasifica todas las parejas en una tabla general y arma la llave desde ese ranking.',
   },
+  {
+    id: 'HYBRID_FIRSTS_GLOBAL_REST_ZONES',
+    label: 'Americano multizona hibrido',
+    description: 'Espera el orden de los mejores primeros por tabla general y completa el resto por serpenteo de zonas.',
+  },
 ]
 
 export const AMERICAN_MULTI_ZONE_MATCH_OPTIONS: AmericanMultiZoneMatchesPerCouple[] = [2, 3]
@@ -34,6 +39,10 @@ const PRESET_BY_SELECTION: Record<
     2: 'AMERICAN_MULTI_ZONE_GLOBAL_2',
     3: 'AMERICAN_MULTI_ZONE_GLOBAL_3',
   },
+  HYBRID_FIRSTS_GLOBAL_REST_ZONES: {
+    2: 'AMERICAN_MULTI_ZONE_HYBRID_2',
+    3: 'AMERICAN_MULTI_ZONE_HYBRID_3',
+  },
 }
 
 export function isAmericanMultiZonePresetId(presetId?: string | null): boolean {
@@ -41,7 +50,9 @@ export function isAmericanMultiZonePresetId(presetId?: string | null): boolean {
     presetId === 'AMERICAN_MULTI_ZONE_2' ||
     presetId === 'AMERICAN_MULTI_ZONE_3' ||
     presetId === 'AMERICAN_MULTI_ZONE_GLOBAL_2' ||
-    presetId === 'AMERICAN_MULTI_ZONE_GLOBAL_3'
+    presetId === 'AMERICAN_MULTI_ZONE_GLOBAL_3' ||
+    presetId === 'AMERICAN_MULTI_ZONE_HYBRID_2' ||
+    presetId === 'AMERICAN_MULTI_ZONE_HYBRID_3'
   )
 }
 
@@ -52,13 +63,21 @@ export function getAmericanMultiZoneAlgorithmFromPresetId(
     return 'GLOBAL_STANDINGS'
   }
 
+  if (presetId === 'AMERICAN_MULTI_ZONE_HYBRID_2' || presetId === 'AMERICAN_MULTI_ZONE_HYBRID_3') {
+    return 'HYBRID_FIRSTS_GLOBAL_REST_ZONES'
+  }
+
   return 'SERPENTINE_BY_ZONE'
 }
 
 export function getAmericanMultiZoneMatchesFromPresetId(
   presetId?: string | null
 ): AmericanMultiZoneMatchesPerCouple {
-  if (presetId === 'AMERICAN_MULTI_ZONE_3' || presetId === 'AMERICAN_MULTI_ZONE_GLOBAL_3') {
+  if (
+    presetId === 'AMERICAN_MULTI_ZONE_3' ||
+    presetId === 'AMERICAN_MULTI_ZONE_GLOBAL_3' ||
+    presetId === 'AMERICAN_MULTI_ZONE_HYBRID_3'
+  ) {
     return 3
   }
 

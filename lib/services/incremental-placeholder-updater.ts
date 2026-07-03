@@ -30,11 +30,13 @@ export class IncrementalPlaceholderUpdater {
     
     let resolvedCount = 0
     
-    const shouldResolveGlobal = await this.shouldResolveGlobalPlaceholders(tournamentId)
+    const resolutionScope = await this.getPlaceholderResolutionScope(tournamentId)
 
     // PASO 2: Resolver placeholders segun el scope de clasificacion.
-    if (shouldResolveGlobal) {
+    if (resolutionScope === 'GLOBAL_STANDINGS') {
       resolvedCount = await this.resolveGlobalDefinitivePositions(tournamentId)
+    } else if (resolutionScope === 'HYBRID_FIRSTS_GLOBAL_REST_ZONES') {
+      resolvedCount = await this.resolveHybridDefinitivePositions(tournamentId, zoneId)
     } else if (zoneResult.definitivePositions > 0) {
       resolvedCount = await this.resolveZoneDefinitivePositions(tournamentId, zoneId)
     } else {
@@ -49,7 +51,9 @@ export class IncrementalPlaceholderUpdater {
     }
   }
 
-  private async shouldResolveGlobalPlaceholders(tournamentId: string): Promise<boolean> {
+  private async getPlaceholderResolutionScope(
+    tournamentId: string
+  ): Promise<'ZONE_POSITIONS' | 'GLOBAL_STANDINGS' | 'HYBRID_FIRSTS_GLOBAL_REST_ZONES'> {
     const supabase = await createClient()
 
     const { data: tournament, error } = await supabase
@@ -60,11 +64,11 @@ export class IncrementalPlaceholderUpdater {
 
     if (error || !tournament) {
       console.error(`[INCREMENTAL-UPDATER] Error loading tournament format: ${error?.message || 'Tournament not found'}`)
-      return false
+      return 'ZONE_POSITIONS'
     }
 
     const rules = TournamentFormatRulesService.resolve({ tournament })
-    return rules.qualificationSource === 'GLOBAL_STANDINGS'
+    return rules.qualificationSource
   }
 
   private async resolveGlobalDefinitivePositions(tournamentId: string): Promise<number> {
@@ -96,6 +100,13 @@ export class IncrementalPlaceholderUpdater {
 
     console.log(`[INCREMENTAL-UPDATER] Completed global placeholder resolution: ${totalResolved} seeds resolved`)
     return totalResolved
+  }
+
+  private async resolveHybridDefinitivePositions(tournamentId: string, zoneId: string): Promise<number> {
+    const globalResolved = await this.resolveGlobalDefinitivePositions(tournamentId)
+    const zoneResolved = await this.resolveZoneDefinitivePositions(tournamentId, zoneId)
+
+    return globalResolved + zoneResolved
   }
   
   /**
@@ -132,6 +143,10 @@ export class IncrementalPlaceholderUpdater {
     // 2. PROCESAR cada posición definitiva
     let totalResolved = 0
     for (const position of definitivePositions) {
+      if (position.position === 1) {
+        continue
+      }
+
       try {
         const resolved = await this.updatePlaceholderSeed(
           tournamentId,
