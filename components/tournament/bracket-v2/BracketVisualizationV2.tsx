@@ -35,9 +35,9 @@ import { useBracketDragOperations } from './hooks/useBracketDragOperations'
 import { useTournamentFinalization } from './hooks/useTournamentFinalization'
 import { PointsCalculationBanner } from './components/PointsCalculationBanner'
 import ReadOnlyBracketTab from '../read-only-bracket-tab'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Trophy } from 'lucide-react'
 import BackFromBracketButton from '@/app/(main)/tournaments/[id]/settings/components/BackFromBracketButton'
+
 // REMOVIDO: generatePlaceholderBracketAction import (causaba error de serialización)
 // Ahora usamos API Route en su lugar
 
@@ -82,7 +82,6 @@ function BracketVisualizationV2Internal({
     loading,
     error,
     isRefetching,
-    lastUpdated,
     refetch,
     config: hookConfig
   } = useBracketData(tournamentId, {
@@ -110,6 +109,33 @@ function BracketVisualizationV2Internal({
    * Hook de finalización de torneo
    */
   const finalization = useTournamentFinalization(tournamentId)
+  const [missingCoupleRepairLoading, setMissingCoupleRepairLoading] = React.useState(false)
+  const [missingCoupleRepairError, setMissingCoupleRepairError] = React.useState<string | null>(null)
+
+  const handleFillMissingCouple = React.useCallback(async () => {
+    setMissingCoupleRepairLoading(true)
+    setMissingCoupleRepairError(null)
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/bracket-qualification-repair`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bracketKey: 'MAIN', mode: 'fill_single_missing' }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || result.error || 'No se pudo insertar la pareja faltante')
+      }
+
+      await refetch()
+      onDataRefresh?.()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo insertar la pareja faltante'
+      console.warn('[BracketVisualizationV2] Missing couple repair failed:', error)
+      setMissingCoupleRepairError(message)
+    } finally {
+      setMissingCoupleRepairLoading(false)
+    }
+  }, [onDataRefresh, refetch, tournamentId])
 
 
   // Notificar cambios de estado al parent
@@ -373,8 +399,11 @@ function BracketVisualizationV2Internal({
         <BracketControlsPlaceholder
           onProcessBYEs={handleProcessBYEs}
           onRegeneratePlaceholders={handleRegeneratePlaceholders}
+          onFillMissingCouple={handleFillMissingCouple}
           config={finalConfig}
           isRefetching={isRefetching}
+          missingCoupleRepairLoading={missingCoupleRepairLoading}
+          missingCoupleRepairError={missingCoupleRepairError}
           dragOperations={dragOperations}
           tournamentId={tournamentId}
           tournamentStatus={tournamentStatus}
@@ -579,16 +608,22 @@ Generando llave...
 function BracketControlsPlaceholder({ 
   onProcessBYEs,
   onRegeneratePlaceholders,
+  onFillMissingCouple,
   config,
   isRefetching,
+  missingCoupleRepairLoading,
+  missingCoupleRepairError,
   dragOperations,
   tournamentId,
   tournamentStatus,
 }: {
   onProcessBYEs: () => void
   onRegeneratePlaceholders: () => void
+  onFillMissingCouple: () => void
   config: BracketConfig
   isRefetching?: boolean
+  missingCoupleRepairLoading?: boolean
+  missingCoupleRepairError?: string | null
   dragOperations?: any
   tournamentId: string
   tournamentStatus?: string
@@ -604,6 +639,18 @@ function BracketControlsPlaceholder({
             buttonLabel="Volver a zonas"
             tooltipMessage="Si tuviste algun problema con la llave y queres borrarla, usa este boton para volver el torneo a fase de zonas."
           />
+        )}
+
+        {tournamentStatus === 'BRACKET_PHASE' && (
+          <button
+            type="button"
+            onClick={onFillMissingCouple}
+            disabled={missingCoupleRepairLoading || isRefetching}
+            className="text-xs text-slate-400 underline-offset-4 hover:text-slate-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+            title="Inserta la unica pareja faltante en el unico placeholder libre, si existe."
+          >
+            {missingCoupleRepairLoading ? 'Buscando pareja faltante...' : 'Me falta una pareja'}
+          </button>
         )}
         
         {/* Controles de drag & drop */}
@@ -629,6 +676,12 @@ function BracketControlsPlaceholder({
         )}
         
       </div>
+
+      {missingCoupleRepairError && (
+        <div className="mt-3 text-xs text-slate-500">
+          {missingCoupleRepairError}
+        </div>
+      )}
       
       {/* Lista de operaciones pendientes */}
       {dragOperations && dragOperations.hasPendingOperations && (

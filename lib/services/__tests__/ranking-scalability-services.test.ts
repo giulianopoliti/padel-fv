@@ -255,6 +255,361 @@ describe('ranking scalability services', () => {
     expect(global.zoneResults.flatMap((zone) => zone.analysis).some((entry) => !entry.isDefinitive)).toBe(true)
   })
 
+  it('keeps global slots unresolved when a pending cross-zone match can shift them', () => {
+    const snapshot: StandingsSnapshot = {
+      zones: [
+        { id: 'zone-a', name: 'Zona A' },
+        { id: 'zone-b', name: 'Zona B' },
+        { id: 'zone-c', name: 'Zona C' },
+        { id: 'zone-d', name: 'Zona D' },
+      ],
+      couples: [
+        couple('leader-a', 'zone-a'),
+        couple('a-runner', 'zone-a'),
+        couple('juampii-cristian', 'zone-a'),
+        couple('a-bottom', 'zone-a'),
+        couple('adrian-max', 'zone-b'),
+        couple('pablo-marcelo', 'zone-b'),
+        couple('b-bottom', 'zone-b'),
+        couple('nicolas-pierini', 'zone-c'),
+        couple('c-runner', 'zone-c'),
+        couple('c-bottom', 'zone-c'),
+        couple('leader-d', 'zone-d'),
+        couple('d-runner', 'zone-d'),
+        couple('d-bottom', 'zone-d'),
+      ],
+      matches: [
+        match('a1', 'zone-a', 'leader-a', 'a-runner', 6, 2, 'leader-a'),
+        match('a2', 'zone-a', 'leader-a', 'juampii-cristian', 6, 3, 'leader-a'),
+        match('a3', 'zone-a', 'juampii-cristian', 'a-bottom', 6, 0, 'juampii-cristian'),
+        match('b1', 'zone-b', 'adrian-max', 'b-bottom', 6, 3, 'adrian-max'),
+        match('b2', 'zone-b', 'pablo-marcelo', 'b-bottom', 6, 5, 'pablo-marcelo'),
+        match('b3', 'zone-b', 'pablo-marcelo', 'adrian-max', null, null, null, 'IN_PROGRESS'),
+        match('c1', 'zone-c', 'nicolas-pierini', 'c-runner', 6, 5, 'nicolas-pierini'),
+        match('c2', 'zone-c', 'nicolas-pierini', 'c-bottom', 6, 4, 'nicolas-pierini'),
+        match('d1', 'zone-d', 'leader-d', 'd-runner', 6, 2, 'leader-d'),
+        match('d2', 'zone-d', 'leader-d', 'd-bottom', 6, 3, 'leader-d'),
+      ],
+    }
+
+    const global = StandingsCalculatorService.calculateFromSnapshot(snapshot, {
+      scope: 'GLOBAL',
+      rankingPolicyId: 'STANDARD_PADEL',
+    })
+    const definitive = DefinitivePositionService.analyzeFromSnapshot({
+      snapshot,
+      scope: 'GLOBAL',
+      rankingPolicyId: 'STANDARD_PADEL',
+    })
+    const analysis = definitive.zoneResults.flatMap((zone) => zone.analysis)
+    const nicolas = analysis.find((entry) => entry.coupleId === 'nicolas-pierini')
+    const juampii = analysis.find((entry) => entry.coupleId === 'juampii-cristian')
+    const adrian = analysis.find((entry) => entry.coupleId === 'adrian-max')
+    const entries = QualificationSourceService.buildGlobalStandingEntries(global.entries, definitive)
+
+    expect(global.entries.map((entry) => entry.coupleId).slice(2, 5)).toEqual([
+      'nicolas-pierini',
+      'juampii-cristian',
+      'adrian-max',
+    ])
+    expect(nicolas).toEqual(expect.objectContaining({
+      currentPosition: 3,
+      isDefinitive: false,
+      possiblePositions: expect.arrayContaining([3, 4]),
+    }))
+    expect(juampii).toEqual(expect.objectContaining({
+      currentPosition: 4,
+      isDefinitive: false,
+      possiblePositions: [5],
+    }))
+    expect(adrian).toEqual(expect.objectContaining({
+      currentPosition: 5,
+      isDefinitive: false,
+      possiblePositions: expect.arrayContaining([3, 6]),
+    }))
+    expect(adrian?.possiblePositions).not.toContain(5)
+    expect(entries[2]).toEqual(expect.objectContaining({
+      label: '#3 general',
+      coupleId: null,
+      isDefinitive: false,
+    }))
+    expect(entries[3]).toEqual(expect.objectContaining({
+      label: '#4 general',
+      coupleId: null,
+      isDefinitive: false,
+    }))
+    expect(entries[4]).toEqual(expect.objectContaining({
+      label: '#5 general',
+      coupleId: null,
+      isDefinitive: false,
+    }))
+  })
+
+  it('marks a global slot definitive only when the single possible position is the current slot', () => {
+    const snapshot: StandingsSnapshot = {
+      zones: [{ id: 'zone-a', name: 'Zona A' }],
+      couples: [
+        couple('first', 'zone-a'),
+        couple('second', 'zone-a'),
+        couple('third', 'zone-a'),
+        couple('fourth', 'zone-a'),
+      ],
+      matches: [
+        match('m1', 'zone-a', 'first', 'second', 6, 0, 'first'),
+        match('m2', 'zone-a', 'third', 'fourth', 6, 2, 'third'),
+        match('m3', 'zone-a', 'second', 'fourth', 6, 4, 'second'),
+      ],
+    }
+
+    const result = DefinitivePositionService.analyzeFromSnapshot({
+      snapshot,
+      scope: 'GLOBAL',
+      rankingPolicyId: 'STANDARD_PADEL',
+    })
+    const fourth = result.zoneResults[0].analysis.find((entry) => entry.coupleId === 'fourth')
+
+    expect(fourth).toEqual(expect.objectContaining({
+      currentPosition: 4,
+      possiblePositions: [4],
+      isDefinitive: true,
+    }))
+  })
+
+  it('does not mark a global slot definitive when the current slot is still shiftable', () => {
+    const snapshot: StandingsSnapshot = {
+      zones: [
+        { id: 'zone-a', name: 'Zona A' },
+        { id: 'zone-b', name: 'Zona B' },
+      ],
+      couples: [
+        couple('leader', 'zone-a'),
+        couple('second', 'zone-a'),
+        couple('third', 'zone-a'),
+        couple('current-fourth', 'zone-a'),
+        couple('challenger', 'zone-b'),
+        couple('bottom', 'zone-b'),
+      ],
+      matches: [
+        match('a1', 'zone-a', 'leader', 'current-fourth', 6, 5, 'leader'),
+        match('a2', 'zone-a', 'second', 'current-fourth', 6, 5, 'second'),
+        match('a3', 'zone-a', 'third', 'current-fourth', 6, 5, 'third'),
+        match('a4', 'zone-a', 'current-fourth', 'bottom', 6, 0, 'current-fourth'),
+        match('a5', 'zone-a', 'leader', 'bottom', 6, 0, 'leader'),
+        match('a6', 'zone-a', 'second', 'bottom', 6, 0, 'second'),
+        match('a7', 'zone-a', 'third', 'bottom', 6, 0, 'third'),
+        match('b1', 'zone-b', 'challenger', 'bottom', null, null, null, 'PENDING'),
+      ],
+    }
+
+    const result = DefinitivePositionService.analyzeFromSnapshot({
+      snapshot,
+      scope: 'GLOBAL',
+      rankingPolicyId: 'STANDARD_PADEL',
+    })
+    const currentFourth = result.zoneResults
+      .flatMap((zone) => zone.analysis)
+      .find((entry) => entry.coupleId === 'current-fourth')
+
+    expect(currentFourth).toEqual(expect.objectContaining({
+      currentPosition: 4,
+      isDefinitive: false,
+      possiblePositions: expect.arrayContaining([4, 5]),
+    }))
+  })
+
+  it('audits a seed resolved before its global slot was stable', () => {
+    const issues = BracketQualificationAuditService.auditSeeds(
+      [
+        { key: 'global:1', label: '#1 general', globalPosition: 1, localPosition: null, zoneId: null, coupleId: 'leader-a', isDefinitive: true },
+        { key: 'global:2', label: '#2 general', globalPosition: 2, localPosition: null, zoneId: null, coupleId: 'leader-d', isDefinitive: true },
+        { key: 'global:3', label: '#3 general', globalPosition: 3, localPosition: null, zoneId: null, coupleId: 'nicolas-pierini', isDefinitive: true },
+        { key: 'global:4', label: '#4 general', globalPosition: 4, localPosition: null, zoneId: null, coupleId: 'adrian-max', isDefinitive: true },
+        { key: 'global:5', label: '#5 general', globalPosition: 5, localPosition: null, zoneId: null, coupleId: 'juampii-cristian', isDefinitive: true },
+      ],
+      [
+        { seed: 1, couple_id: 'leader-a', is_placeholder: false },
+        { seed: 2, couple_id: 'leader-d', is_placeholder: false },
+        { seed: 3, couple_id: 'nicolas-pierini', is_placeholder: false },
+        { seed: 4, couple_id: 'juampii-cristian', is_placeholder: false },
+        { seed: 5, couple_id: null, is_placeholder: true },
+      ]
+    )
+
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'SEED_ENTRY_MISMATCH',
+        seed: 4,
+        expectedCoupleId: 'adrian-max',
+        actualCoupleId: 'juampii-cristian',
+      }),
+      expect.objectContaining({
+        code: 'COUPLE_ALREADY_RESOLVED_IN_OTHER_SEED',
+        seed: 5,
+        expectedCoupleId: 'juampii-cristian',
+      }),
+    ]))
+  })
+
+  it('does not audit a swap inside a perfect random tiebreaker as a mismatch', () => {
+    const expectedEntries = [
+      {
+        key: 'global:7',
+        label: '#7 general',
+        globalPosition: 7,
+        localPosition: null,
+        zoneId: null,
+        coupleId: 'pablo-marcelo',
+        isDefinitive: true,
+        tieInfo: 'Desempate aleatorio (RANDOM_TIEBREAKER)',
+        stats: { wins: 1, losses: 1, gamesFor: 11, gamesAgainst: 11, gamesDifference: 0, gamesWon: 11, totalPlayerScore: 1800 },
+      },
+      {
+        key: 'global:8',
+        label: '#8 general',
+        globalPosition: 8,
+        localPosition: null,
+        zoneId: null,
+        coupleId: 'matias-jalil',
+        isDefinitive: true,
+        tieInfo: 'Desempate aleatorio (RANDOM_TIEBREAKER)',
+        stats: { wins: 1, losses: 1, gamesFor: 11, gamesAgainst: 11, gamesDifference: 0, gamesWon: 11, totalPlayerScore: 1800 },
+      },
+    ]
+
+    const seeds = [
+      { id: 'seed-7', seed: 1, couple_id: 'matias-jalil', is_placeholder: false },
+      { id: 'seed-8', seed: 2, couple_id: 'pablo-marcelo', is_placeholder: false },
+    ]
+
+    expect(BracketQualificationAuditService.auditSeeds(expectedEntries, seeds)).toEqual([])
+
+    const plan = BracketQualificationAuditService.buildRepairPlanFromSnapshots({
+      expectedEntries,
+      seeds,
+      matches: [],
+    })
+
+    expect(plan.changes).toEqual([])
+    expect(plan.canExactRepair).toBe(false)
+  })
+
+  it('builds a safe exact repair plan for pending first-round matches', () => {
+    const plan = BracketQualificationAuditService.buildRepairPlanFromSnapshots({
+      expectedEntries: [
+        { key: 'global:1', label: '#1 general', globalPosition: 1, localPosition: null, zoneId: null, coupleId: 'right-couple', isDefinitive: true },
+        { key: 'global:2', label: '#2 general', globalPosition: 2, localPosition: null, zoneId: null, coupleId: 'other-couple', isDefinitive: true },
+      ],
+      seeds: [
+        { id: 'seed-1', seed: 1, couple_id: 'wrong-couple', is_placeholder: false },
+        { id: 'seed-2', seed: 2, couple_id: 'other-couple', is_placeholder: false },
+      ],
+      matches: [
+        {
+          id: 'match-1',
+          round: '8VOS',
+          order_in_round: 1,
+          status: 'PENDING',
+          couple1_id: 'wrong-couple',
+          couple2_id: 'other-couple',
+          tournament_couple_seed1_id: 'seed-1',
+          tournament_couple_seed2_id: 'seed-2',
+        },
+      ],
+    })
+
+    expect(plan.canExactRepair).toBe(true)
+    expect(plan.changes).toEqual([
+      expect.objectContaining({
+        seed: 1,
+        expectedCoupleId: 'right-couple',
+        actualCoupleId: 'wrong-couple',
+        status: 'safe',
+      }),
+    ])
+  })
+
+  it.each(['IN_PROGRESS', 'FINISHED'])('blocks exact repair when an affected match is %s', (status) => {
+    const plan = BracketQualificationAuditService.buildRepairPlanFromSnapshots({
+      expectedEntries: [
+        { key: 'global:1', label: '#1 general', globalPosition: 1, localPosition: null, zoneId: null, coupleId: 'right-couple', isDefinitive: true },
+      ],
+      seeds: [
+        { id: 'seed-1', seed: 1, couple_id: 'wrong-couple', is_placeholder: false },
+      ],
+      matches: [
+        {
+          id: 'match-1',
+          round: '8VOS',
+          order_in_round: 1,
+          status,
+          couple1_id: 'wrong-couple',
+          couple2_id: null,
+          tournament_couple_seed1_id: 'seed-1',
+          tournament_couple_seed2_id: null,
+        },
+      ],
+    })
+
+    expect(plan.canExactRepair).toBe(false)
+    expect(plan.status).toBe('blocked')
+    expect(plan.changes[0]).toEqual(expect.objectContaining({
+      status: 'blocked',
+      blockingMatches: [expect.objectContaining({ id: 'match-1', status })],
+    }))
+  })
+
+  it('enables fill_single_missing only for one missing couple and one free placeholder', () => {
+    const enabled = BracketQualificationAuditService.buildRepairPlanFromSnapshots({
+      expectedEntries: [
+        { key: 'global:1', label: '#1 general', globalPosition: 1, localPosition: null, zoneId: null, coupleId: 'missing-couple', isDefinitive: true },
+      ],
+      seeds: [
+        { id: 'seed-1', seed: 1, couple_id: null, is_placeholder: true },
+      ],
+      matches: [],
+    })
+    const disabled = BracketQualificationAuditService.buildRepairPlanFromSnapshots({
+      expectedEntries: [
+        { key: 'global:1', label: '#1 general', globalPosition: 1, localPosition: null, zoneId: null, coupleId: 'missing-couple', isDefinitive: true },
+        { key: 'global:2', label: '#2 general', globalPosition: 2, localPosition: null, zoneId: null, coupleId: 'second-missing', isDefinitive: true },
+      ],
+      seeds: [
+        { id: 'seed-1', seed: 1, couple_id: null, is_placeholder: true },
+        { id: 'seed-2', seed: 2, couple_id: null, is_placeholder: true },
+      ],
+      matches: [],
+    })
+
+    expect(enabled.canFillSingleMissing).toBe(true)
+    expect(disabled.canFillSingleMissing).toBe(false)
+  })
+
+  it('blocks fill_single_missing when the free placeholder is in a locked match', () => {
+    const plan = BracketQualificationAuditService.buildRepairPlanFromSnapshots({
+      expectedEntries: [
+        { key: 'global:1', label: '#1 general', globalPosition: 1, localPosition: null, zoneId: null, coupleId: 'missing-couple', isDefinitive: true },
+      ],
+      seeds: [
+        { id: 'seed-1', seed: 1, couple_id: null, is_placeholder: true },
+      ],
+      matches: [
+        {
+          id: 'match-1',
+          round: '8VOS',
+          order_in_round: 1,
+          status: 'FINISHED',
+          couple1_id: null,
+          couple2_id: null,
+          tournament_couple_seed1_id: 'seed-1',
+          tournament_couple_seed2_id: null,
+        },
+      ],
+    })
+
+    expect(plan.canFillSingleMissing).toBe(false)
+    expect(plan.status).toBe('blocked')
+  })
+
   it('builds zone qualification entries without a hardcoded max position', () => {
     const entries = QualificationSourceService.buildZonePositionEntries(
       [{ id: 'zone-a', name: 'Zona A' }, { id: 'zone-b', name: 'Zona B' }],

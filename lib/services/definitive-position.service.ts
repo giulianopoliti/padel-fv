@@ -260,10 +260,12 @@ export class DefinitivePositionService {
         .filter((position) => position > 0)
         .sort((a, b) => a - b)
 
+      const currentPosition = this.getRelevantPosition(entry, params.scope)
+
       return {
         coupleId: entry.coupleId,
-        currentPosition: this.getRelevantPosition(entry, params.scope),
-        isDefinitive: positions.length === 1,
+        currentPosition,
+        isDefinitive: positions.length === 1 && positions[0] === currentPosition,
         possiblePositions: positions,
         analysisMethod: 'BACKTRACKING',
         analysisDetails: `Simulacion completa: posiciones posibles ${positions.join(', ') || 'sin datos'}.`,

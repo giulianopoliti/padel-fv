@@ -23,6 +23,7 @@ export interface QualifiedEntry {
   label: string
   isDefinitive: boolean
   stats?: StandingStats | null
+  tieInfo?: string | null
 }
 
 interface PendingZoneMatch {
@@ -235,6 +236,8 @@ export class QualificationSourceService {
         globalPosition: position,
         label: `#${position} general`,
         isDefinitive,
+        stats: entry.stats,
+        tieInfo: entry.tieInfo,
       }
     })
   }

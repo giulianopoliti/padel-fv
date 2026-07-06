@@ -341,6 +341,10 @@ export function useBracketData(
     }
   }, [matchesData, seedsData, zonesData, algorithm, finalConfig, tournamentId])
 
+  const lastUpdated = useMemo(() => (
+    bracketData ? new Date().toISOString() : null
+  ), [bracketData])
+
   // ✅ SOLUCION 2: Función de refetch centralizada que invalida todos los SWR caches
   const refetch = useCallback(async () => {
     console.log('🔄 [useBracketData] Manual refetch triggered - invalidating all SWR caches')
@@ -420,7 +424,7 @@ export function useBracketData(
     loading,
     error: error ? (error instanceof Error ? error : new Error('Unknown SWR error')) : null,
     isRefetching,
-    lastUpdated: bracketData ? new Date().toISOString() : null,
+    lastUpdated,
     refetch,
     clearCache,
     config: finalConfig
