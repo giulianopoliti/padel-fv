@@ -1,0 +1,209 @@
+import {
+  buildAppUrl,
+  detailsList,
+  escapeHtml,
+  formatDate,
+  formatTimeRange,
+  renderEmailLayout,
+} from "@/lib/services/email/templates"
+import { sendSafely } from "@/lib/services/email/notification-utils"
+import type { TournamentMessageAdapter, TournamentMessageEvent, TournamentMessageResult } from "./types"
+import {
+  isTournamentMessagesEnabled,
+  loadCancelledInscriptionMessageData,
+  loadInscriptionMessageData,
+  loadLongMatchMessageData,
+} from "./tournament-message-data"
+
+const skipped = (reason: string): TournamentMessageResult => ({ success: true, skipped: true, reason })
+
+const sendInscriptionSubmittedAdmin = async (event: Extract<TournamentMessageEvent, { type: "INSCRIPTION_SUBMITTED_ADMIN" }>) => {
+  const data = await loadInscriptionMessageData(event.supabase, event.inscriptionId)
+  if (!data) return skipped("missing inscription data")
+  if (!isTournamentMessagesEnabled(data.tournament)) return skipped("messages disabled")
+  if (data.adminEmails.length === 0) return skipped("no admin recipients")
+
+  const tournamentUrl = buildAppUrl(`/tournaments/${data.tournament.id}/inscriptions`)
+  const statusLabel = data.inscription.is_pending ? "Pendiente de revision" : "Confirmada"
+
+  return sendSafely(
+    {
+      to: data.adminEmails,
+      subject: `Nueva inscripcion: ${data.tournament.name}`,
+      html: renderEmailLayout({
+        title: "Nueva inscripcion",
+        preview: `${data.participantName} - ${data.tournament.name}`,
+        body: `
+          <p style="margin:0 0 14px;">Se registro una nueva inscripcion en el torneo.</p>
+          ${detailsList([
+            { label: "Torneo", value: data.tournament.name },
+            { label: "Pareja/Jugador", value: data.participantName },
+            { label: "Formato", value: data.tournament.type },
+            { label: "Categoria", value: data.tournament.category_name },
+            { label: "Estado", value: statusLabel },
+            { label: "Fecha de alta", value: data.inscription.created_at ? new Date(data.inscription.created_at).toLocaleString("es-AR") : null },
+          ])}
+        `,
+        cta: { label: "Ver inscripciones", href: tournamentUrl },
+      }),
+      text: `Nueva inscripcion\nTorneo: ${data.tournament.name}\nPareja/Jugador: ${data.participantName}\nEstado: ${statusLabel}\n${tournamentUrl}`,
+      idempotencyKey: `message-inscription-submitted-admin-${data.inscription.id}`,
+      tags: [
+        { name: "type", value: "inscription_submitted_admin" },
+        { name: "tenant", value: process.env.NEXT_PUBLIC_TENANT_KEY || "unknown" },
+      ],
+    },
+    "message inscription submitted admin",
+  )
+}
+
+const sendInscriptionApprovedPlayer = async (event: Extract<TournamentMessageEvent, { type: "INSCRIPTION_APPROVED_PLAYER" }>) => {
+  const data = await loadInscriptionMessageData(event.supabase, event.inscriptionId)
+  if (!data) return skipped("missing inscription data")
+  if (!isTournamentMessagesEnabled(data.tournament)) return skipped("messages disabled")
+  if (data.inscription.is_pending) return skipped("inscription still pending")
+  if (data.playerEmails.length === 0) return skipped("no player recipients")
+
+  const tournamentUrl = buildAppUrl(`/tournaments/${data.tournament.id}`)
+  const title = "Inscripcion confirmada"
+
+  return sendSafely(
+    {
+      to: data.playerEmails,
+      subject: `${title}: ${data.tournament.name}`,
+      html: renderEmailLayout({
+        title,
+        preview: `${escapeHtml(data.tournament.name)} - Confirmada`,
+        body: `
+          <p style="margin:0 0 14px;">Hola,</p>
+          <p style="margin:0 0 14px;">Tu inscripcion quedo confirmada correctamente.</p>
+          ${detailsList([
+            { label: "Torneo", value: data.tournament.name },
+            { label: "Pareja/Jugador", value: data.participantName },
+            { label: "Formato", value: data.tournament.type },
+            { label: "Categoria", value: data.tournament.category_name },
+            { label: "Inicio", value: data.tournament.start_date ? formatDate(data.tournament.start_date) : null },
+            { label: "Estado", value: "Confirmada" },
+          ])}
+        `,
+        cta: { label: "Ver torneo", href: tournamentUrl },
+      }),
+      text: `${title}\nTorneo: ${data.tournament.name}\nPareja/Jugador: ${data.participantName}\nEstado: Confirmada\n${tournamentUrl}`,
+      idempotencyKey: `message-inscription-approved-player-${data.inscription.id}`,
+      tags: [
+        { name: "type", value: "inscription_approved_player" },
+        { name: "tenant", value: process.env.NEXT_PUBLIC_TENANT_KEY || "unknown" },
+      ],
+    },
+    "message inscription approved player",
+  )
+}
+
+const sendInscriptionCancelledAdmin = async (event: Extract<TournamentMessageEvent, { type: "INSCRIPTION_CANCELLED_ADMIN" }>) => {
+  const data = await loadCancelledInscriptionMessageData({
+    fallbackSupabase: event.supabase,
+    tournamentId: event.tournamentId,
+    inscriptionId: event.inscriptionId,
+    coupleId: event.coupleId,
+    playerId: event.playerId,
+  })
+  if (!data) return skipped("missing cancellation data")
+  if (!isTournamentMessagesEnabled(data.tournament)) return skipped("messages disabled")
+  if (data.adminEmails.length === 0) return skipped("no admin recipients")
+
+  const tournamentUrl = buildAppUrl(`/tournaments/${data.tournament.id}/inscriptions`)
+
+  return sendSafely(
+    {
+      to: data.adminEmails,
+      subject: `Inscripcion cancelada: ${data.tournament.name}`,
+      html: renderEmailLayout({
+        title: "Inscripcion cancelada",
+        preview: `${data.participantName} - ${data.tournament.name}`,
+        body: `
+          <p style="margin:0 0 14px;">Se cancelo o elimino una inscripcion del torneo.</p>
+          ${detailsList([
+            { label: "Torneo", value: data.tournament.name },
+            { label: "Pareja/Jugador", value: data.participantName },
+            { label: "Formato", value: data.tournament.type },
+            { label: "Categoria", value: data.tournament.category_name },
+          ])}
+        `,
+        cta: { label: "Ver inscripciones", href: tournamentUrl },
+      }),
+      text: `Inscripcion cancelada\nTorneo: ${data.tournament.name}\nPareja/Jugador: ${data.participantName}\n${tournamentUrl}`,
+      idempotencyKey: `message-inscription-cancelled-admin-${data.tournament.id}-${event.inscriptionId || event.coupleId || event.playerId || Date.now()}`,
+      tags: [
+        { name: "type", value: "inscription_cancelled_admin" },
+        { name: "tenant", value: process.env.NEXT_PUBLIC_TENANT_KEY || "unknown" },
+      ],
+    },
+    "message inscription cancelled admin",
+  )
+}
+
+const sendLongMatchConfirmedPlayer = async (event: Extract<TournamentMessageEvent, { type: "LONG_MATCH_CONFIRMED_PLAYER" }>) => {
+  const data = await loadLongMatchMessageData(event.supabase, event.matchId)
+  if (!data) return skipped("missing match data")
+  if (!isTournamentMessagesEnabled(data.tournament)) return skipped("messages disabled")
+  if (data.tournament.type !== "LONG") return skipped("not a LONG tournament")
+  if (data.match.status === "DRAFT") return skipped("match is draft")
+  if (!data.fechaMatch.scheduled_date || !data.fechaMatch.scheduled_start_time) return skipped("schedule incomplete")
+  if (data.playerEmails.length === 0) return skipped("no player recipients")
+
+  const title = "Nuevo partido programado"
+  const tournamentUrl = buildAppUrl(`/tournaments/${data.tournament.id}/match-scheduling`)
+  const scheduleSummary = `${formatDate(data.fechaMatch.scheduled_date)} - ${formatTimeRange(
+    data.fechaMatch.scheduled_start_time,
+    data.fechaMatch.scheduled_end_time,
+  )}`
+
+  return sendSafely(
+    {
+      to: data.playerEmails,
+      subject: `${title}: ${data.tournament.name}`,
+      html: renderEmailLayout({
+        title,
+        preview: `${data.tournament.name} - ${scheduleSummary}`,
+        body: `
+          <p style="margin:0 0 14px;">Hola,</p>
+          <p style="margin:0 0 14px;">Se programo un nuevo partido para tu torneo.</p>
+          ${detailsList([
+            { label: "Torneo", value: data.tournament.name },
+            { label: "Partido", value: data.matchSummary },
+            { label: "Fecha", value: formatDate(data.fechaMatch.scheduled_date) },
+            { label: "Horario", value: formatTimeRange(data.fechaMatch.scheduled_start_time, data.fechaMatch.scheduled_end_time) },
+            { label: "Cancha", value: data.fechaMatch.court_assignment },
+            { label: "Categoria", value: data.tournament.category_name },
+          ])}
+        `,
+        cta: { label: "Ver partido", href: tournamentUrl },
+      }),
+      text: `${title}\nTorneo: ${data.tournament.name}\nPartido: ${data.matchSummary}\nFecha: ${scheduleSummary}\n${tournamentUrl}`,
+      idempotencyKey: `message-long-match-confirmed-player-${data.match.id}-${data.fechaMatch.scheduled_date}-${data.fechaMatch.scheduled_start_time}`,
+      tags: [
+        { name: "type", value: "long_match_confirmed_player" },
+        { name: "tenant", value: process.env.NEXT_PUBLIC_TENANT_KEY || "unknown" },
+      ],
+    },
+    "message long match confirmed player",
+  )
+}
+
+export const emailMessageAdapter: TournamentMessageAdapter = {
+  channel: "email",
+  send: async (event) => {
+    switch (event.type) {
+      case "INSCRIPTION_SUBMITTED_ADMIN":
+        return sendInscriptionSubmittedAdmin(event)
+      case "INSCRIPTION_APPROVED_PLAYER":
+        return sendInscriptionApprovedPlayer(event)
+      case "INSCRIPTION_CANCELLED_ADMIN":
+        return sendInscriptionCancelledAdmin(event)
+      case "LONG_MATCH_CONFIRMED_PLAYER":
+        return sendLongMatchConfirmedPlayer(event)
+      default:
+        return skipped("unsupported event")
+    }
+  },
+}

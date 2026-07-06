@@ -14,7 +14,7 @@ import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { createRegistrationStrategy, RegistrationStrategyError } from './registration-strategy.factory'
 import { validateMixedPairGender } from '@/lib/services/tournament-category-config'
-import { sendTournamentInscriptionNotification } from '@/lib/services/email'
+import { sendTournamentMessage } from '@/lib/services/messages'
 import { syncTournamentCapacityRegistrationLock } from '@/lib/services/tournament-capacity.service'
 import type { IRegistrationStrategy } from './registration-strategy.interface'
 import type {
@@ -256,6 +256,7 @@ export class RegistrationService {
 
       const result = await strategy.removeCouple(request, context.context)
       this.logRegistrationResult('removeCouple', request.tournamentId, result)
+      await this.notifyInscriptionCancelled(request, context.context, result.success)
       await this.handleTournamentCapacitySideEffects(request.tournamentId, result.success)
 
       return result
@@ -387,12 +388,38 @@ export class RegistrationService {
     if (!inscriptionId) return
 
     try {
-      await sendTournamentInscriptionNotification({
+      await sendTournamentMessage({
+        type: 'INSCRIPTION_SUBMITTED_ADMIN',
+        supabase: context.supabase,
+        inscriptionId,
+      })
+
+      await sendTournamentMessage({
+        type: 'INSCRIPTION_APPROVED_PLAYER',
         supabase: context.supabase,
         inscriptionId,
       })
     } catch (error) {
       console.error('[RegistrationService] Error enviando email de inscripcion:', error)
+    }
+  }
+
+  private async notifyInscriptionCancelled(
+    request: RemoveCoupleRequest,
+    context: RegistrationContext,
+    shouldNotify: boolean
+  ): Promise<void> {
+    if (!shouldNotify) return
+
+    try {
+      await sendTournamentMessage({
+        type: 'INSCRIPTION_CANCELLED_ADMIN',
+        supabase: context.supabase,
+        tournamentId: request.tournamentId,
+        coupleId: request.coupleId,
+      })
+    } catch (error) {
+      console.error('[RegistrationService] Error enviando email de cancelacion:', error)
     }
   }
 

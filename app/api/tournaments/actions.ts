@@ -1451,6 +1451,23 @@ export async function registerPlayerForTournament(tournamentId: string, playerId
 
   revalidatePath(`/tournaments/${tournamentId}`);
   revalidatePath(`/my-tournaments/${tournamentId}`);
+
+  try {
+    const { sendTournamentMessage } = await import('@/lib/services/messages');
+    await sendTournamentMessage({
+      type: 'INSCRIPTION_SUBMITTED_ADMIN',
+      supabase,
+      inscriptionId: data.id,
+    });
+    await sendTournamentMessage({
+      type: 'INSCRIPTION_APPROVED_PLAYER',
+      supabase,
+      inscriptionId: data.id,
+    });
+  } catch (emailError) {
+    console.error('[registerPlayerForTournament] Error enviando mensajes:', emailError);
+  }
+
   return { success: true, inscription: data };
 }
 
@@ -2624,18 +2641,34 @@ export async function requestSoloInscription(
       actorRole: 'PLAYER',
     });
 
-    const { error } = await supabase.from("inscriptions").insert([
+    const { data: inscription, error } = await supabase.from("inscriptions").insert([
       {
         player_id: playerId,
         tournament_id: tournamentId,
         phone: phoneNumber,
         is_pending: isPending,
       },
-    ]);
+    ]).select("id").single();
 
     if (error) {
       console.error("[requestSoloInscription] Error inserting solo inscription:", error);
       return { success: false, message: "Error al enviar la solicitud.", error };
+    }
+
+    try {
+      const { sendTournamentMessage } = await import('@/lib/services/messages');
+      await sendTournamentMessage({
+        type: 'INSCRIPTION_SUBMITTED_ADMIN',
+        supabase,
+        inscriptionId: inscription.id,
+      });
+      await sendTournamentMessage({
+        type: 'INSCRIPTION_APPROVED_PLAYER',
+        supabase,
+        inscriptionId: inscription.id,
+      });
+    } catch (emailError) {
+      console.error('[requestSoloInscription] Error enviando mensajes:', emailError);
     }
 
     // Revalidation might not be immediately necessary for guest view until approved,
@@ -2718,7 +2751,7 @@ export async function requestCoupleInscription(
     }
 
     // 2. Create the inscription for the couple
-    const { error: inscriptionError } = await supabase.from("inscriptions").insert([
+    const { data: inscription, error: inscriptionError } = await supabase.from("inscriptions").insert([
       {
         couple_id: coupleId,
         tournament_id: tournamentId,
@@ -2744,11 +2777,27 @@ export async function requestCoupleInscription(
         phone: phoneNumber,
         is_pending: isPending,
       },
-    ]);
+    ]).select("id").single();
 
     if (inscriptionError) {
       console.error("[requestCoupleInscription] Error inserting couple inscription:", inscriptionError);
       return { success: false, message: "Error al enviar la solicitud de pareja.", error: inscriptionError };
+    }
+
+    try {
+      const { sendTournamentMessage } = await import('@/lib/services/messages');
+      await sendTournamentMessage({
+        type: 'INSCRIPTION_SUBMITTED_ADMIN',
+        supabase,
+        inscriptionId: inscription.id,
+      });
+      await sendTournamentMessage({
+        type: 'INSCRIPTION_APPROVED_PLAYER',
+        supabase,
+        inscriptionId: inscription.id,
+      });
+    } catch (emailError) {
+      console.error('[requestCoupleInscription] Error enviando mensajes:', emailError);
     }
     
     // revalidatePath(`/tournaments/${tournamentId}`);
@@ -2904,6 +2953,17 @@ export async function acceptInscriptionRequest(inscriptionId: string, tournament
     if (error) {
       console.error("[acceptInscriptionRequest] Error updating inscription:", error);
       return { success: false, message: "Error al aceptar la solicitud.", error: error.message };
+    }
+
+    try {
+      const { sendTournamentMessage } = await import('@/lib/services/messages');
+      await sendTournamentMessage({
+        type: 'INSCRIPTION_APPROVED_PLAYER',
+        supabase,
+        inscriptionId,
+      });
+    } catch (emailError) {
+      console.error('[acceptInscriptionRequest] Error enviando email de aprobacion:', emailError);
     }
 
     revalidatePath(`/my-tournaments/${tournamentId}`);
@@ -3119,6 +3179,10 @@ export async function removePlayerFromTournament(tournamentId: string, playerId?
     }
 
     const inscriptionIds = inscriptions.map(inscription => inscription.id);
+    const cancellationEvents = inscriptions.map((inscription) => ({
+      inscriptionId: inscription.id,
+      playerId: targetPlayerId,
+    }));
 
     // Eliminar todas las inscripciones individuales encontradas
     const { error: deleteError } = await supabase
@@ -3129,6 +3193,23 @@ export async function removePlayerFromTournament(tournamentId: string, playerId?
     if (deleteError) {
       console.error("[removePlayerFromTournament] Error deleting inscriptions:", deleteError);
       return { success: false, message: "Error al eliminar la inscripción." };
+    }
+
+    try {
+      const { sendTournamentMessage } = await import('@/lib/services/messages');
+      await Promise.allSettled(
+        cancellationEvents.map((event) =>
+          sendTournamentMessage({
+            type: 'INSCRIPTION_CANCELLED_ADMIN',
+            supabase,
+            tournamentId,
+            inscriptionId: event.inscriptionId,
+            playerId: event.playerId,
+          })
+        )
+      );
+    } catch (emailError) {
+      console.error('[removePlayerFromTournament] Error enviando email de cancelacion:', emailError);
     }
 
     // Revalidar las rutas para actualizar la UI
@@ -6206,8 +6287,9 @@ export async function approveInscription(inscriptionId: string): Promise<{
   }
 
   try {
-    const { sendTournamentInscriptionNotification } = await import('@/lib/services/email');
-    await sendTournamentInscriptionNotification({
+    const { sendTournamentMessage } = await import('@/lib/services/messages');
+    await sendTournamentMessage({
+      type: 'INSCRIPTION_APPROVED_PLAYER',
       supabase,
       inscriptionId,
     });

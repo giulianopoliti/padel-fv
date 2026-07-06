@@ -9,6 +9,7 @@ interface InscriptionSettingsPayload {
   show_few_slots_alert: boolean
   enable_payment_checkboxes: boolean
   enable_transfer_proof: boolean
+  messages_enabled: boolean
   transfer_alias: string | null
   transfer_amount: number | null
 }
@@ -50,6 +51,7 @@ export async function PATCH(
         show_few_slots_alert,
         enable_payment_checkboxes,
         enable_transfer_proof,
+        messages_enabled,
         transfer_alias,
         transfer_amount
       `)
@@ -73,6 +75,8 @@ export async function PATCH(
       payload.enable_payment_checkboxes ?? currentTournament.enable_payment_checkboxes ?? false
     const enableTransferProof =
       payload.enable_transfer_proof ?? currentTournament.enable_transfer_proof ?? false
+    const messagesEnabled =
+      payload.messages_enabled ?? currentTournament.messages_enabled ?? true
     const transferAlias =
       payload.transfer_alias !== undefined
         ? payload.transfer_alias?.trim() || null
@@ -108,9 +112,21 @@ export async function PATCH(
       show_few_slots_alert: showFewSlotsAlert,
       enable_payment_checkboxes: enablePaymentCheckboxes,
       enable_transfer_proof: enableTransferProof,
+      messages_enabled: messagesEnabled,
       transfer_alias: transferAlias,
       transfer_amount: transferAmount,
     }
+
+    const shouldApprovePendingInscriptions =
+      currentTournament.validate_inscriptions === true && validateInscriptions === false
+
+    const { data: pendingInscriptionsToNotify } = shouldApprovePendingInscriptions
+      ? await supabase
+          .from('inscriptions')
+          .select('id')
+          .eq('tournament_id', tournamentId)
+          .eq('is_pending', true)
+      : { data: [] }
 
     const { error: updateError } = await supabase
       .from('tournaments')
@@ -122,6 +138,23 @@ export async function PATCH(
         { success: false, message: updateError.message },
         { status: 500 }
       )
+    }
+
+    if (pendingInscriptionsToNotify && pendingInscriptionsToNotify.length > 0) {
+      try {
+        const { sendTournamentMessage } = await import('@/lib/services/messages')
+        await Promise.allSettled(
+          pendingInscriptionsToNotify.map((inscription) =>
+            sendTournamentMessage({
+              type: 'INSCRIPTION_APPROVED_PLAYER',
+              supabase,
+              inscriptionId: inscription.id,
+            })
+          )
+        )
+      } catch (messageError) {
+        console.error('[inscription-settings] Error sending approval messages:', messageError)
+      }
     }
 
     revalidatePath(`/tournaments/${tournamentId}`)

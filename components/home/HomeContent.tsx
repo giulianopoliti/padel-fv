@@ -8,6 +8,7 @@ import { getTenantBranding } from "@/config/tenant"
 import { getTenantHomeData } from "@/lib/services/tenant-home.service"
 import { HomeTournamentTabs } from "@/components/tournaments/home-tournament-tabs"
 import PublicTournamentList from "@/components/public/public-tournament-list"
+import SponsorMarquee from "@/components/sponsor-marquee"
 
 export async function HomeContent() {
   const branding = getTenantBranding()
@@ -83,6 +84,8 @@ export async function HomeContent() {
           )}
         </div>
       </section>
+
+      <SponsorMarquee />
 
       <section
         className="border-y border-white/12 bg-[linear-gradient(180deg,rgba(17,29,54,0.94)_0%,rgba(14,24,46,0.96)_100%)] py-12 sm:py-16"

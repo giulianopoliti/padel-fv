@@ -6,7 +6,7 @@ import { checkTournamentPermissions } from "@/utils/tournament-permissions"
 import { updateZonePositionsForTournament } from "@/lib/services/ranking"
 import { getFechaBracketLabel } from "@/lib/services/fecha-bracket-policy"
 import { IncrementalPlaceholderUpdater } from "@/lib/services/incremental-placeholder-updater"
-import { sendLongMatchScheduledNotification } from "@/lib/services/email"
+import { sendTournamentMessage } from "@/lib/services/messages"
 
 // Types for match scheduling
 export interface SchedulingData {
@@ -651,7 +651,8 @@ export async function createMatch(
 
     // Sets will be created only when loading match results
     try {
-      await sendLongMatchScheduledNotification({
+      await sendTournamentMessage({
+        type: "LONG_MATCH_CONFIRMED_PLAYER",
         supabase,
         matchId: newMatch.id,
       })
@@ -1554,6 +1555,16 @@ export async function publishMatches(
     if (updateError) {
       throw updateError
     }
+
+    await Promise.allSettled(
+      matchIds.map((matchId) =>
+        sendTournamentMessage({
+          type: "LONG_MATCH_CONFIRMED_PLAYER",
+          supabase,
+          matchId,
+        }),
+      ),
+    )
 
     revalidatePath(`/tournaments/${tournamentId}/match-scheduling`)
     revalidatePath(`/tournaments/${tournamentId}/zone-matches`)

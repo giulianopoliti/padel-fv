@@ -20,6 +20,7 @@ import PlayerFvNextMatchSection from "./components/player-fv-next-match-section"
 import PlayerFvUpcomingTournamentsSection from "./components/player-fv-upcoming-tournaments-section"
 import LegacyPlayerDashboard from "@/app/(main)/panel-cpa/@player/page"
 import { isTournamentGenderFilter } from "@/lib/tournaments/gender-filtering"
+import SponsorMarquee from "@/components/sponsor-marquee"
 
 export const dynamic = "force-dynamic"
 
@@ -194,6 +195,8 @@ function PadelFvPlayerPanel({
               </div>
             </div>
           </div>
+
+          <SponsorMarquee className="mb-6 rounded-[1.5rem] border-white/10 bg-white/[0.035]" />
 
           <div className="space-y-6">
             <PlayerFvNextMatchSection nextMatches={nextMatches} />

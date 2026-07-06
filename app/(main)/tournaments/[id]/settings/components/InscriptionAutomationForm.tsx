@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { AlertTriangle, Eye, Landmark, Loader2, Receipt, ShieldCheck } from "lucide-react"
+import { AlertTriangle, Eye, Landmark, Loader2, Mail, Receipt, ShieldCheck } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
 interface InscriptionAutomationFormProps {
@@ -16,6 +16,7 @@ interface InscriptionAutomationFormProps {
   initialShowFewSlotsAlert: boolean
   initialEnablePaymentCheckboxes: boolean
   initialEnableTransferProof: boolean
+  initialMessagesEnabled: boolean
   initialTransferAlias: string | null
   initialTransferAmount: number | null
 }
@@ -28,6 +29,7 @@ interface PersistPatch {
   show_few_slots_alert?: boolean
   enable_payment_checkboxes?: boolean
   enable_transfer_proof?: boolean
+  messages_enabled?: boolean
   transfer_alias?: string | null
   transfer_amount?: number | null
 }
@@ -90,6 +92,7 @@ export default function InscriptionAutomationForm({
   initialShowFewSlotsAlert,
   initialEnablePaymentCheckboxes,
   initialEnableTransferProof,
+  initialMessagesEnabled,
   initialTransferAlias,
   initialTransferAmount,
 }: InscriptionAutomationFormProps) {
@@ -98,6 +101,7 @@ export default function InscriptionAutomationForm({
   const [showFewSlotsAlert, setShowFewSlotsAlert] = useState(initialShowFewSlotsAlert)
   const [enablePaymentCheckboxes, setEnablePaymentCheckboxes] = useState(initialEnablePaymentCheckboxes)
   const [enableTransferProof, setEnableTransferProof] = useState(initialEnableTransferProof)
+  const [messagesEnabled, setMessagesEnabled] = useState(initialMessagesEnabled)
   const [transferAlias, setTransferAlias] = useState(initialTransferAlias || "")
   const [transferAmount, setTransferAmount] = useState(
     initialTransferAmount !== null && initialTransferAmount !== undefined ? String(initialTransferAmount) : ""
@@ -108,6 +112,7 @@ export default function InscriptionAutomationForm({
   const [fewSlotsStatus, setFewSlotsStatus] = useState<SaveState>("idle")
   const [checkboxStatus, setCheckboxStatus] = useState<SaveState>("idle")
   const [transferToggleStatus, setTransferToggleStatus] = useState<SaveState>("idle")
+  const [messagesStatus, setMessagesStatus] = useState<SaveState>("idle")
   const [transferFieldsStatus, setTransferFieldsStatus] = useState<SaveState>("idle")
   const [transferFieldsError, setTransferFieldsError] = useState<string | null>(null)
 
@@ -283,6 +288,36 @@ export default function InscriptionAutomationForm({
     }
   }
 
+  const handleMessagesToggle = async (checked: boolean) => {
+    setMessagesEnabled(checked)
+
+    const result = await persistSettings(
+      { messages_enabled: checked },
+      {
+        onStart: () => setMessagesStatus("saving"),
+        onSuccess: () => setMessagesStatus("saved"),
+        onError: (message) => {
+          setMessagesStatus("error")
+          setMessagesEnabled(!checked)
+          toast({
+            title: "No se pudo actualizar el envio de mensajes",
+            description: message,
+            variant: "destructive",
+          })
+        },
+      }
+    )
+
+    if (result.success) {
+      toast({
+        title: checked ? "Mensajes automaticos activados" : "Mensajes automaticos desactivados",
+        description: checked
+          ? "El torneo volvera a enviar emails automaticos."
+          : "No se enviaran emails automaticos para este torneo.",
+      })
+    }
+  }
+
   const handleTransferToggle = async (checked: boolean) => {
     setEnableTransferProof(checked)
 
@@ -415,6 +450,44 @@ export default function InscriptionAutomationForm({
               checked={validateInscriptions}
               onCheckedChange={handleValidationToggle}
               disabled={validationStatus === "saving"}
+            />
+          </div>
+        </div>
+      </SettingCard>
+
+      <SettingCard
+        icon={<Mail className="h-4 w-4 text-sky-600" />}
+        title="Mensajes automaticos"
+        description="Controla si este torneo envia avisos por inscripcion, aprobacion, cancelacion y partidos programados."
+        status={messagesStatus}
+      >
+        <div className="flex flex-col gap-4 rounded-xl border border-sky-200 bg-sky-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge
+                variant={messagesEnabled ? "default" : "secondary"}
+                className={messagesEnabled ? "bg-sky-600 hover:bg-sky-600" : ""}
+              >
+                {messagesEnabled ? "Activos" : "Apagados"}
+              </Badge>
+              <span className="text-sm font-medium text-slate-900">
+                {messagesEnabled ? "El torneo envia mensajes automaticos" : "El torneo no envia mensajes automaticos"}
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Por ahora se envian por email. La configuracion queda preparada para sumar WhatsApp mas adelante.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Label htmlFor="messages-enabled" className="text-sm font-medium">
+              Enviar mensajes automaticos
+            </Label>
+            <Switch
+              id="messages-enabled"
+              checked={messagesEnabled}
+              onCheckedChange={handleMessagesToggle}
+              disabled={messagesStatus === "saving"}
             />
           </div>
         </div>
