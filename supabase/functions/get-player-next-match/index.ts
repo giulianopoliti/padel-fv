@@ -37,6 +37,47 @@ function isUuid(v: string) {
   return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(v);
 }
 
+const PANEL_TIME_ZONE = 'America/Argentina/Buenos_Aires';
+
+function getTodayDateKey() {
+  const dateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PANEL_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date());
+
+  const year = dateParts.find((part) => part.type === 'year')?.value;
+  const month = dateParts.find((part) => part.type === 'month')?.value;
+  const day = dateParts.find((part) => part.type === 'day')?.value;
+
+  return `${year}-${month}-${day}`;
+}
+
+function isTodayOrFutureMatch(match: any) {
+  const scheduledDate = match?.scheduled_info?.date;
+
+  if (!scheduledDate) {
+    return true;
+  }
+
+  return scheduledDate >= getTodayDateKey();
+}
+
+function compareMatchesBySchedule(a: any, b: any) {
+  const dateA = a?.scheduled_info?.date || '9999-12-31';
+  const dateB = b?.scheduled_info?.date || '9999-12-31';
+
+  if (dateA !== dateB) {
+    return dateA.localeCompare(dateB);
+  }
+
+  const timeA = a?.scheduled_info?.time || '23:59:59';
+  const timeB = b?.scheduled_info?.time || '23:59:59';
+
+  return timeA.localeCompare(timeB);
+}
+
 console.info('get-player-next-match function started');
 
 Deno.serve(async (req: Request) => {
@@ -111,7 +152,12 @@ Deno.serve(async (req: Request) => {
         club_id,
         match_club:clubes!club_id(
           name,
-          address
+          address,
+          formatted_address,
+          google_place_id,
+          latitude,
+          longitude,
+          maps_url
         ),
         tournaments!inner(
           id,
@@ -119,7 +165,12 @@ Deno.serve(async (req: Request) => {
           club_id,
           tournament_club:clubes!club_id(
             name,
-            address
+            address,
+            formatted_address,
+            google_place_id,
+            latitude,
+            longitude,
+            maps_url
           )
         ),
         fecha_matches(
@@ -233,13 +284,25 @@ Deno.serve(async (req: Request) => {
         : null;
 
       const clubData = matchClub || tournamentClub;
+      const clubQueryParts = [
+        clubData?.latitude && clubData?.longitude
+          ? `${clubData.latitude},${clubData.longitude}`
+          : null,
+        !clubData?.latitude || !clubData?.longitude
+          ? [clubData?.name, clubData?.formatted_address || clubData?.address].filter(Boolean).join(', ')
+          : null
+      ].filter(Boolean);
+      const clubMapsUrl = clubData?.maps_url || (clubQueryParts[0]
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clubQueryParts[0])}${clubData?.google_place_id ? `&query_place_id=${encodeURIComponent(clubData.google_place_id)}` : ''}`
+        : undefined);
 
       return {
         match_id: match.id,
         tournament_id: tournament?.id || '',
         tournament_name: tournament?.name || 'Sin nombre',
         club_name: clubData?.name || undefined,
-        club_address: clubData?.address || undefined,
+        club_address: clubData?.formatted_address || clubData?.address || undefined,
+        club_maps_url: clubMapsUrl,
         opponent_names: opponentNames,
         partner_name: partnerName,
         round: match.round || undefined,
@@ -250,7 +313,9 @@ Deno.serve(async (req: Request) => {
         },
         status: match.status
       };
-    });
+    })
+      .filter(isTodayOrFutureMatch)
+      .sort(compareMatchesBySchedule);
 
     return jsonResponse({
       nextMatches,

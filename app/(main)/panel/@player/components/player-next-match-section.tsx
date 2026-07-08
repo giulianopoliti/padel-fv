@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { CalendarDays, ChevronRight, MapPin, Swords, Users } from "lucide-react"
+import { CalendarDays, ChevronRight, MapPin, Navigation, Swords, Users } from "lucide-react"
+import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps"
 import type { PlayerNextMatch } from "@/app/api/panel/actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,13 +11,15 @@ interface PlayerNextMatchSectionProps {
 }
 
 export default function PlayerNextMatchSection({ nextMatches }: PlayerNextMatchSectionProps) {
+  const title = nextMatches.length > 1 ? "Mis proximos partidos" : "Mi proximo partido"
+
   if (nextMatches.length === 0) {
     return (
       <div className="tpe-shell rounded-[2rem] p-8 text-center text-white">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/8">
           <Swords className="h-8 w-8 text-[var(--tpe-lime)]" />
         </div>
-        <h2 className="text-2xl font-black">Mi proximo partido</h2>
+        <h2 className="text-2xl font-black">{title}</h2>
         <p className="mx-auto mt-3 max-w-2xl text-sm text-white/72 sm:text-base">
           Cuando se programe tu siguiente cruce lo vas a ver aca con rival, sede y horario.
         </p>
@@ -28,13 +31,17 @@ export default function PlayerNextMatchSection({ nextMatches }: PlayerNextMatchS
     <div className="tpe-shell overflow-hidden rounded-[2rem]">
       <div className="tpe-banner border-b-4 border-[var(--tpe-forest)] px-5 py-4 sm:px-8">
         <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--tpe-forest)]">En juego</p>
-        <h2 className="text-2xl font-black uppercase tracking-[-0.03em] sm:text-3xl">Mi proximo partido</h2>
+        <h2 className="text-2xl font-black uppercase tracking-[-0.03em] sm:text-3xl">{title}</h2>
       </div>
 
       <div className="space-y-4 p-4 sm:p-6">
         {nextMatches.map((match, index) => {
           const roundLabel = formatRoundLabel(match.round)
           const isFirst = index === 0
+          const mapsUrl = match.club_maps_url || buildGoogleMapsSearchUrl({
+            name: match.club_name,
+            address: match.club_address,
+          })
 
           return (
             <article
@@ -111,6 +118,18 @@ export default function PlayerNextMatchSection({ nextMatches }: PlayerNextMatchS
                       <ChevronRight className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
+                  {mapsUrl ? (
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="w-full rounded-full border-white/20 bg-white/8 text-sm font-black uppercase tracking-[0.16em] text-white hover:bg-white/14 hover:text-white"
+                    >
+                      <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
+                        <Navigation className="mr-2 h-4 w-4" />
+                        Como llegar
+                      </a>
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </article>

@@ -1,5 +1,6 @@
 import type { Gender, TournamentStatus } from '@/types'
 import { getTournamentCategoryDisplay } from '@/lib/services/tournament-category-config'
+import { buildGoogleMapsSearchUrl } from '@/lib/maps/google-maps'
 
 type NullableString = string | null | undefined
 
@@ -19,6 +20,11 @@ type TournamentPublicInfoSource = {
   clubes?: {
     name?: NullableString
     address?: NullableString
+    formatted_address?: NullableString
+    google_place_id?: NullableString
+    latitude?: string | number | null
+    longitude?: string | number | null
+    maps_url?: NullableString
     phone?: NullableString
     phone2?: NullableString
   } | null
@@ -46,6 +52,7 @@ export interface TournamentPublicInfo {
   startTimeLabel: string | null
   clubName: string | null
   clubAddress: string | null
+  clubMapsUrl: string | null
   hideVenue: boolean
   organizerName: string | null
   organizerPhone: string | null
@@ -101,7 +108,20 @@ export const mapTournamentToPublicInfo = (
 ): TournamentPublicInfo => {
   const hideVenue = Boolean(tournament.hide_venue)
   const clubName = hideVenue ? null : cleanText(tournament.clubes?.name)
-  const clubAddress = hideVenue ? null : cleanText(tournament.clubes?.address)
+  const clubAddress = hideVenue
+    ? null
+    : cleanText(tournament.clubes?.formatted_address) || cleanText(tournament.clubes?.address)
+  const clubMapsUrl = hideVenue
+    ? null
+    : cleanText(tournament.clubes?.maps_url) ||
+      buildGoogleMapsSearchUrl({
+        name: clubName,
+        address: tournament.clubes?.address,
+        formattedAddress: tournament.clubes?.formatted_address,
+        googlePlaceId: tournament.clubes?.google_place_id,
+        latitude: tournament.clubes?.latitude,
+        longitude: tournament.clubes?.longitude,
+      })
   const organizerName = cleanText(tournament.organization?.name) || clubName
   const organizerPhone =
     cleanText(tournament.organization?.phone) ||
@@ -146,6 +166,7 @@ export const mapTournamentToPublicInfo = (
         : null,
     clubName,
     clubAddress,
+    clubMapsUrl,
     hideVenue,
     organizerName,
     organizerPhone,

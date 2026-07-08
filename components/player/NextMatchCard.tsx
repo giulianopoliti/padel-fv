@@ -3,9 +3,11 @@
 import React, { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Clock, MapPin, Users, Calendar, Swords } from 'lucide-react'
+import { Clock, MapPin, Users, Calendar, Swords, Navigation } from 'lucide-react'
 import { PlayerMatch, getOpponentCoupleName } from '@/utils/player-matches'
 import { createClient } from '@/utils/supabase/client'
+import { Button } from '@/components/ui/button'
+import { buildGoogleMapsSearchUrl } from '@/lib/maps/google-maps'
 
 interface NextMatchCardProps {
   match: PlayerMatch
@@ -61,6 +63,7 @@ export default function NextMatchCard({ match, playerCoupleId, className }: Next
   }, [match, playerCoupleId])
 
   const opponentName = getOpponentCoupleName(match, playerCoupleId)
+  const mapsUrl = buildGoogleMapsSearchUrl({ address: clubAddress })
 
   // Normalizar fecha_matches
   const fechaMatchesArray = Array.isArray(match.fecha_matches)
@@ -153,6 +156,14 @@ export default function NextMatchCard({ match, playerCoupleId, className }: Next
             </span>
           </div>
         )}
+        {mapsUrl ? (
+          <Button asChild className="w-full">
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
+              <Navigation className="mr-2 h-4 w-4" />
+              Como llegar
+            </a>
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   )

@@ -3,7 +3,9 @@ import {
   detailsList,
   escapeHtml,
   formatDate,
+  formatDateTime,
   formatTimeRange,
+  formatTournamentDateTime,
   renderEmailLayout,
 } from "@/lib/services/email/templates"
 import { sendSafely } from "@/lib/services/email/notification-utils"
@@ -16,6 +18,39 @@ import {
 } from "./tournament-message-data"
 
 const skipped = (reason: string): TournamentMessageResult => ({ success: true, skipped: true, reason })
+
+const getLocationDetails = (clubLocation: {
+  name: string | null
+  address: string | null
+  formattedAddress: string | null
+} | null) => [
+  { label: "Club", value: clubLocation?.name || null },
+  { label: "Direccion", value: clubLocation?.formattedAddress || clubLocation?.address || null },
+]
+
+const renderDirectionsLink = (mapsUrl: string | null | undefined) =>
+  mapsUrl
+    ? `<p style="margin:18px 0 0;"><a href="${escapeHtml(mapsUrl)}" style="display:inline-block;color:#1d4ed8;text-decoration:none;font-weight:700;">Como llegar</a></p>`
+    : ""
+
+const renderLocationText = (clubLocation: {
+  name: string | null
+  address: string | null
+  formattedAddress: string | null
+  mapsUrl: string | null
+} | null) => {
+  if (!clubLocation) return ""
+
+  const lines = [
+    clubLocation.name ? `Club: ${clubLocation.name}` : null,
+    clubLocation.formattedAddress || clubLocation.address
+      ? `Direccion: ${clubLocation.formattedAddress || clubLocation.address}`
+      : null,
+    clubLocation.mapsUrl ? `Como llegar: ${clubLocation.mapsUrl}` : null,
+  ].filter(Boolean)
+
+  return lines.length > 0 ? `\n${lines.join("\n")}` : ""
+}
 
 const sendInscriptionSubmittedAdmin = async (event: Extract<TournamentMessageEvent, { type: "INSCRIPTION_SUBMITTED_ADMIN" }>) => {
   const data = await loadInscriptionMessageData(event.supabase, event.inscriptionId)
@@ -41,12 +76,14 @@ const sendInscriptionSubmittedAdmin = async (event: Extract<TournamentMessageEve
             { label: "Formato", value: data.tournament.type },
             { label: "Categoria", value: data.tournament.category_name },
             { label: "Estado", value: statusLabel },
-            { label: "Fecha de alta", value: data.inscription.created_at ? new Date(data.inscription.created_at).toLocaleString("es-AR") : null },
+            { label: "Fecha de alta", value: formatDateTime(data.inscription.created_at) },
+            ...getLocationDetails(data.clubLocation),
           ])}
+          ${renderDirectionsLink(data.clubLocation?.mapsUrl)}
         `,
         cta: { label: "Ver inscripciones", href: tournamentUrl },
       }),
-      text: `Nueva inscripcion\nTorneo: ${data.tournament.name}\nPareja/Jugador: ${data.participantName}\nEstado: ${statusLabel}\n${tournamentUrl}`,
+      text: `Nueva inscripcion\nTorneo: ${data.tournament.name}\nPareja/Jugador: ${data.participantName}\nEstado: ${statusLabel}${renderLocationText(data.clubLocation)}\n${tournamentUrl}`,
       idempotencyKey: `message-inscription-submitted-admin-${data.inscription.id}`,
       tags: [
         { name: "type", value: "inscription_submitted_admin" },
@@ -82,13 +119,15 @@ const sendInscriptionApprovedPlayer = async (event: Extract<TournamentMessageEve
             { label: "Pareja/Jugador", value: data.participantName },
             { label: "Formato", value: data.tournament.type },
             { label: "Categoria", value: data.tournament.category_name },
-            { label: "Inicio", value: data.tournament.start_date ? formatDate(data.tournament.start_date) : null },
+            { label: "Inicio", value: formatTournamentDateTime(data.tournament.start_date) },
             { label: "Estado", value: "Confirmada" },
+            ...getLocationDetails(data.clubLocation),
           ])}
+          ${renderDirectionsLink(data.clubLocation?.mapsUrl)}
         `,
         cta: { label: "Ver torneo", href: tournamentUrl },
       }),
-      text: `${title}\nTorneo: ${data.tournament.name}\nPareja/Jugador: ${data.participantName}\nEstado: Confirmada\n${tournamentUrl}`,
+      text: `${title}\nTorneo: ${data.tournament.name}\nPareja/Jugador: ${data.participantName}\nEstado: Confirmada${renderLocationText(data.clubLocation)}\n${tournamentUrl}`,
       idempotencyKey: `message-inscription-approved-player-${data.inscription.id}`,
       tags: [
         { name: "type", value: "inscription_approved_player" },
@@ -127,11 +166,13 @@ const sendInscriptionCancelledAdmin = async (event: Extract<TournamentMessageEve
             { label: "Pareja/Jugador", value: data.participantName },
             { label: "Formato", value: data.tournament.type },
             { label: "Categoria", value: data.tournament.category_name },
+            ...getLocationDetails(data.clubLocation),
           ])}
+          ${renderDirectionsLink(data.clubLocation?.mapsUrl)}
         `,
         cta: { label: "Ver inscripciones", href: tournamentUrl },
       }),
-      text: `Inscripcion cancelada\nTorneo: ${data.tournament.name}\nPareja/Jugador: ${data.participantName}\n${tournamentUrl}`,
+      text: `Inscripcion cancelada\nTorneo: ${data.tournament.name}\nPareja/Jugador: ${data.participantName}${renderLocationText(data.clubLocation)}\n${tournamentUrl}`,
       idempotencyKey: `message-inscription-cancelled-admin-${data.tournament.id}-${event.inscriptionId || event.coupleId || event.playerId || Date.now()}`,
       tags: [
         { name: "type", value: "inscription_cancelled_admin" },
@@ -175,11 +216,13 @@ const sendLongMatchConfirmedPlayer = async (event: Extract<TournamentMessageEven
             { label: "Horario", value: formatTimeRange(data.fechaMatch.scheduled_start_time, data.fechaMatch.scheduled_end_time) },
             { label: "Cancha", value: data.fechaMatch.court_assignment },
             { label: "Categoria", value: data.tournament.category_name },
+            ...getLocationDetails(data.clubLocation),
           ])}
+          ${renderDirectionsLink(data.clubLocation?.mapsUrl)}
         `,
         cta: { label: "Ver partido", href: tournamentUrl },
       }),
-      text: `${title}\nTorneo: ${data.tournament.name}\nPartido: ${data.matchSummary}\nFecha: ${scheduleSummary}\n${tournamentUrl}`,
+      text: `${title}\nTorneo: ${data.tournament.name}\nPartido: ${data.matchSummary}\nFecha: ${scheduleSummary}${renderLocationText(data.clubLocation)}\n${tournamentUrl}`,
       idempotencyKey: `message-long-match-confirmed-player-${data.match.id}-${data.fechaMatch.scheduled_date}-${data.fechaMatch.scheduled_start_time}`,
       tags: [
         { name: "type", value: "long_match_confirmed_player" },

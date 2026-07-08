@@ -1,9 +1,10 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
-import { CalendarDays, ChevronRight, MapPin, Swords, Users } from "lucide-react"
+import { CalendarDays, ChevronRight, MapPin, Navigation, Swords, Users } from "lucide-react"
 import type { PlayerNextMatch } from "@/app/api/panel/actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps"
 import { formatMatchDateTime, formatRoundLabel } from "./panel-formatters"
 
 interface PlayerFvNextMatchSectionProps {
@@ -11,13 +12,15 @@ interface PlayerFvNextMatchSectionProps {
 }
 
 export default function PlayerFvNextMatchSection({ nextMatches }: PlayerFvNextMatchSectionProps) {
+  const title = nextMatches.length > 1 ? "Mis proximos partidos" : "Mi proximo partido"
+
   if (nextMatches.length === 0) {
     return (
       <section className="rounded-[2rem] border border-dashed border-white/20 bg-white/5 px-6 py-10 text-center shadow-sm backdrop-blur-sm sm:px-8 sm:py-12">
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-court-500/10 text-court-300">
           <Swords className="h-8 w-8" />
         </div>
-        <p className="mb-2 text-sm font-semibold uppercase tracking-[0.22em] text-court-300">Mi proximo partido</p>
+        <p className="mb-2 text-sm font-semibold uppercase tracking-[0.22em] text-court-300">{title}</p>
         <h2 className="text-2xl font-black text-white sm:text-3xl">Todavia no tenes un cruce programado</h2>
         <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-300 sm:text-base">
           Cuando se confirme tu siguiente partido lo vas a ver aca con rival, companero, horario y sede.
@@ -32,7 +35,7 @@ export default function PlayerFvNextMatchSection({ nextMatches }: PlayerFvNextMa
         <p className="mb-2 text-sm font-semibold uppercase tracking-[0.22em] text-court-300">Agenda inmediata</p>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-2xl font-black text-white sm:text-3xl">Mi proximo partido</h2>
+            <h2 className="text-2xl font-black text-white sm:text-3xl">{title}</h2>
           </div>
           {nextMatches.length > 1 ? (
             <Badge className="w-fit border-court-400/30 bg-court-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-court-200 hover:bg-court-500/15">
@@ -47,6 +50,10 @@ export default function PlayerFvNextMatchSection({ nextMatches }: PlayerFvNextMa
           const roundLabel = formatRoundLabel(match.round)
           const isPrimary = index === 0
           const venueLabel = [match.club_name, match.club_address, match.scheduled_info.court].filter(Boolean).join(" - ")
+          const mapsUrl = match.club_maps_url || buildGoogleMapsSearchUrl({
+            name: match.club_name,
+            address: match.club_address,
+          })
 
           return (
             <article
@@ -112,6 +119,18 @@ export default function PlayerFvNextMatchSection({ nextMatches }: PlayerFvNextMa
                       <ChevronRight className="ml-1 h-4 w-4" />
                     </Link>
                   </Button>
+                  {mapsUrl ? (
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="h-10 border-white/20 bg-white/5 text-sm font-semibold text-white hover:bg-white/10 hover:text-white"
+                    >
+                      <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
+                        <Navigation className="mr-2 h-4 w-4" />
+                        Como llegar
+                      </a>
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </article>

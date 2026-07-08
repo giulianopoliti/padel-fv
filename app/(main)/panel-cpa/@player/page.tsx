@@ -3,12 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { User, Trophy, Calendar, MapPin, Users, Edit, Clock, Swords, Target } from "lucide-react"
+import { User, Trophy, Calendar, MapPin, Users, Edit, Clock, Swords, Target, Navigation } from "lucide-react"
 import Link from "next/link"
 import { getPlayerDashboardData, getPlayerInscribedTournaments, getPlayerUpcomingTournaments } from "@/app/api/panel/actions"
 import { InscribedTournamentsCard } from "./components/inscribed-tournaments-card"
 import { getCategoryColor } from "@/lib/utils/category-colors"
 import { isTournamentGenderFilter } from "@/lib/tournaments/gender-filtering"
+import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps"
 
 interface PlayerDashboardPageProps {
   searchParams?: Promise<{
@@ -344,6 +345,18 @@ export default async function PlayerDashboard({ searchParams }: PlayerDashboardP
                           Ver Torneo
                         </Button>
                       </Link>
+                      {(match.club_maps_url || buildGoogleMapsSearchUrl({ name: match.club_name, address: match.club_address })) ? (
+                        <Button asChild variant="outline" className="w-full border-red-200 text-red-700 hover:bg-red-50">
+                          <a
+                            href={match.club_maps_url || buildGoogleMapsSearchUrl({ name: match.club_name, address: match.club_address }) || undefined}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Navigation className="mr-2 h-4 w-4" />
+                            Como llegar
+                          </a>
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 ))}

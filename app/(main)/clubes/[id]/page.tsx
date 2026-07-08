@@ -12,6 +12,7 @@ import {
   Instagram,
   Mail,
   MapPin,
+  Navigation,
   Phone,
   Star,
   Trophy,
@@ -24,6 +25,7 @@ import { getClubDetails, getClubPlayersForRanking } from "@/app/api/users"
 import { PublicTournamentCards } from "@/components/tournaments/public-tournament-cards"
 import PlayerAvatar from "@/components/player-avatar"
 import ContactButton from "./contact-button"
+import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps"
 
 const ClubGallery = ({ images }: { images: string[] }) => (
   <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -66,6 +68,14 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ id:
   const galleryImages = Array.isArray(club.galleryImages) ? club.galleryImages.filter(Boolean) : []
   const tournamentsHref = isElite ? "/tournaments/upcoming" : "/tournaments"
   const websiteHref = formatWebsiteHref(club.website)
+  const mapsHref = club.maps_url || buildGoogleMapsSearchUrl({
+    name: club.name,
+    address: club.address,
+    formattedAddress: club.formatted_address,
+    googlePlaceId: club.google_place_id,
+    latitude: club.latitude,
+    longitude: club.longitude,
+  })
   const heroImage = club.coverImage || null
   const hasHeroImage = Boolean(heroImage)
   const showPlayersHighlights = totalPlayers > 0
@@ -330,6 +340,15 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ id:
                     <span className={subtleTextClassName}>{club.address || "Dirección a confirmar"}</span>
                   </div>
                 </div>
+
+                {mapsHref ? (
+                  <Button asChild className={primaryButtonClassName}>
+                    <a href={mapsHref} target="_blank" rel="noopener noreferrer">
+                      <Navigation className="mr-2 h-4 w-4" />
+                      Como llegar
+                    </a>
+                  </Button>
+                ) : null}
 
                 {club.phone ? (
                   <div className={infoCardClassName}>

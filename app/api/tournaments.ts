@@ -80,6 +80,11 @@ export async function getTournaments() {
                     id,
                     name,
                     address,
+                    formatted_address,
+                    google_place_id,
+                    latitude,
+                    longitude,
+                    maps_url,
                     cover_image_url
                 )
             `)
@@ -112,6 +117,12 @@ export async function getTournaments() {
                     club: rawTournament.club ? {
                         id: rawTournament.club.id,
                         name: rawTournament.club.name,
+                        address: rawTournament.club.address,
+                        formattedAddress: rawTournament.club.formatted_address,
+                        googlePlaceId: rawTournament.club.google_place_id,
+                        latitude: rawTournament.club.latitude,
+                        longitude: rawTournament.club.longitude,
+                        mapsUrl: rawTournament.club.maps_url,
                         image: rawTournament.club.cover_image_url
                     } : null,
                     createdAt: rawTournament.created_at || null,
@@ -245,7 +256,12 @@ export async function getTournamentById(id: string) {
         club:clubes (
         id,
         name,
-        address
+        address,
+        formatted_address,
+        google_place_id,
+        latitude,
+        longitude,
+        maps_url
       )
     `)
         .eq('id', id)
@@ -316,6 +332,11 @@ export async function getUpcomingTournamentsForHome(limit: number = 3) {
                     id,
                     name,
                     address,
+                    formatted_address,
+                    google_place_id,
+                    latitude,
+                    longitude,
+                    maps_url,
                     cover_image_url
                 )
             `)
@@ -353,6 +374,11 @@ export async function getUpcomingTournamentsForHome(limit: number = 3) {
                     id: rawTournament.club.id,
                     name: rawTournament.club.name,
                     address: rawTournament.club.address,
+                    formattedAddress: rawTournament.club.formatted_address,
+                    googlePlaceId: rawTournament.club.google_place_id,
+                    latitude: rawTournament.club.latitude,
+                    longitude: rawTournament.club.longitude,
+                    mapsUrl: rawTournament.club.maps_url,
                     image: rawTournament.club.cover_image_url
                 } : null,
                 createdAt: rawTournament.created_at || null,
@@ -462,6 +488,11 @@ export async function getTournamentsOptimized({
                     id,
                     name,
                     address,
+                    formatted_address,
+                    google_place_id,
+                    latitude,
+                    longitude,
+                    maps_url,
                     cover_image_url
                 ),
                 organization:organizaciones (
@@ -552,6 +583,11 @@ export async function getTournamentsOptimized({
                     id: rawTournament.club.id,
                     name: rawTournament.club.name,
                     address: rawTournament.club.address,
+                    formattedAddress: rawTournament.club.formatted_address,
+                    googlePlaceId: rawTournament.club.google_place_id,
+                    latitude: rawTournament.club.latitude,
+                    longitude: rawTournament.club.longitude,
+                    mapsUrl: rawTournament.club.maps_url,
                     image: rawTournament.club.cover_image_url
                 } : null,
                 organization: rawTournament.organization ? {

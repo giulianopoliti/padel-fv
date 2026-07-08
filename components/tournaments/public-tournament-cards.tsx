@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Gender } from "@/types"
 import { getTenantBranding } from "@/config/tenant"
+import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps"
 import { shouldShowFewSlotsAlert } from "@/lib/tournaments/few-slots-visibility"
-import { CalendarDays, Clock3, MapPin, Tag, Trophy } from "lucide-react"
+import { CalendarDays, Clock3, MapPin, Navigation, Tag, Trophy } from "lucide-react"
 
 export interface PublicTournamentSummary {
   id: string
@@ -34,6 +35,11 @@ export interface PublicTournamentSummary {
     id?: string | null
     name?: string | null
     address?: string | null
+    formattedAddress?: string | null
+    googlePlaceId?: string | null
+    latitude?: number | string | null
+    longitude?: number | string | null
+    mapsUrl?: string | null
   } | null
   enableTransferProof?: boolean
   transferAlias?: string | null
@@ -207,6 +213,17 @@ export function PublicTournamentCards({
         const priceLabel = formatPrice(tournament.price)
         const hideVenue = Boolean(tournament.hideVenue)
         const venueName = tournament.club?.name || tournament.club?.address || null
+        const venueMapsUrl = hideVenue
+          ? null
+          : tournament.club?.mapsUrl ||
+            buildGoogleMapsSearchUrl({
+              name: tournament.club?.name,
+              address: tournament.club?.address,
+              formattedAddress: tournament.club?.formattedAddress,
+              googlePlaceId: tournament.club?.googlePlaceId,
+              latitude: tournament.club?.latitude,
+              longitude: tournament.club?.longitude,
+            })
         const canShowParticipantStats =
           showParticipantStats &&
           Boolean(tournament.enablePublicInscriptions) &&
@@ -289,6 +306,17 @@ export function PublicTournamentCards({
                           <p className={infoValueClassName}>{venueName}</p>
                           {tournament.club?.address && tournament.club.address !== venueName ? (
                             <p className="mt-1 text-xs text-white/82">{tournament.club.address}</p>
+                          ) : null}
+                          {venueMapsUrl ? (
+                            <a
+                              href={venueMapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-2 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-[0.1em] text-white underline-offset-4 hover:underline"
+                            >
+                              <Navigation className="h-3.5 w-3.5" />
+                              Como llegar
+                            </a>
                           ) : null}
                         </div>
                       </div>

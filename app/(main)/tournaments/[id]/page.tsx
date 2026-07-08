@@ -47,6 +47,11 @@ interface ClientTournament {
     id: string;
     name: string;
     address: string | null;
+    formatted_address: string | null;
+    google_place_id: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    maps_url: string | null;
     phone: string | null;
     phone2: string | null;
     email: string | null;
@@ -98,6 +103,11 @@ const serializeTournamentForClient = (
         id: tournament.clubes.id,
         name: tournament.clubes.name ?? '',
         address: tournament.clubes.address ?? null,
+        formatted_address: tournament.clubes.formatted_address ?? null,
+        google_place_id: tournament.clubes.google_place_id ?? null,
+        latitude: tournament.clubes.latitude ?? null,
+        longitude: tournament.clubes.longitude ?? null,
+        maps_url: tournament.clubes.maps_url ?? null,
         phone: tournament.clubes.phone ?? null,
         phone2: tournament.clubes.phone2 ?? null,
         email: tournament.clubes.email ?? null,
@@ -145,6 +155,11 @@ export default async function TournamentPage({ params }: TournamentPageProps) {
         id,
         name,
         address,
+        formatted_address,
+        google_place_id,
+        latitude,
+        longitude,
+        maps_url,
         phone,
         phone2,
         email,

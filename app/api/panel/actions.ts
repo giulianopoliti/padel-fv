@@ -15,6 +15,7 @@ export type PlayerNextMatch = {
   tournament_name: string
   club_name?: string
   club_address?: string
+  club_maps_url?: string
   opponent_names: string[]
   partner_name: string
   round?: 'ZONE' | '32VOS' | '16VOS' | '8VOS' | '4TOS' | 'SEMIFINAL' | 'FINAL'
@@ -115,6 +116,50 @@ export type UpcomingTournamentsResult = {
   error?: string
 }
 
+const PANEL_TIME_ZONE = 'America/Argentina/Buenos_Aires'
+
+const getTodayDateKey = () => {
+  const dateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PANEL_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+
+  const year = dateParts.find((part) => part.type === 'year')?.value
+  const month = dateParts.find((part) => part.type === 'month')?.value
+  const day = dateParts.find((part) => part.type === 'day')?.value
+
+  return `${year}-${month}-${day}`
+}
+
+const isTodayOrFutureMatch = (match: PlayerNextMatch) => {
+  const scheduledDate = match.scheduled_info.date
+
+  if (!scheduledDate) {
+    return true
+  }
+
+  return scheduledDate >= getTodayDateKey()
+}
+
+const compareMatchesBySchedule = (firstMatch: PlayerNextMatch, secondMatch: PlayerNextMatch) => {
+  const firstDate = firstMatch.scheduled_info.date || '9999-12-31'
+  const secondDate = secondMatch.scheduled_info.date || '9999-12-31'
+
+  if (firstDate !== secondDate) {
+    return firstDate.localeCompare(secondDate)
+  }
+
+  const firstTime = firstMatch.scheduled_info.time || '23:59:59'
+  const secondTime = secondMatch.scheduled_info.time || '23:59:59'
+
+  return firstTime.localeCompare(secondTime)
+}
+
+const getVisibleNextMatches = (matches: PlayerNextMatch[] = []) =>
+  matches.filter(isTodayOrFutureMatch).sort(compareMatchesBySchedule)
+
 const resolveTournamentCategoryDisplayMap = async (
   tournamentIds: string[],
 ): Promise<Record<string, string>> => {
@@ -161,7 +206,7 @@ export async function getPlayerNextMatch(playerId: string): Promise<PlayerNextMa
       ...result,
       // The next match must always expose its assigned venue to the player.
       // The edge function already prioritizes the match club for multi-venue tournaments.
-      nextMatches: result.nextMatches || [],
+      nextMatches: getVisibleNextMatches(result.nextMatches),
     }
   } catch (error) {
     console.error('Error calling edge function:', error)

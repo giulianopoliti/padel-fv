@@ -2,6 +2,7 @@ import {
   CalendarDays,
   Clock,
   MapPin,
+  Navigation,
   Phone,
   Trophy,
   UserRound,
@@ -98,27 +99,45 @@ export default function TournamentHeroDetails({
         }
 
   return (
-    <div className={cn('grid gap-3 sm:grid-cols-2 lg:grid-cols-3', className)}>
-      {items.map(({ label, value, icon: Icon }) => (
-        <div
-          key={`${label}-${value}`}
-          className={cn('rounded-xl border p-4 text-left', tone.card)}
-        >
-          <div className="flex items-start gap-3">
-            <div className={cn('rounded-full p-2', tone.icon)}>
-              <Icon className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <p className={cn('mb-1 text-xs font-medium uppercase tracking-wide', tone.label)}>
-                {label}
-              </p>
-              <p className={cn('text-sm font-semibold leading-snug', tone.value)}>
-                {value}
-              </p>
+    <div className={cn('space-y-3', className)}>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map(({ label, value, icon: Icon }) => (
+          <div
+            key={`${label}-${value}`}
+            className={cn('rounded-xl border p-4 text-left', tone.card)}
+          >
+            <div className="flex items-start gap-3">
+              <div className={cn('rounded-full p-2', tone.icon)}>
+                <Icon className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p className={cn('mb-1 text-xs font-medium uppercase tracking-wide', tone.label)}>
+                  {label}
+                </p>
+                <p className={cn('text-sm font-semibold leading-snug', tone.value)}>
+                  {value}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      {publicInfo.clubMapsUrl ? (
+        <a
+          href={publicInfo.clubMapsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            'inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition',
+            variant === 'dark'
+              ? 'border-white/20 bg-white/15 text-white hover:bg-white/25'
+              : 'border-slate-200 bg-white text-slate-900 shadow-sm hover:bg-slate-50',
+          )}
+        >
+          <Navigation className="h-4 w-4" />
+          Como llegar
+        </a>
+      ) : null}
     </div>
   )
 }

@@ -72,6 +72,12 @@ export interface ExistingMatch {
   club_id: string | null
   club?: {
     name: string
+    address: string | null
+    formatted_address: string | null
+    google_place_id: string | null
+    latitude: number | null
+    longitude: number | null
+    maps_url: string | null
   } | null
 }
 
@@ -272,7 +278,15 @@ export async function getMatchSchedulingData(
             player1:players!couples_player1_id_fkey (first_name, last_name),
             player2:players!couples_player2_id_fkey (first_name, last_name)
           ),
-          club:clubes (name)
+          club:clubes (
+            name,
+            address,
+            formatted_address,
+            google_place_id,
+            latitude,
+            longitude,
+            maps_url
+          )
         )
       `)
       .eq('fecha_id', fechaId)

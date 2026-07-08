@@ -8,6 +8,14 @@ import {
   uniqueEmails,
 } from "@/lib/services/email/notification-utils"
 import { formatCoupleName, formatPlayerName } from "@/lib/services/email/templates"
+import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps"
+
+type ClubLocation = {
+  name: string | null
+  address: string | null
+  formattedAddress: string | null
+  mapsUrl: string | null
+}
 
 export type InscriptionMessageData = {
   inscription: {
@@ -24,6 +32,7 @@ export type InscriptionMessageData = {
   participantName: string
   playerEmails: string[]
   adminEmails: string[]
+  clubLocation: ClubLocation | null
 }
 
 export type CancelledInscriptionMessageData = {
@@ -32,6 +41,7 @@ export type CancelledInscriptionMessageData = {
   }
   participantName: string
   adminEmails: string[]
+  clubLocation: ClubLocation | null
 }
 
 export type LongMatchMessageData = {
@@ -54,6 +64,7 @@ export type LongMatchMessageData = {
   matchSummary: string
   playerEmails: string[]
   adminEmails: string[]
+  clubLocation: ClubLocation | null
 }
 
 const TOURNAMENT_SELECT =
@@ -88,6 +99,44 @@ const resolveInscriptionParticipant = async (
   }
 }
 
+const loadClubLocation = async (
+  supabase: SupabaseLike,
+  clubId: string | null | undefined,
+): Promise<ClubLocation | null> => {
+  if (!clubId) return null
+
+  const { data: club, error } = await supabase
+    .from("clubes")
+    .select("name, address, formatted_address, google_place_id, latitude, longitude, maps_url")
+    .eq("id", clubId)
+    .maybeSingle()
+
+  if (error) {
+    console.error("[messages] Error fetching club location:", error)
+    return null
+  }
+
+  if (!club) return null
+
+  const mapsUrl =
+    club.maps_url ||
+    buildGoogleMapsSearchUrl({
+      name: club.name,
+      address: club.address,
+      formattedAddress: club.formatted_address,
+      googlePlaceId: club.google_place_id,
+      latitude: club.latitude,
+      longitude: club.longitude,
+    })
+
+  return {
+    name: club.name || null,
+    address: club.address || null,
+    formattedAddress: club.formatted_address || null,
+    mapsUrl,
+  }
+}
+
 export const loadInscriptionMessageData = async (
   fallbackSupabase: SupabaseLike,
   inscriptionId: string,
@@ -118,6 +167,7 @@ export const loadInscriptionMessageData = async (
 
   const participant = await resolveInscriptionParticipant(supabase, inscription)
   const recipients = await resolveTournamentNotificationRecipients(supabase, tournament)
+  const clubLocation = await loadClubLocation(supabase, tournament.club_id)
 
   return {
     inscription,
@@ -125,6 +175,7 @@ export const loadInscriptionMessageData = async (
     participantName: participant.participantName,
     playerEmails: participant.playerEmails,
     adminEmails: uniqueEmails(recipients.adminEmails.filter((email) => !participant.playerEmails.includes(email))),
+    clubLocation,
   }
 }
 
@@ -173,11 +224,13 @@ export const loadCancelledInscriptionMessageData = async ({
     player_id: effectivePlayerId,
   })
   const recipients = await resolveTournamentNotificationRecipients(supabase, tournament)
+  const clubLocation = await loadClubLocation(supabase, tournament.club_id)
 
   return {
     tournament,
     participantName: participant.participantName,
     adminEmails: uniqueEmails(recipients.adminEmails.filter((email) => !participant.playerEmails.includes(email))),
+    clubLocation,
   }
 }
 
@@ -234,6 +287,7 @@ export const loadLongMatchMessageData = async (
   )
   const recipients = await resolveTournamentNotificationRecipients(supabase, tournament)
   const playerEmails = uniqueEmails(players.map(getRelatedEmail))
+  const clubLocation = await loadClubLocation(supabase, tournament.club_id)
 
   return {
     match,
@@ -247,5 +301,6 @@ export const loadLongMatchMessageData = async (
     matchSummary: `${couple1Name} vs ${couple2Name}`,
     playerEmails,
     adminEmails: uniqueEmails(recipients.adminEmails.filter((email) => !playerEmails.includes(email))),
+    clubLocation,
   }
 }

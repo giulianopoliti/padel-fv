@@ -1,6 +1,7 @@
-import { Award, Building2, CalendarDays, Clock, FileText, MapPin, Phone, Trophy, UserRound } from 'lucide-react'
+import { Award, Building2, CalendarDays, Clock, FileText, MapPin, Navigation, Phone, Trophy, UserRound } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { TournamentPublicInfo } from '@/lib/tournaments/public-tournament-details'
 
@@ -74,6 +75,15 @@ export default function TournamentPublicInfoCard({
             <InfoItem icon={Phone} label="Teléfono" value={publicInfo.organizerPhone} />
           )}
         </div>
+
+        {publicInfo.clubMapsUrl && (
+          <Button asChild className="w-full sm:w-auto">
+            <a href={publicInfo.clubMapsUrl} target="_blank" rel="noopener noreferrer">
+              <Navigation className="mr-2 h-4 w-4" />
+              Como llegar
+            </a>
+          </Button>
+        )}
 
         {publicInfo.description && (
           <div className="border-t border-slate-200 pt-6">

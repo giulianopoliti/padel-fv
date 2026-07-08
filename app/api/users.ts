@@ -505,7 +505,7 @@ export const getUser = async (): Promise<User | null> => {
       // First get all active clubs
       const { data: clubs, error: clubsError } = await supabase
         .from("clubes")
-        .select("id, name, address, instagram, courts, opens_at, closes_at, cover_image_url, gallery_images")
+        .select("id, name, address, formatted_address, google_place_id, latitude, longitude, maps_url, instagram, courts, opens_at, closes_at, cover_image_url, gallery_images")
         .eq("is_active", true)
         .order("name");
 
@@ -556,6 +556,11 @@ export const getUser = async (): Promise<User | null> => {
               id: club.id,
               name: club.name || null,
               address: club.address || null,
+              formattedAddress: club.formatted_address || null,
+              googlePlaceId: club.google_place_id || null,
+              latitude: club.latitude || null,
+              longitude: club.longitude || null,
+              mapsUrl: club.maps_url || null,
               instagram: club.instagram || null,
               courts: club.courts || 0,
               opens_at: club.opens_at || null,
@@ -573,6 +578,11 @@ export const getUser = async (): Promise<User | null> => {
               id: club.id,
               name: club.name || null,
               address: club.address || null,
+              formattedAddress: club.formatted_address || null,
+              googlePlaceId: club.google_place_id || null,
+              latitude: club.latitude || null,
+              longitude: club.longitude || null,
+              mapsUrl: club.maps_url || null,
               instagram: club.instagram || null,
               courts: club.courts || 0,
               opens_at: club.opens_at || null,
@@ -746,6 +756,11 @@ export const getUser = async (): Promise<User | null> => {
             id: club.id,
             name: club.name || null,
             address: club.address || null,
+            formattedAddress: club.formatted_address || null,
+            googlePlaceId: club.google_place_id || null,
+            latitude: club.latitude || null,
+            longitude: club.longitude || null,
+            mapsUrl: club.maps_url || null,
           },
         };
       }),
@@ -1495,6 +1510,11 @@ export const getUser = async (): Promise<User | null> => {
           id,
           name,
           address,
+          formatted_address,
+          google_place_id,
+          latitude,
+          longitude,
+          maps_url,
           courts,
           opens_at,
           closes_at,
@@ -1537,6 +1557,11 @@ export const getUser = async (): Promise<User | null> => {
           id: club.id,
           name: club.name || null,
           address: club.address || null,
+          formattedAddress: club.formatted_address || null,
+          googlePlaceId: club.google_place_id || null,
+          latitude: club.latitude || null,
+          longitude: club.longitude || null,
+          mapsUrl: club.maps_url || null,
           courts: club.courts || 0,
           opens_at: club.opens_at || null,
           closes_at: club.closes_at || null,

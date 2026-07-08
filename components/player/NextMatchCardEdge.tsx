@@ -3,8 +3,10 @@
 import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Clock, MapPin, Users, Calendar, Swords } from 'lucide-react'
+import { Clock, MapPin, Users, Calendar, Swords, Navigation } from 'lucide-react'
 import { PlayerNextMatch } from '@/app/api/panel/actions'
+import { Button } from '@/components/ui/button'
+import { buildGoogleMapsSearchUrl } from '@/lib/maps/google-maps'
 
 interface NextMatchCardEdgeProps {
   match: PlayerNextMatch
@@ -16,6 +18,11 @@ interface NextMatchCardEdgeProps {
  * Ventaja: Ya trae el club correcto (match.club_id priorizado sobre tournament.club_id)
  */
 export default function NextMatchCardEdge({ match, className }: NextMatchCardEdgeProps) {
+  const mapsUrl = match.club_maps_url || buildGoogleMapsSearchUrl({
+    name: match.club_name,
+    address: match.club_address,
+  })
+
   const formatDate = (dateString: string) => {
     return new Date(dateString + 'T12:00:00').toLocaleDateString('es-ES', {
       day: 'numeric',
@@ -134,6 +141,14 @@ export default function NextMatchCardEdge({ match, className }: NextMatchCardEdg
             </span>
           </div>
         )}
+        {mapsUrl ? (
+          <Button asChild className="w-full">
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
+              <Navigation className="mr-2 h-4 w-4" />
+              Como llegar
+            </a>
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   )
