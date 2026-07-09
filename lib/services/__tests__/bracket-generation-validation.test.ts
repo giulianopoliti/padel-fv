@@ -16,7 +16,10 @@ jest.mock('@/utils/supabase/server', () => ({
 const tournamentId = 'tournament-long'
 const zoneId = 'zone-general'
 
-function createSupabaseValidationMock(matches: Array<{ id: string; couple1_id: string; couple2_id: string }>) {
+function createSupabaseValidationMock(
+  matches: Array<{ id: string; couple1_id: string; couple2_id: string }>,
+  options: { enforceLongBracketMatchRequirement?: boolean } = {}
+) {
   const tournament = {
     id: tournamentId,
     status: 'ZONE_PHASE',
@@ -38,6 +41,14 @@ function createSupabaseValidationMock(matches: Array<{ id: string; couple1_id: s
     max_couples: 32,
     rounds_per_couple: 0,
   }]
+  const rankingConfig = {
+    id: 'ranking-config',
+    tournament_id: tournamentId,
+    is_active: true,
+    operational_settings: {
+      enforceLongBracketMatchRequirement: options.enforceLongBracketMatchRequirement ?? true,
+    },
+  }
   const zonePositions = Array.from({ length: 10 }, (_, index) => ({
     couple_id: `couple-${index + 1}`,
   }))
@@ -105,6 +116,10 @@ function createSupabaseValidationMock(matches: Array<{ id: string; couple1_id: s
 
       if (this.table === 'zone_positions') {
         return { data: zonePositions, error: null }
+      }
+
+      if (this.table === 'tournament_ranking_config') {
+        return this.singleRow ? { data: rankingConfig, error: null } : { data: [rankingConfig], error: null }
       }
 
       if (this.table === 'zone_couples') {
@@ -347,6 +362,20 @@ describe('bracket-generation-validation', () => {
 
       expect(validation.success).toBe(true)
       expect(validation.requiredMatchesPerCoupleValues).toEqual([3])
+    })
+
+    it('passes with current standings when the LONG match requirement is disabled', async () => {
+      ;(createClientServiceRole as jest.Mock).mockResolvedValue(createSupabaseValidationMock([
+        { id: 'match-1', couple1_id: 'couple-1', couple2_id: 'couple-2' },
+      ], {
+        enforceLongBracketMatchRequirement: false,
+      }))
+
+      const validation = await validatePlaceholderBracketGeneration(tournamentId)
+
+      expect(validation.success).toBe(true)
+      expect(validation.longBracketMatchRequirementEnabled).toBe(false)
+      expect(validation.requiredMatchesPerCoupleValues).toEqual([])
     })
   })
 })

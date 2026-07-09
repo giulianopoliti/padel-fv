@@ -20,6 +20,7 @@ import {
 } from '@/lib/services/bracket-generation-validation'
 import { syncTournamentCapacityRegistrationLock } from '@/lib/services/tournament-capacity.service'
 import { MAX_TOURNAMENT_PRICE } from '@/lib/constants/tournaments'
+import { mergeTournamentOperationalSettings } from '@/lib/services/tournament-operational-settings'
 
 interface QualifyingAdvancementSettings {
   enabled: boolean
@@ -247,6 +248,83 @@ export async function updateAdvancementSettings(
   }
 
   revalidateTournamentSettingsPaths(tournamentId)
+}
+
+export async function updateLongBracketMatchRequirement(
+  tournamentId: string,
+  enabled: boolean
+): Promise<ActionResult> {
+  try {
+    const supabase = await createClient()
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return { success: false, error: 'No autorizado. Debes iniciar sesion.' }
+    }
+
+    const permissionCheck = await checkTournamentPermissions(user.id, tournamentId)
+    if (!permissionCheck.hasPermission) {
+      return {
+        success: false,
+        error: permissionCheck.reason || 'No tienes permisos para editar este torneo',
+      }
+    }
+
+    const { data: tournament, error: tournamentError } = await supabase
+      .from('tournaments')
+      .select('id, type')
+      .eq('id', tournamentId)
+      .single()
+
+    if (tournamentError || !tournament) {
+      return { success: false, error: 'No se pudo validar el torneo' }
+    }
+
+    if (tournament.type !== 'LONG') {
+      return { success: false, error: 'Esta configuracion solo aplica a torneos Long' }
+    }
+
+    const { data: rankingConfig, error: configError } = await supabase
+      .from('tournament_ranking_config')
+      .select('id, operational_settings')
+      .eq('tournament_id', tournamentId)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (configError || !rankingConfig) {
+      return { success: false, error: 'No se encontro la configuracion activa del torneo' }
+    }
+
+    const operationalSettings = mergeTournamentOperationalSettings(
+      rankingConfig.operational_settings,
+      { enforceLongBracketMatchRequirement: enabled }
+    )
+
+    const { error: updateError } = await supabase
+      .from('tournament_ranking_config')
+      .update({ operational_settings: operationalSettings })
+      .eq('id', rankingConfig.id)
+
+    if (updateError) {
+      console.error('Error updating long bracket match requirement:', updateError)
+      return { success: false, error: 'Error al actualizar la configuracion' }
+    }
+
+    revalidateTournamentSettingsPaths(tournamentId)
+    revalidatePath(`/tournaments/${tournamentId}/bracket`)
+
+    return {
+      success: true,
+      data: {
+        enabled,
+        message: enabled
+          ? 'La llave volvera a exigir partidos completos por pareja.'
+          : 'La llave podra generarse con la tabla de posiciones actual.',
+      },
+    }
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Error inesperado' }
+  }
 }
 
 export async function updateTournamentFormatConfig(

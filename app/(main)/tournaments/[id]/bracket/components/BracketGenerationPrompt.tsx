@@ -30,6 +30,7 @@ export default function BracketGenerationPrompt({
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [requiredMatchesPerCoupleValues, setRequiredMatchesPerCoupleValues] = useState<number[]>([])
+  const [longBracketMatchRequirementEnabled, setLongBracketMatchRequirementEnabled] = useState(true)
 
   React.useEffect(() => {
     let cancelled = false
@@ -48,6 +49,7 @@ export default function BracketGenerationPrompt({
 
         if (!cancelled) {
           setRequiredMatchesPerCoupleValues(values)
+          setLongBracketMatchRequirementEnabled(validation.longBracketMatchRequirementEnabled !== false)
         }
       } catch (requirementError) {
         console.warn('[BracketGenerationPrompt] Could not load bracket requirements:', requirementError)
@@ -62,6 +64,10 @@ export default function BracketGenerationPrompt({
   }, [tournamentId])
 
   const requirementText = React.useMemo(() => {
+    if (!longBracketMatchRequirementEnabled) {
+      return 'La llave se generara con la tabla de posiciones actual, aunque no todas las parejas tengan los partidos completos.'
+    }
+
     if (requiredMatchesPerCoupleValues.length === 1) {
       const matches = requiredMatchesPerCoupleValues[0]
       const noun = matches === 1 ? 'partido creado' : 'partidos creados'
@@ -74,7 +80,7 @@ export default function BracketGenerationPrompt({
     }
 
     return 'Podés iniciar la llave únicamente si cada pareja tiene los partidos creados que exige el formato.'
-  }, [requiredMatchesPerCoupleValues])
+  }, [longBracketMatchRequirementEnabled, requiredMatchesPerCoupleValues])
 
   const handleGenerate = async () => {
     if (isGenerating) return

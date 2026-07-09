@@ -8,6 +8,7 @@ import {
   getActiveDisqualifiedCoupleIds,
   matchInvolvesDisqualifiedCouple,
 } from '@/lib/services/tournament-disqualifications'
+import { shouldEnforceLongBracketMatchRequirement } from '@/lib/services/tournament-operational-settings'
 import { createClient } from '@/utils/supabase/server'
 
 export interface LongTournamentValidationResult {
@@ -140,6 +141,11 @@ export async function validateLongTournamentForBracket(
         ? Math.min(couplesAdvance || activeCouples.length, activeCouples.length)
         : activeCouples.length
 
+    const enforceLongBracketMatchRequirement = await shouldEnforceLongBracketMatchRequirement(
+      supabase,
+      tournamentId
+    )
+
     const coupleMatchCounts = []
 
     for (const couple of activeCouples) {
@@ -175,7 +181,7 @@ export async function validateLongTournamentForBracket(
       0
     ) / coupleMatchCounts.length
 
-    if (incompleteCouples.length > 0) {
+    if (enforceLongBracketMatchRequirement && incompleteCouples.length > 0) {
       return {
         canGenerate: false,
         reason: `${incompleteCouples.length} couples haven't completed ${requiredMatchesPerCouple} matches`,

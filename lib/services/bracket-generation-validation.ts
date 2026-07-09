@@ -10,6 +10,7 @@ import {
   getActiveDisqualifiedCoupleIds,
   matchInvolvesDisqualifiedCouple,
 } from '@/lib/services/tournament-disqualifications'
+import { shouldEnforceLongBracketMatchRequirement } from '@/lib/services/tournament-operational-settings'
 
 export interface BracketArtifactState {
   seedCount: number
@@ -36,6 +37,7 @@ export interface PlaceholderBracketValidationSuccess {
   totalZones: number
   artifacts: BracketArtifactState
   requiredMatchesPerCoupleValues?: number[]
+  longBracketMatchRequirementEnabled?: boolean
 }
 
 export interface PlaceholderBracketValidationFailure {
@@ -51,6 +53,7 @@ export interface PlaceholderBracketValidationFailure {
   totalZones: number
   artifacts: BracketArtifactState
   requiredMatchesPerCoupleValues?: number[]
+  longBracketMatchRequirementEnabled?: boolean
   tournament?: {
     id: string
     status: string
@@ -363,6 +366,9 @@ export async function validatePlaceholderBracketGeneration(
   let totalCouples = 0
   const requiredMatchesPerCoupleValues = new Set<number>()
   const disqualifiedCoupleIds = await getActiveDisqualifiedCoupleIds(tournamentId, supabase)
+  const enforceLongBracketMatchRequirement = tournament.type === 'LONG'
+    ? await shouldEnforceLongBracketMatchRequirement(supabase, tournamentId)
+    : true
 
   for (const zone of zones || []) {
     const { data: zonePositions, error: coupleError } = await supabase
@@ -431,20 +437,25 @@ export async function validatePlaceholderBracketGeneration(
     const expectedMatches = calculateExpectedZoneMatches(couplesInZone, roundsPerCouple)
     const coupleMatchCounts = calculateCoupleMatchCounts(coupleIds, zoneMatches || [])
     const hasActiveDisqualifications = disqualifiedCoupleIds.size > 0
-    const incompleteCouples = hasActiveDisqualifications
-      ? findBlockingIncompleteCouplesWithActiveOpponentCapacity(
-          coupleIds,
-          coupleMatchCounts,
-          zoneMatches || [],
-          roundsPerCouple
-        )
-      : findCouplesBelowRequiredMatches(coupleMatchCounts, roundsPerCouple)
-    if (roundsPerCouple > 0) {
+    const incompleteCouples = enforceLongBracketMatchRequirement
+      ? hasActiveDisqualifications
+        ? findBlockingIncompleteCouplesWithActiveOpponentCapacity(
+            coupleIds,
+            coupleMatchCounts,
+            zoneMatches || [],
+            roundsPerCouple
+          )
+        : findCouplesBelowRequiredMatches(coupleMatchCounts, roundsPerCouple)
+      : []
+    if (enforceLongBracketMatchRequirement && roundsPerCouple > 0) {
       requiredMatchesPerCoupleValues.add(roundsPerCouple)
     }
     totalCouples += couplesInZone
 
-    if ((!hasActiveDisqualifications && matchesInZone < expectedMatches) || incompleteCouples.length > 0) {
+    if (
+      enforceLongBracketMatchRequirement &&
+      ((!hasActiveDisqualifications && matchesInZone < expectedMatches) || incompleteCouples.length > 0)
+    ) {
       incompleteZones.push({
         zoneId: zone.id,
         zoneName: zone.name,
@@ -473,6 +484,7 @@ export async function validatePlaceholderBracketGeneration(
       artifacts,
       tournament,
       requiredMatchesPerCoupleValues: Array.from(requiredMatchesPerCoupleValues).sort((a, b) => a - b),
+      longBracketMatchRequirementEnabled: enforceLongBracketMatchRequirement,
       incompleteZones
     }
   }
@@ -485,6 +497,7 @@ export async function validatePlaceholderBracketGeneration(
     totalCouples,
     totalZones: zones?.length || 0,
     requiredMatchesPerCoupleValues: Array.from(requiredMatchesPerCoupleValues).sort((a, b) => a - b),
+    longBracketMatchRequirementEnabled: enforceLongBracketMatchRequirement,
     artifacts
   }
 }

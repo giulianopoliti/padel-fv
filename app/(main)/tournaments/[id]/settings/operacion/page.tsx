@@ -1,12 +1,14 @@
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Globe2, LayoutTemplate, Lock, XCircle } from 'lucide-react'
+import { GitBranch, Globe2, LayoutTemplate, Lock, XCircle } from 'lucide-react'
 import BackFromBracketButton from '../components/BackFromBracketButton'
 import BackToNotStartedButton from '../components/BackToNotStartedButton'
 import DraftMatchesToggle from '../components/DraftMatchesToggle'
 import DraftModeToggle from '../components/DraftModeToggle'
+import LongBracketMatchRequirementToggle from '../components/LongBracketMatchRequirementToggle'
 import { getTournamentSettingsData } from '../components/settings-data'
 import { SettingsSectionHeader, SettingsShellCard } from '../components/settings-shell'
 import CancelTournamentButton from '@/components/tournament/club/cancel-tournament'
+import { normalizeTournamentOperationalSettings } from '@/lib/services/tournament-operational-settings'
 
 interface SettingsOperacionPageProps {
   params: Promise<{
@@ -30,9 +32,13 @@ export default async function SettingsOperacionPage({
     cancelTournamentData,
     couplesCount,
     playersCount,
+    rankingConfig,
   } = settingsData
   const showRecoveryActions =
     tournament.status === 'BRACKET_PHASE' || tournament.status === 'ZONE_PHASE'
+  const operationalSettings = normalizeTournamentOperationalSettings(
+    rankingConfig?.operational_settings
+  )
 
   return (
     <div className="space-y-6">
@@ -55,16 +61,29 @@ export default async function SettingsOperacionPage({
         </SettingsShellCard>
 
         {!isAmericanTournament ? (
-          <SettingsShellCard
-            icon={<LayoutTemplate className="h-5 w-5 text-slate-700" />}
-            title="Partidos en borrador"
-            description="Decide cuando los partidos pasan a ser visibles para los jugadores."
-          >
-            <DraftMatchesToggle
-              tournamentId={tournament.id}
-              initialEnabled={tournament.enable_draft_matches || false}
-            />
-          </SettingsShellCard>
+          <>
+            <SettingsShellCard
+              icon={<LayoutTemplate className="h-5 w-5 text-slate-700" />}
+              title="Partidos en borrador"
+              description="Decide cuando los partidos pasan a ser visibles para los jugadores."
+            >
+              <DraftMatchesToggle
+                tournamentId={tournament.id}
+                initialEnabled={tournament.enable_draft_matches || false}
+              />
+            </SettingsShellCard>
+
+            <SettingsShellCard
+              icon={<GitBranch className="h-5 w-5 text-slate-700" />}
+              title="Generacion de llave"
+              description="Define si la llave requiere completar los partidos configurados por pareja."
+            >
+              <LongBracketMatchRequirementToggle
+                tournamentId={tournament.id}
+                initialEnabled={operationalSettings.enforceLongBracketMatchRequirement}
+              />
+            </SettingsShellCard>
+          </>
         ) : (
           <div className="hidden xl:block" />
         )}

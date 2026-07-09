@@ -12,6 +12,7 @@ import {
   filterOutDisqualifiedCouples,
   getActiveDisqualifiedCoupleIds,
 } from '@/lib/services/tournament-disqualifications'
+import { shouldEnforceLongBracketMatchRequirement } from '@/lib/services/tournament-operational-settings'
 
 export interface QualifiedEntry {
   key: string
@@ -79,6 +80,9 @@ export class QualificationSourceService {
 
     const rules = TournamentFormatRulesService.resolve({ tournament })
     const shouldApplyAdvancementLimit = Boolean((tournament as any)?.format_config?.version === 2)
+    const useCurrentLongStandings = tournament.type === 'LONG'
+      ? !(await shouldEnforceLongBracketMatchRequirement(supabase, tournamentId))
+      : false
 
     const disqualifiedCoupleIds = await getActiveDisqualifiedCoupleIds(tournamentId, supabase)
 
@@ -87,9 +91,12 @@ export class QualificationSourceService {
         await this.getGlobalStandingEntries(tournamentId, rules),
         disqualifiedCoupleIds
       )
-      return shouldApplyAdvancementLimit
-        ? selectQualifiedEntries(entries, rules.resolvedFormat.effectiveAdvancementConfig, bracketKey)
+      const effectiveEntries = useCurrentLongStandings
+        ? this.markCurrentEntriesAsDefinitive(entries)
         : entries
+      return shouldApplyAdvancementLimit
+        ? selectQualifiedEntries(effectiveEntries, rules.resolvedFormat.effectiveAdvancementConfig, bracketKey)
+        : effectiveEntries
     }
 
     const zoneEntries = filterOutDisqualifiedCouples(
@@ -99,10 +106,26 @@ export class QualificationSourceService {
     const entries = rules.qualificationSource === 'HYBRID_FIRSTS_GLOBAL_REST_ZONES'
       ? await this.getHybridFirstsGlobalRestZoneEntries(tournamentId, rules, zoneEntries, disqualifiedCoupleIds)
       : zoneEntries
+    const effectiveEntries = useCurrentLongStandings
+      ? this.markCurrentEntriesAsDefinitive(entries)
+      : entries
 
     return shouldApplyAdvancementLimit
-      ? selectQualifiedEntries(entries, rules.resolvedFormat.effectiveAdvancementConfig, bracketKey)
-      : entries
+      ? selectQualifiedEntries(effectiveEntries, rules.resolvedFormat.effectiveAdvancementConfig, bracketKey)
+      : effectiveEntries
+  }
+
+  private static markCurrentEntriesAsDefinitive(entries: QualifiedEntry[]): QualifiedEntry[] {
+    return entries.map((entry) => {
+      const coupleId = entry.currentCoupleId || entry.coupleId
+
+      return {
+        ...entry,
+        coupleId,
+        currentCoupleId: coupleId,
+        isDefinitive: Boolean(coupleId),
+      }
+    })
   }
 
   private static async getZonePositionEntries(tournamentId: string): Promise<QualifiedEntry[]> {
