@@ -9,9 +9,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Repeat2 } from 'lucide-react'
 import { TournamentFormatResolver } from '@/lib/services/tournament-format-resolver'
 import type { BracketKey } from '@/types/tournament-format-v2'
+import BracketReplacementDialog from './BracketReplacementDialog'
 
 interface LongBracketViewProps {
   tournamentId: string
@@ -39,6 +40,7 @@ export default function LongBracketView({ tournamentId, onMatchUpdate }: LongBra
   const [tournamentLoading, setTournamentLoading] = useState(true)
   const [tournamentError, setTournamentError] = useState<string | null>(null)
   const [activeBracketKey, setActiveBracketKey] = useState<BracketKey>('MAIN')
+  const [replacementDialogOpen, setReplacementDialogOpen] = useState(false)
 
   useEffect(() => {
     if (!tournamentId) return
@@ -139,6 +141,11 @@ export default function LongBracketView({ tournamentId, onMatchUpdate }: LongBra
     onMatchUpdate?.()
   }
 
+  const handleReplacementComplete = () => {
+    refetch()
+    onMatchUpdate?.()
+  }
+
   const bracketHeader = tournament && isGoldSilverFormat ? (
     <div className="rounded-lg border border-slate-200 bg-white p-1.5">
       <div className="grid grid-cols-2 gap-1.5">
@@ -229,7 +236,35 @@ export default function LongBracketView({ tournamentId, onMatchUpdate }: LongBra
 
   return (
     <div className="space-y-3">
-      {bracketHeader}
+      {(bracketHeader || hasManagementPermissions) && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
+            {bracketHeader}
+          </div>
+          {hasManagementPermissions && (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 gap-2"
+              onClick={() => setReplacementDialogOpen(true)}
+            >
+              <Repeat2 className="h-4 w-4" />
+              Reemplazar pareja
+            </Button>
+          )}
+        </div>
+      )}
+
+      {hasManagementPermissions && (
+        <BracketReplacementDialog
+          tournamentId={tournamentId}
+          open={replacementDialogOpen}
+          onOpenChange={setReplacementDialogOpen}
+          activeBracketKey={activeBracketKey}
+          onBracketKeyChange={setActiveBracketKey}
+          onReplaced={handleReplacementComplete}
+        />
+      )}
 
       <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
         <BracketDragDropProvider key={activeBracketKey}>
