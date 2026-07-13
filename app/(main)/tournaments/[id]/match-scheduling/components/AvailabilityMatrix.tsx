@@ -8,9 +8,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Clock, Info, CalendarX } from 'lucide-react'
+import { Check, Clock, Info, CalendarX, Loader2, Plus } from 'lucide-react'
 import { CoupleWithData, SchedulingData } from '../actions'
-import { getDayOfWeek, formatTimeRange, formatDateWithDay } from '../utils/dateUtils'
+import { formatTimeRange, formatDateWithDay } from '../utils/dateUtils'
 
 interface AvailabilityMatrixProps {
   couples: CoupleWithData[]
@@ -20,6 +20,9 @@ interface AvailabilityMatrixProps {
   onCoupleSelect: (couple: CoupleWithData) => void
   onDragStart: (couple: CoupleWithData) => void
   onDragEnd: () => void
+  manualAvailabilityEnabled: boolean
+  manualAvailabilitySavingKey: string | null
+  onManualAvailabilityToggle: (coupleId: string, timeSlotId: string) => Promise<boolean>
 }
 
 const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
@@ -29,7 +32,10 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
   draggedCouple,
   onCoupleSelect,
   onDragStart,
-  onDragEnd
+  onDragEnd,
+  manualAvailabilityEnabled,
+  manualAvailabilitySavingKey,
+  onManualAvailabilityToggle
 }) => {
   const handleDragStart = (couple: CoupleWithData, e: React.DragEvent) => {
     e.dataTransfer.setData('text/plain', couple.id)
@@ -228,8 +234,39 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                       </div>
                     </td>
                     {timeSlots.map((timeSlot) => (
-                      <td key={timeSlot.id} className={`text-center p-3 ${rowBgColor}`}>
-                        {isCoupleAvailable(couple.id, timeSlot.id) && (
+                      <td
+                        key={timeSlot.id}
+                        className={`text-center p-3 ${rowBgColor} ${manualAvailabilityEnabled ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                        onClick={(e) => {
+                          if (!manualAvailabilityEnabled) return
+                          e.stopPropagation()
+                          void onManualAvailabilityToggle(couple.id, timeSlot.id)
+                        }}
+                      >
+                        {manualAvailabilityEnabled ? (
+                          <button
+                            type="button"
+                            disabled={manualAvailabilitySavingKey === `${couple.id}:${timeSlot.id}`}
+                            className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${
+                              isCoupleAvailable(couple.id, timeSlot.id)
+                                ? 'border-blue-700 bg-blue-600 text-white shadow-sm hover:bg-blue-700'
+                                : 'border-slate-300 bg-white text-slate-500 hover:border-blue-400 hover:text-blue-600'
+                            } disabled:cursor-wait disabled:opacity-70`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void onManualAvailabilityToggle(couple.id, timeSlot.id)
+                            }}
+                            aria-label={`${isCoupleAvailable(couple.id, timeSlot.id) ? 'Desmarcar' : 'Marcar'} disponibilidad de ${getCoupleDisplayName(couple)} en ${formatTimeSlot(timeSlot)}`}
+                          >
+                            {manualAvailabilitySavingKey === `${couple.id}:${timeSlot.id}` ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : isCoupleAvailable(couple.id, timeSlot.id) ? (
+                              <Check className="h-3.5 w-3.5" />
+                            ) : (
+                              <Plus className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        ) : isCoupleAvailable(couple.id, timeSlot.id) && (
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>

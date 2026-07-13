@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { SchedulingData, CoupleWithData, ExistingMatch, createMatch, CustomSchedule, updateMatchResult, SetResult, MatchResultData, modifyMatchResult, modifyMatchSchedule, ModifyScheduleData } from '../actions'
+import { SchedulingData, CoupleWithData, ExistingMatch, createMatch, CustomSchedule, updateMatchResult, SetResult, MatchResultData, modifyMatchResult, modifyMatchSchedule, ModifyScheduleData, updateOrganizerCoupleAvailability } from '../actions'
 
 interface MatchSchedulingState {
   couples: CoupleWithData[]
@@ -10,6 +10,7 @@ interface MatchSchedulingState {
   selectedCouples: CoupleWithData[]
   createdMatches: ExistingMatch[]
   draggedCouple: CoupleWithData | null
+  manualAvailabilitySavingKey: string | null
   loading: boolean
   error: string | null
   warning: string | null
@@ -36,6 +37,7 @@ export const useMatchScheduling = (
     selectedCouples: [],
     createdMatches: initialData.existingMatches,
     draggedCouple: null,
+    manualAvailabilitySavingKey: null,
     loading: false,
     error: null,
     warning: null
@@ -117,6 +119,69 @@ export const useMatchScheduling = (
       warning: getFreeDateWarningMessage(prev.selectedCouples.filter(c => c.id !== coupleId))
     }))
   }, [getFreeDateWarningMessage])
+
+  const handleManualAvailabilityToggle = useCallback(async (coupleId: string, timeSlotId: string) => {
+    const savingKey = `${coupleId}:${timeSlotId}`
+    const currentAvailability = state.availability.find(item =>
+      item.couple_id === coupleId && item.time_slot_id === timeSlotId
+    )
+    const nextIsAvailable = !(currentAvailability?.is_available ?? false)
+
+    setState(prev => ({
+      ...prev,
+      manualAvailabilitySavingKey: savingKey,
+      error: null
+    }))
+
+    try {
+      const result = await updateOrganizerCoupleAvailability({
+        coupleId,
+        timeSlotId,
+        isAvailable: nextIsAvailable
+      })
+
+      if (!result.success) {
+        setState(prev => ({
+          ...prev,
+          manualAvailabilitySavingKey: null,
+          error: result.error || 'Error al actualizar disponibilidad'
+        }))
+        return false
+      }
+
+      setState(prev => {
+        const availabilityWithoutCell = prev.availability.filter(item =>
+          !(item.couple_id === coupleId && item.time_slot_id === timeSlotId)
+        )
+
+        return {
+          ...prev,
+          availability: nextIsAvailable
+            ? [
+                ...availabilityWithoutCell,
+                {
+                  couple_id: coupleId,
+                  time_slot_id: timeSlotId,
+                  is_available: true,
+                  notes: result.data?.notes || 'Cargado manualmente por el organizador'
+                }
+              ]
+            : availabilityWithoutCell,
+          manualAvailabilitySavingKey: null,
+          error: null
+        }
+      })
+
+      return true
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        manualAvailabilitySavingKey: null,
+        error: error instanceof Error ? error.message : 'Error inesperado al actualizar disponibilidad'
+      }))
+      return false
+    }
+  }, [state.availability])
 
   // Validate match creation for conflicts
   const validateMatchCreation = useCallback((couple1Id: string, couple2Id: string, fecha: string) => {
@@ -541,6 +606,7 @@ export const useMatchScheduling = (
         // Merge server matches with local-only matches (preserves instant updates)
         createdMatches: [...newData.existingMatches, ...localOnlyMatches],
         selectedCouples: [], // Clear selections on data update
+        manualAvailabilitySavingKey: null,
         error: null,
         warning: null
       }
@@ -554,6 +620,7 @@ export const useMatchScheduling = (
     handleDragOver,
     handleDrop,
     handleCoupleRemove,
+    handleManualAvailabilityToggle,
     handleCreateMatch,
     handleUpdateMatchResult,
     handleModifyMatchResult,

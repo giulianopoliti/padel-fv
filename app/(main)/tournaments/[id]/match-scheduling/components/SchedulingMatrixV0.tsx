@@ -1,7 +1,8 @@
 'use client'
 
-import React from 'react'
-import { Clock } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { Clock, Edit3, Lock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { SchedulingData } from '../actions'
 import AvailabilityMatrix from './AvailabilityMatrix'
 import MatchCreationPanel from './MatchCreationPanel'
@@ -28,6 +29,7 @@ const SchedulingMatrixV0: React.FC<SchedulingMatrixV0Props> = ({
   onMatchResultSaved,
   clubes
 }) => {
+  const [manualAvailabilityEnabled, setManualAvailabilityEnabled] = useState(false)
   const {
     couples,
     timeSlots,
@@ -35,10 +37,15 @@ const SchedulingMatrixV0: React.FC<SchedulingMatrixV0Props> = ({
     selectedCouples,
     createdMatches,
     draggedCouple,
+    manualAvailabilitySavingKey,
     error,
     warning,
     actions
   } = useMatchScheduling(schedulingData, fechaId, onMatchCreated)
+
+  useEffect(() => {
+    actions.updateData(schedulingData)
+  }, [schedulingData, actions.updateData])
 
   const handleMatchResultSaved = () => {
     if (onMatchResultSaved) {
@@ -68,6 +75,33 @@ const SchedulingMatrixV0: React.FC<SchedulingMatrixV0Props> = ({
           <p className="text-slate-600">Todos los horarios disponibles en una sola matriz</p>
         </div>
 
+        <div className="mb-4 flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Carga manual de disponibilidad</p>
+            <p className="text-sm text-slate-600">
+              Activalo cuando una pareja avise sus horarios por WhatsApp.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant={manualAvailabilityEnabled ? 'default' : 'outline'}
+            className={manualAvailabilityEnabled ? 'bg-blue-600 hover:bg-blue-700' : ''}
+            onClick={() => setManualAvailabilityEnabled(value => !value)}
+          >
+            {manualAvailabilityEnabled ? (
+              <>
+                <Lock className="mr-2 h-4 w-4" />
+                Desactivar carga manual
+              </>
+            ) : (
+              <>
+                <Edit3 className="mr-2 h-4 w-4" />
+                Habilitar carga manual de horarios
+              </>
+            )}
+          </Button>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-2">
             <AvailabilityMatrix
@@ -78,6 +112,9 @@ const SchedulingMatrixV0: React.FC<SchedulingMatrixV0Props> = ({
               onCoupleSelect={actions.handleCoupleSelect}
               onDragStart={actions.handleDragStart}
               onDragEnd={actions.handleDragEnd}
+              manualAvailabilityEnabled={manualAvailabilityEnabled}
+              manualAvailabilitySavingKey={manualAvailabilitySavingKey}
+              onManualAvailabilityToggle={actions.handleManualAvailabilityToggle}
             />
           </div>
 

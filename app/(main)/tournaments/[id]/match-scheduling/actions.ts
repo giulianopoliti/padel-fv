@@ -48,6 +48,12 @@ export interface AvailabilityItem {
   notes: string | null
 }
 
+export interface OrganizerAvailabilityData {
+  coupleId: string
+  timeSlotId: string
+  isAvailable: boolean
+}
+
 export interface ExistingMatch {
   id: string
   couple1_id: string | null
@@ -1488,6 +1494,8 @@ export async function getDraftMatches(
       .eq('fecha_id', fechaId)
       .eq('matches.status', 'DRAFT')
       .eq('matches.round', 'ZONE')
+      .order('scheduled_date', { ascending: true, nullsFirst: false })
+      .order('scheduled_start_time', { ascending: true, nullsFirst: false })
 
     if (matchesError) {
       throw matchesError
@@ -1518,6 +1526,132 @@ export async function getDraftMatches(
 
   } catch (error) {
     console.error('Error getting draft matches:', error)
+    return {
+      success: false,
+      error: getErrorMessage(error)
+    }
+  }
+}
+
+// 10. Update Couple Availability as Organizer
+export async function updateOrganizerCoupleAvailability(
+  data: OrganizerAvailabilityData
+): Promise<ActionResult<AvailabilityItem>> {
+  try {
+    const supabase = await createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return {
+        success: false,
+        error: 'Usuario no autenticado'
+      }
+    }
+
+    const { data: timeSlot, error: timeSlotError } = await supabase
+      .from('tournament_time_slots')
+      .select(`
+        id,
+        slot_type,
+        is_system,
+        fecha_id,
+        tournament_fechas!inner(tournament_id)
+      `)
+      .eq('id', data.timeSlotId)
+      .single()
+
+    if (timeSlotError || !timeSlot) {
+      return {
+        success: false,
+        error: 'Horario no encontrado'
+      }
+    }
+
+    if (timeSlot.slot_type !== 'TIME_RANGE' || timeSlot.is_system) {
+      return {
+        success: false,
+        error: 'Este horario no permite disponibilidad manual'
+      }
+    }
+
+    const fechaInfo = unwrapRelation<any>(timeSlot.tournament_fechas)
+    const tournamentId = fechaInfo?.tournament_id
+    if (!tournamentId) {
+      return {
+        success: false,
+        error: 'No se pudo resolver el torneo del horario'
+      }
+    }
+
+    const permissionResult = await checkTournamentPermissions(user.id, tournamentId)
+    if (!permissionResult.hasPermission) {
+      return {
+        success: false,
+        error: permissionResult.reason || 'No tienes permisos para modificar disponibilidades'
+      }
+    }
+
+    const { data: couple, error: coupleError } = await supabase
+      .from('couples')
+      .select('id, inscriptions!inner(tournament_id)')
+      .eq('id', data.coupleId)
+      .eq('inscriptions.tournament_id', tournamentId)
+      .maybeSingle()
+
+    if (coupleError) {
+      throw coupleError
+    }
+
+    if (!couple) {
+      return {
+        success: false,
+        error: 'La pareja no pertenece a este torneo'
+      }
+    }
+
+    if (data.isAvailable) {
+      const { error: upsertError } = await supabase
+        .from('couple_time_availability')
+        .upsert({
+          couple_id: data.coupleId,
+          time_slot_id: data.timeSlotId,
+          is_available: true,
+          notes: 'Cargado manualmente por el organizador',
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'couple_id,time_slot_id'
+        })
+
+      if (upsertError) {
+        throw upsertError
+      }
+    } else {
+      const { error: deleteError } = await supabase
+        .from('couple_time_availability')
+        .delete()
+        .eq('couple_id', data.coupleId)
+        .eq('time_slot_id', data.timeSlotId)
+
+      if (deleteError) {
+        throw deleteError
+      }
+    }
+
+    revalidatePath(`/tournaments/${tournamentId}/schedules`)
+    revalidatePath(`/tournaments/${tournamentId}/match-scheduling`)
+
+    return {
+      success: true,
+      message: data.isAvailable ? 'Disponibilidad cargada manualmente' : 'Disponibilidad manual removida',
+      data: {
+        couple_id: data.coupleId,
+        time_slot_id: data.timeSlotId,
+        is_available: data.isAvailable,
+        notes: data.isAvailable ? 'Cargado manualmente por el organizador' : null
+      }
+    }
+  } catch (error) {
+    console.error('Error updating organizer availability:', error)
     return {
       success: false,
       error: getErrorMessage(error)
