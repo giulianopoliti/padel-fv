@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import TournamentBracketTab from '@/components/tournament/tournament-bracket-tab'
+import PublicBracketTreeView from '@/components/tournament/bracket-v2/components/PublicBracketTreeView'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/database.types'
 
@@ -21,7 +22,12 @@ export default function BracketClientWrapper({
   isOwner,
   isPublicView = false
 }: BracketClientWrapperProps) {
-  const [tournamentStatus, setTournamentStatus] = useState<string>()
+  const [tournamentStatus, setTournamentStatus] = useState<string | null>()
+  const [tournament, setTournament] = useState<{
+    status: string | null
+    type: 'AMERICAN' | 'LONG'
+    format_config: unknown
+  } | null>(null)
   const supabase = createClientComponentClient<Database>()
 
   // Fetch tournament status
@@ -29,11 +35,18 @@ export default function BracketClientWrapper({
     const fetchStatus = async () => {
       const { data } = await supabase
         .from('tournaments')
-        .select('status')
+        .select('status, type, format_config')
         .eq('id', tournamentId)
         .single()
 
-      if (data) setTournamentStatus(data.status)
+      if (data) {
+        setTournamentStatus(data.status)
+        setTournament({
+          status: data.status,
+          type: data.type as 'AMERICAN' | 'LONG',
+          format_config: data.format_config,
+        })
+      }
     }
     fetchStatus()
   }, [tournamentId, supabase])
@@ -42,12 +55,34 @@ export default function BracketClientWrapper({
     window.location.reload()
   }
 
+  if (!isOwner && !tournament) {
+    return (
+      <div className="px-4 py-10 text-center text-sm text-slate-500 lg:px-6">
+        Cargando llave...
+      </div>
+    )
+  }
+
+  if (!isOwner && tournament) {
+    return (
+      <div className="px-4 py-4 lg:px-6">
+        <div className="mx-auto max-w-7xl">
+          <PublicBracketTreeView
+            tournamentId={tournamentId}
+            tournamentType={tournament.type}
+            tournamentFormatConfig={tournament.format_config}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <TournamentBracketTab
       tournamentId={tournamentId}
       isOwner={isOwner}
       isPublicView={isPublicView}
-      tournamentStatus={tournamentStatus}
+      tournamentStatus={tournamentStatus ?? undefined}
       onDataRefresh={handleDataRefresh}
     />
   )

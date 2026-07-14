@@ -63,6 +63,7 @@ export interface GranularMatchCardProps {
   onSelectForMove?: (couple: CoupleData, match: BracketMatchV2, slot: 'slot1' | 'slot2') => void
   selectedMoveSlot?: 'slot1' | 'slot2' | null
   moveTargetSlots?: Partial<Record<'slot1' | 'slot2', boolean>>
+  preloadedSetScores?: MatchSetScore[]
   className?: string
 }
 
@@ -80,6 +81,7 @@ export function GranularMatchCard({
   onSelectForMove,
   selectedMoveSlot = null,
   moveTargetSlots,
+  preloadedSetScores,
   className,
 }: GranularMatchCardProps) {
   const [localDragHover, setLocalDragHover] = useState<'slot1' | 'slot2' | null>(null)
@@ -144,6 +146,11 @@ export function GranularMatchCard({
     ['PENDING', 'IN_PROGRESS', 'WAITING_OPONENT', 'WAITING_OPPONENT'].includes(match.status)
 
   useEffect(() => {
+    if (preloadedSetScores) {
+      setSetScores(preloadedSetScores)
+      return
+    }
+
     if (!isLongTournament || match.status !== 'FINISHED') {
       setSetScores([])
       return
@@ -170,7 +177,7 @@ export function GranularMatchCard({
     return () => {
       cancelled = true
     }
-  }, [isLongTournament, match.id, match.status])
+  }, [isLongTournament, match.id, match.status, preloadedSetScores])
 
   const slotSetScores = useMemo(() => {
     const sortedSets = [...setScores].sort((a, b) => a.set_number - b.set_number)

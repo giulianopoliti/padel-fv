@@ -22,6 +22,13 @@ import { useBracketTreeLayout, type TreeMatchPosition } from '../hooks/useBracke
 import { applyPendingOperationsToData, getMatchPreviewInfo } from '../utils/preview-operations'
 import type { BracketData, BracketMatchV2, CoupleData } from '../types/bracket-types'
 
+interface MatchSetScore {
+  id: string
+  set_number: number
+  couple1_games: number
+  couple2_games: number
+}
+
 export interface ImprovedBracketRendererProps {
   bracketData: BracketData
   tournamentId: string
@@ -30,6 +37,7 @@ export interface ImprovedBracketRendererProps {
   enableDragDrop?: boolean
   onMatchUpdate?: (matchId: string, updatedData: any) => void
   onDataRefresh?: () => void
+  setScoresByMatch?: Record<string, MatchSetScore[]>
   className?: string
 }
 
@@ -88,6 +96,7 @@ export function ImprovedBracketRenderer({
   enableDragDrop = false,
   onMatchUpdate,
   onDataRefresh,
+  setScoresByMatch,
   className
 }: ImprovedBracketRendererProps) {
   const [isEditMode, setIsEditMode] = useState(false)
@@ -506,6 +515,7 @@ export function ImprovedBracketRenderer({
             slot1: moveTargetKeySet.has(`${match.id}-slot1`),
             slot2: moveTargetKeySet.has(`${match.id}-slot2`)
           }}
+          preloadedSetScores={setScoresByMatch ? (setScoresByMatch[match.id] ?? []) : undefined}
           className={cn(
             'w-full border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-lg',
             variant === 'tree' && 'h-full',
@@ -637,7 +647,7 @@ export function ImprovedBracketRenderer({
       <div className={cn('rounded-lg border bg-slate-50', className)}>
         {renderControls()}
         <div className="px-6 py-16 text-center">
-          <div className="text-lg text-slate-500">No hay matches para mostrar</div>
+          <div className="text-lg text-slate-500">No hay partidos para mostrar</div>
           <div className="mt-2 text-sm text-slate-400">Verifica que la llave este generada correctamente.</div>
         </div>
       </div>
@@ -721,7 +731,7 @@ export function ImprovedBracketRenderer({
                   <div className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Round</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Ronda</p>
                         <h3 className="text-sm font-semibold text-slate-900">{column.displayName}</h3>
                       </div>
                       <Badge

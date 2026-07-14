@@ -1,20 +1,27 @@
 import { createClient } from '@/utils/supabase/server'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
     const resolvedParams = await params
+    const bracketKey = request.nextUrl.searchParams.get('bracket_key')
 
     // Get all matches for this tournament
-    const { data: matches, error: matchesError } = await supabase
+    let matchesQuery = supabase
       .from('matches')
       .select('id')
       .eq('tournament_id', resolvedParams.id)
       .neq('round', 'ZONE')
+
+    if (bracketKey && bracketKey !== 'ALL') {
+      matchesQuery = matchesQuery.eq('bracket_key', bracketKey)
+    }
+
+    const { data: matches, error: matchesError } = await matchesQuery
 
     if (matchesError) {
       console.error('Error fetching matches:', matchesError)

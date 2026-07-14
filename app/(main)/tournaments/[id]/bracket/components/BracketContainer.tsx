@@ -7,7 +7,7 @@ import { Trophy, Calendar, ChevronDown, Info } from 'lucide-react'
 import LongBracketView from './LongBracketView'
 import LongScheduleView from './LongScheduleView'
 import { LongBracketGenerator } from '@/components/tournament/long/LongBracketGenerator'
-import ReadOnlyBracketVisualization from '@/components/tournament/bracket-v2/components/ReadOnlyBracketVisualization'
+import PublicBracketTreeView from '@/components/tournament/bracket-v2/components/PublicBracketTreeView'
 import { PointsCalculationBanner } from '@/components/tournament/bracket-v2/components/PointsCalculationBanner'
 import { useTournament } from '@/hooks/use-tournament'
 import { useTournamentFinalization } from '@/components/tournament/bracket-v2/hooks/useTournamentFinalization'
@@ -126,10 +126,9 @@ export default function BracketContainer({
         <BracketInstructionsSection showBackToZones={false} />
         <div className="px-4 lg:px-6">
           <div className="max-w-7xl mx-auto">
-            <ReadOnlyBracketVisualization
+            <PublicBracketTreeView
               tournamentId={tournamentId}
-              tournamentStatus={tournament.status}
-              tournamentType={tournament.type || 'LONG'}
+              tournamentType={(tournament.type || 'LONG') as 'AMERICAN' | 'LONG'}
               tournamentFormatConfig={tournament.format_config}
             />
           </div>

@@ -2,7 +2,7 @@ import React from 'react'
 import { createClient } from '@/utils/supabase/server'
 import { notFound } from 'next/navigation'
 import { getTournamentCategoryDisplay } from '@/lib/services/tournament-category-config'
-import ReadOnlyBracketVisualization from '@/components/tournament/bracket-v2/components/ReadOnlyBracketVisualization'
+import PublicBracketTreeView from '@/components/tournament/bracket-v2/components/PublicBracketTreeView'
 
 interface PlayerBracketPageProps {
   params: Promise<{ id: string }>
@@ -14,7 +14,7 @@ export default async function PlayerBracketPage({ params }: PlayerBracketPagePro
 
   const { data: tournament, error } = await supabase
     .from('tournaments')
-    .select('id, name, category_name, category_config, type, status')
+    .select('id, name, category_name, category_config, format_config, type, status')
     .eq('id', id)
     .single()
 
@@ -41,12 +41,11 @@ export default async function PlayerBracketPage({ params }: PlayerBracketPagePro
         </div>
       </div>
 
-      {/* Bracket read-only con set scores */}
-      <div className="container mx-auto px-6 py-6">
-        <ReadOnlyBracketVisualization
+      <div className="container mx-auto px-4 py-6 sm:px-6">
+        <PublicBracketTreeView
           tournamentId={id}
-          tournamentStatus={tournament.status}
-          tournamentType="LONG"
+          tournamentType={tournament.type as 'AMERICAN' | 'LONG'}
+          tournamentFormatConfig={tournament.format_config}
         />
       </div>
     </div>
