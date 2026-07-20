@@ -12,6 +12,7 @@ import { ensureSerializable } from '@/utils/serialization';
 import AmericanTournamentOverview from './components/AmericanTournamentOverview';
 import LongTournamentView from './components/LongTournamentView';
 import { getLongPlayerOverview } from '@/lib/services/long-player-overview';
+import { normalizeTournamentOperationalSettings } from '@/lib/services/tournament-operational-settings';
 
 interface TournamentPageProps {
   params: Promise<{ id: string }>;
@@ -55,6 +56,7 @@ interface ClientTournament {
     phone: string | null;
     phone2: string | null;
     email: string | null;
+    logo_url: string | null;
     cover_image_url: string | null;
     courts: number | null;
   } | null;
@@ -111,6 +113,7 @@ const serializeTournamentForClient = (
         phone: tournament.clubes.phone ?? null,
         phone2: tournament.clubes.phone2 ?? null,
         email: tournament.clubes.email ?? null,
+        logo_url: tournament.clubes.logo_url ?? null,
         cover_image_url: tournament.clubes.cover_image_url ?? null,
         courts: tournament.clubes.courts ?? null,
       }
@@ -163,6 +166,7 @@ export default async function TournamentPage({ params }: TournamentPageProps) {
         phone,
         phone2,
         email,
+        logo_url,
         cover_image_url,
         courts
       ),
@@ -181,6 +185,15 @@ export default async function TournamentPage({ params }: TournamentPageProps) {
 
   const currentCouples = await getTournamentCoupleCount(supabase, tournamentId)
   const capacity = buildTournamentCapacitySummary(tournament.max_participants ?? null, currentCouples)
+  const { data: rankingConfig } = await supabase
+    .from('tournament_ranking_config')
+    .select('operational_settings')
+    .eq('tournament_id', tournamentId)
+    .eq('is_active', true)
+    .maybeSingle()
+  const operationalSettings = normalizeTournamentOperationalSettings(
+    rankingConfig?.operational_settings
+  )
 
   // ========================================
   // VERIFICAR PERMISOS CON SISTEMA V2
@@ -196,7 +209,10 @@ export default async function TournamentPage({ params }: TournamentPageProps) {
     permissions: [...access.permissions],
     metadata: { ...access.metadata },
   };
-  const publicInfo = ensureSerializable(mapTournamentToPublicInfo(tournament));
+  const publicInfo = ensureSerializable(mapTournamentToPublicInfo({
+    ...tournament,
+    show_tournament_status: operationalSettings.showTournamentStatus,
+  }));
 
   // ========================================
   // ROUTING POR TIPO DE TORNEO

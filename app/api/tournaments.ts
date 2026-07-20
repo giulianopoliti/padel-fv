@@ -425,7 +425,7 @@ export async function getTournamentsOptimized({
     limit = 12,
     filters = {}
 }: {
-    status: 'upcoming' | 'in-progress' | 'past',
+    status: 'active' | 'upcoming' | 'in-progress' | 'past',
     page?: number,
     limit?: number,
     filters?: {
@@ -449,6 +449,7 @@ export async function getTournamentsOptimized({
 
         // Map status to database status values
         const statusMap = {
+            'active': ['NOT_STARTED', 'IN_PROGRESS', 'ZONE_PHASE', 'BRACKET_PHASE'],
             'upcoming': ['NOT_STARTED'],
             'in-progress': ['IN_PROGRESS', 'ZONE_PHASE', 'BRACKET_PHASE'],
             'past': ['FINISHED', 'FINISHED_POINTS_PENDING', 'FINISHED_POINTS_CALCULATED']

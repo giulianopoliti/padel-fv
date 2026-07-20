@@ -1,9 +1,11 @@
 export interface TournamentOperationalSettings {
   enforceLongBracketMatchRequirement: boolean
+  showTournamentStatus: boolean
 }
 
 const DEFAULT_TOURNAMENT_OPERATIONAL_SETTINGS: TournamentOperationalSettings = {
   enforceLongBracketMatchRequirement: true,
+  showTournamentStatus: false,
 }
 
 export const normalizeTournamentOperationalSettings = (
@@ -20,6 +22,10 @@ export const normalizeTournamentOperationalSettings = (
       typeof rawSettings.enforceLongBracketMatchRequirement === 'boolean'
         ? rawSettings.enforceLongBracketMatchRequirement
         : DEFAULT_TOURNAMENT_OPERATIONAL_SETTINGS.enforceLongBracketMatchRequirement,
+    showTournamentStatus:
+      typeof rawSettings.showTournamentStatus === 'boolean'
+        ? rawSettings.showTournamentStatus
+        : DEFAULT_TOURNAMENT_OPERATIONAL_SETTINGS.showTournamentStatus,
   }
 }
 

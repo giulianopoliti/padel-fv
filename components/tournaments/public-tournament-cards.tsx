@@ -229,7 +229,14 @@ export function PublicTournamentCards({
           Boolean(tournament.enablePublicInscriptions) &&
           typeof tournament.maxParticipants === "number" &&
           tournament.maxParticipants > 0
-        const canRegister = tournament.status === "NOT_STARTED" && !tournament.isFull
+        const canRegister =
+          tournament.status === "NOT_STARTED" &&
+          Boolean(tournament.enablePublicInscriptions) &&
+          !tournament.isFull
+        const registrationStatusLabel = canRegister ? "Inscripciones abiertas" : "Inscripciones cerradas"
+        const registrationBadgeClassName = canRegister
+          ? "rounded-full border border-emerald-200/90 bg-emerald-600 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-white shadow-[0_0_18px_rgba(16,185,129,0.28)]"
+          : "rounded-full border border-white/[0.15] bg-white/[0.08] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white/80"
         const currentParticipants = tournament.currentParticipants || 0
         const progressWidth = canShowParticipantStats
           ? `${Math.min((currentParticipants / tournament.maxParticipants!) * 100, 100)}%`
@@ -259,6 +266,9 @@ export function PublicTournamentCards({
                         {genderLabel[tournament.gender as keyof typeof genderLabel] || tournament.gender}
                       </Badge>
                     ) : null}
+                    <Badge className={registrationBadgeClassName}>
+                      {registrationStatusLabel}
+                    </Badge>
                     {tournament.isFull ? (
                       <Badge className="rounded-full border border-red-200/90 bg-red-700 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-white shadow-[0_0_22px_rgba(220,38,38,0.38)]">
                         Completo
@@ -368,11 +378,11 @@ export function PublicTournamentCards({
                       buttonClassName={`${registrationButtonClassName} lg:max-w-[220px]`}
                       fullWidth
                     />
-                  ) : tournament.status === "NOT_STARTED" ? (
+                  ) : (
                     <div className="rounded-2xl border border-white/12 bg-white/6 px-4 py-3 text-center text-xs font-bold uppercase tracking-[0.18em] text-white/80">
-                      {tournament.isFull ? "Torneo completo" : "Inscripciones cerradas"}
+                      {tournament.isFull ? "Torneo completo" : registrationStatusLabel}
                     </div>
-                  ) : null}
+                  )}
                   <Button asChild variant="outline" className={`${detailsButtonClassName} lg:max-w-[220px]`}>
                     <Link href={`/tournaments/${tournament.id}`}>Ver detalles</Link>
                   </Button>

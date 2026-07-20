@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Trophy, Menu, X, BarChart3, Calendar, MapPin, User, Home, BookOpen } from "lucide-react"
 import type { User as AuthUser } from "@supabase/supabase-js"
 import NavbarUserProfile from "./navbar-user-profile"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { getIcon, IconName } from "@/components/icons"
 import BrandLogo from "@/components/ui/brand-logo"
@@ -50,8 +50,27 @@ const getIconComponent = (iconName: string) => {
 export default function NavbarClient({ mainLinks, profileLinks, user }: NavbarClientProps) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const headerRef = useRef<HTMLElement>(null)
   const branding = getTenantBranding()
   const isElite = branding.key === "padel-elite"
+
+  useEffect(() => {
+    if (!mobileMenuOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!headerRef.current?.contains(event.target as Node)) {
+        setMobileMenuOpen(false)
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown)
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown)
+    }
+  }, [mobileMenuOpen])
 
   const isTournamentDetailPage = pathname?.startsWith("/tournaments/") && pathname !== "/tournaments"
   const contextualLoginHref = isTournamentDetailPage ? `/login?redirectTo=${encodeURIComponent(pathname)}` : "/login"
@@ -71,7 +90,7 @@ export default function NavbarClient({ mainLinks, profileLinks, user }: NavbarCl
     : "text-slate-100/90 hover:bg-white/10 hover:text-white"
 
   return (
-    <header className={headerClassName}>
+    <header ref={headerRef} className={headerClassName}>
       <div className="container mx-auto px-6">
         <div className="flex items-center justify-between h-20">
           <Link href="/" className="flex items-center space-x-3">
@@ -115,7 +134,12 @@ export default function NavbarClient({ mainLinks, profileLinks, user }: NavbarCl
             )}
           </div>
 
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className={`lg:hidden rounded-full p-2 ${inactiveMobileClassName}`}>
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className={`lg:hidden rounded-full p-2 ${inactiveMobileClassName}`}
+            aria-expanded={mobileMenuOpen}
+            aria-label={mobileMenuOpen ? "Cerrar menu" : "Abrir menu"}
+          >
             {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
         </div>

@@ -19,13 +19,13 @@ type Match = Database['public']['Tables']['matches']['Row'] & {
   set_matches?: Database['public']['Tables']['set_matches']['Row'][];
   couple1?: {
     id: string;
-    players_player1: { first_name: string | null; last_name: string | null; } | null;
-    players_player2: { first_name: string | null; last_name: string | null; } | null;
+    players_player1: { first_name: string | null; last_name: string | null; profile_image_url?: string | null; } | null;
+    players_player2: { first_name: string | null; last_name: string | null; profile_image_url?: string | null; } | null;
   } | null;
   couple2?: {
     id: string;
-    players_player1: { first_name: string | null; last_name: string | null; } | null;
-    players_player2: { first_name: string | null; last_name: string | null; } | null;
+    players_player1: { first_name: string | null; last_name: string | null; profile_image_url?: string | null; } | null;
+    players_player2: { first_name: string | null; last_name: string | null; profile_image_url?: string | null; } | null;
   } | null;
 };
 
@@ -43,6 +43,7 @@ type CoupleInscription = {
       score: number | null;
       dni: string | null;
       phone: string | null;
+      profile_image_url?: string | null;
     } | null;
     players_player2: {
       id: string;
@@ -51,6 +52,7 @@ type CoupleInscription = {
       score: number | null;
       dni: string | null;
       phone: string | null;
+      profile_image_url?: string | null;
     } | null;
   } | null;
 };
@@ -116,13 +118,13 @@ const ResultsMatrix: React.FC<ResultsMatrixProps> = ({
           set_matches (*),
           couple1:couple1_id (
             id,
-            players_player1:player1_id (first_name, last_name),
-            players_player2:player2_id (first_name, last_name)
+            players_player1:player1_id (first_name, last_name, profile_image_url),
+            players_player2:player2_id (first_name, last_name, profile_image_url)
           ),
           couple2:couple2_id (
             id,
-            players_player1:player1_id (first_name, last_name),
-            players_player2:player2_id (first_name, last_name)
+            players_player1:player1_id (first_name, last_name, profile_image_url),
+            players_player2:player2_id (first_name, last_name, profile_image_url)
           )
         `)
         .eq('tournament_id', tournament.id)

@@ -9,6 +9,7 @@ type TournamentPublicInfoSource = {
   name?: NullableString
   type?: NullableString
   status?: TournamentStatus | string | null
+  show_tournament_status?: boolean | null
   category_name?: NullableString
   category_config?: unknown
   gender?: Gender | string | null
@@ -25,6 +26,8 @@ type TournamentPublicInfoSource = {
     latitude?: string | number | null
     longitude?: string | number | null
     maps_url?: NullableString
+    logo_url?: NullableString
+    cover_image_url?: NullableString
     phone?: NullableString
     phone2?: NullableString
   } | null
@@ -43,6 +46,7 @@ export interface TournamentPublicInfo {
   typeLabel: string
   status: string | null
   statusLabel: string
+  showStatus: boolean
   category: string | null
   gender: string | null
   genderLabel: string
@@ -53,6 +57,7 @@ export interface TournamentPublicInfo {
   clubName: string | null
   clubAddress: string | null
   clubMapsUrl: string | null
+  clubImageUrl: string | null
   hideVenue: boolean
   organizerName: string | null
   organizerPhone: string | null
@@ -122,6 +127,9 @@ export const mapTournamentToPublicInfo = (
         latitude: tournament.clubes?.latitude,
         longitude: tournament.clubes?.longitude,
       })
+  const clubImageUrl = hideVenue
+    ? null
+    : cleanText(tournament.clubes?.cover_image_url) || cleanText(tournament.clubes?.logo_url)
   const organizerName = cleanText(tournament.organization?.name) || clubName
   const organizerPhone =
     cleanText(tournament.organization?.phone) ||
@@ -142,6 +150,7 @@ export const mapTournamentToPublicInfo = (
     typeLabel: getTournamentTypeLabel(type),
     status,
     statusLabel: getTournamentStatusLabel(status),
+    showStatus: tournament.show_tournament_status === true,
     category: getTournamentCategoryDisplay(tournament),
     gender,
     genderLabel: getGenderLabel(gender),
@@ -167,6 +176,7 @@ export const mapTournamentToPublicInfo = (
     clubName,
     clubAddress,
     clubMapsUrl,
+    clubImageUrl,
     hideVenue,
     organizerName,
     organizerPhone,

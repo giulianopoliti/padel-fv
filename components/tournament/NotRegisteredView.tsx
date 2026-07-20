@@ -1,15 +1,17 @@
 'use client'
 
 import React from 'react'
-import { Trophy, UserPlus, AlertCircle } from 'lucide-react'
+import Image from 'next/image'
+import { AlertCircle, Building2, MapPin, Navigation, Phone, Trophy, UserPlus } from 'lucide-react'
 
 import PublicRegistrationLauncher from '@/components/tournament/public-registration-launcher'
-import TournamentHeroDetails from '@/components/tournament/TournamentHeroDetails'
-import TournamentPublicInfoCard from '@/components/tournament/TournamentPublicInfoCard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { TournamentPublicInfo } from '@/lib/tournaments/public-tournament-details'
 import { Gender } from '@/types'
+import { getStorageUrl } from '@/utils/storage-url'
 
 interface NotRegisteredViewProps {
   tournamentId: string
@@ -34,29 +36,114 @@ export default function NotRegisteredView({
   tournament,
 }: NotRegisteredViewProps) {
   const isFull = Boolean(tournament.is_full)
+  const publicInfo = tournament.publicInfo
+  const clubImageUrl = getStorageUrl(publicInfo?.clubImageUrl)
 
   return (
     <>
-      <div className="space-y-2">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-blue-100 p-2">
-            <Trophy className="h-6 w-6 text-blue-600" />
+      <div className="space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg bg-blue-100 p-2.5">
+            <Trophy className="h-6 w-6 text-blue-700" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">{tournament.name}</h1>
-            <p className="text-muted-foreground">
-              {tournament.category ? `Categoria ${tournament.category}` : 'Torneo Largo'}
-            </p>
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="min-w-0 text-2xl font-bold leading-tight text-foreground">
+                {tournament.name}
+              </h1>
+              <Badge
+                variant="outline"
+                className="border-blue-200 bg-blue-50 text-blue-800"
+              >
+                Liga
+              </Badge>
+            </div>
+            {tournament.category ? (
+              <p className="text-sm font-medium text-muted-foreground">
+                Categoria {tournament.category}
+              </p>
+            ) : null}
           </div>
         </div>
 
-        {tournament.publicInfo ? (
-          <TournamentHeroDetails
-            publicInfo={tournament.publicInfo}
-            variant="light"
-            className="pt-2"
-          />
-        ) : null}
+        {publicInfo ? (
+          <Card className="overflow-hidden border-slate-200 bg-white shadow-sm">
+            {clubImageUrl ? (
+              <div className="relative h-32 w-full bg-slate-100 sm:h-40">
+                <Image
+                  src={clubImageUrl}
+                  alt={publicInfo.clubName ? `Foto de ${publicInfo.clubName}` : 'Foto del club'}
+                  fill
+                  sizes="(max-width: 640px) 100vw, 640px"
+                  className="object-cover"
+                />
+              </div>
+            ) : null}
+            <CardContent className="space-y-4 p-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-full bg-slate-100 p-2 text-slate-700">
+                  <Building2 className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold uppercase text-slate-500">
+                    Club
+                  </p>
+                  <p className="text-base font-semibold text-slate-950">
+                    {publicInfo.clubName || publicInfo.organizerName || 'Club a confirmar'}
+                  </p>
+                </div>
+              </div>
+
+              {publicInfo.clubAddress ? (
+                <div className="flex items-start gap-3 text-sm text-slate-700">
+                  <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-500" />
+                  <span className="leading-snug">{publicInfo.clubAddress}</span>
+                </div>
+              ) : null}
+
+              {publicInfo.organizerPhone ? (
+                <div className="flex items-center gap-3 text-sm text-slate-700">
+                  <Phone className="h-4 w-4 flex-shrink-0 text-slate-500" />
+                  <span>{publicInfo.organizerPhone}</span>
+                </div>
+              ) : null}
+
+              {publicInfo.clubMapsUrl ? (
+                <Button asChild variant="outline" className="w-full justify-center sm:w-auto">
+                  <a href={publicInfo.clubMapsUrl} target="_blank" rel="noopener noreferrer">
+                    <Navigation className="mr-2 h-4 w-4" />
+                    Como llegar
+                  </a>
+                </Button>
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5" />
+                Informacion del torneo
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {tournament.category ? (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Categoria:</span>
+                    <span className="font-medium">{tournament.category}</span>
+                  </div>
+                ) : null}
+                {tournament.status ? (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Estado:</span>
+                    <span className="font-medium">{getStatusText(tournament.status)}</span>
+                  </div>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <Alert className="border-orange-200 bg-orange-50">
@@ -111,38 +198,6 @@ export default function NotRegisteredView({
         </CardContent>
       </Card>
 
-      {tournament.publicInfo ? (
-        <TournamentPublicInfoCard publicInfo={tournament.publicInfo} showSchedule={false} />
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5" />
-              Informacion del torneo
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Tipo:</span>
-                <span className="font-medium">Torneo Largo</span>
-              </div>
-              {tournament.category ? (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Categoria:</span>
-                  <span className="font-medium">{tournament.category}</span>
-                </div>
-              ) : null}
-              {tournament.status ? (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Estado:</span>
-                  <span className="font-medium">{getStatusText(tournament.status)}</span>
-                </div>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </>
   )
 }

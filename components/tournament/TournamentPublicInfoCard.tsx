@@ -42,7 +42,9 @@ export default function TournamentPublicInfoCard({
       <CardContent className="space-y-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <InfoItem icon={Trophy} label="Tipo" value={publicInfo.typeLabel} />
-          <InfoItem icon={CalendarDays} label="Estado" value={publicInfo.statusLabel} badge />
+          {publicInfo.showStatus ? (
+            <InfoItem icon={CalendarDays} label="Estado" value={publicInfo.statusLabel} badge />
+          ) : null}
 
           {publicInfo.category && (
             <InfoItem icon={Trophy} label="Categoría" value={publicInfo.category} />

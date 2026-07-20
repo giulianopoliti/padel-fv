@@ -327,6 +327,68 @@ export async function updateLongBracketMatchRequirement(
   }
 }
 
+export async function updateTournamentStatusVisibility(
+  tournamentId: string,
+  enabled: boolean
+): Promise<ActionResult> {
+  try {
+    const supabase = await createClient()
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return { success: false, error: 'No autorizado. Debes iniciar sesion.' }
+    }
+
+    const permissionCheck = await checkTournamentPermissions(user.id, tournamentId)
+    if (!permissionCheck.hasPermission) {
+      return {
+        success: false,
+        error: permissionCheck.reason || 'No tienes permisos para editar este torneo',
+      }
+    }
+
+    const { data: rankingConfig, error: configError } = await supabase
+      .from('tournament_ranking_config')
+      .select('id, operational_settings')
+      .eq('tournament_id', tournamentId)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (configError || !rankingConfig) {
+      return { success: false, error: 'No se encontro la configuracion activa del torneo' }
+    }
+
+    const operationalSettings = mergeTournamentOperationalSettings(
+      rankingConfig.operational_settings,
+      { showTournamentStatus: enabled }
+    )
+
+    const { error: updateError } = await supabase
+      .from('tournament_ranking_config')
+      .update({ operational_settings: operationalSettings })
+      .eq('id', rankingConfig.id)
+
+    if (updateError) {
+      console.error('Error updating tournament status visibility:', updateError)
+      return { success: false, error: 'Error al actualizar la configuracion' }
+    }
+
+    revalidateTournamentSettingsPaths(tournamentId)
+
+    return {
+      success: true,
+      data: {
+        enabled,
+        message: enabled
+          ? 'El estado del torneo se mostrara en la informacion publica.'
+          : 'El estado del torneo quedara oculto en la informacion publica.',
+      },
+    }
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Error inesperado' }
+  }
+}
+
 export async function updateTournamentFormatConfig(
   tournamentId: string,
   formatConfig: TournamentFormatConfigV2

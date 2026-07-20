@@ -196,6 +196,14 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
   const isPlayer = userDetails?.role === 'PLAYER'
   const isOrganizer = hasManagePermission
   const hasPlayerTournamentInscription = Boolean(playerInscription)
+  const hasActivePlayerInscription = Boolean(
+    playerInscription && !playerInscription.is_eliminated && !playerInscription.is_pending
+  )
+  const mobileNavigationRole = isOrganizer
+    ? 'ORGANIZER'
+    : isPlayer && hasPlayerTournamentInscription
+      ? 'PLAYER'
+      : 'PUBLIC'
   const tournamentThemeClass = isLongTournament
     ? TENANT_CONFIG.tournaments.theme.className
     : undefined
@@ -247,15 +255,15 @@ function TournamentLongLayout({ children }: TournamentLongLayoutProps) {
           </SheetContent>
         </Sheet>
 
-        <main className={cn(isLongTournament && (isOrganizer || (isPlayer && hasPlayerTournamentInscription)) && "pb-20")}>
+        <main className={cn(isLongTournament && "pb-20")}>
           {children}
         </main>
 
-        {isLongTournament && (isOrganizer || (isPlayer && hasPlayerTournamentInscription)) && (
+        {isLongTournament && (
           <TournamentMobileBottomNav
             tournamentId={tournament.id}
-            role={isOrganizer ? 'ORGANIZER' : 'PLAYER'}
-            showAvailability={!playerInscription?.is_eliminated && !playerInscription?.is_pending}
+            role={mobileNavigationRole}
+            showAvailability={hasActivePlayerInscription}
             onMore={() => setSidebarOpen(true)}
           />
         )}

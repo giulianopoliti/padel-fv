@@ -181,10 +181,12 @@ const LongTournamentView: React.FC<LongTournamentViewProps> = ({
             <Calendar className="h-4 w-4" />
             <span>{publicInfo.startDateLabel || 'Sin fecha'}</span>
           </div>
-          <div className="flex items-center gap-1">
-            <Clock className="h-4 w-4" />
-            <span className="capitalize">{stats.status.toLowerCase()}</span>
-          </div>
+          {publicInfo.showStatus ? (
+            <div className="flex items-center gap-1">
+              <Clock className="h-4 w-4" />
+              <span>{publicInfo.statusLabel}</span>
+            </div>
+          ) : null}
         </div>
 
         <TournamentHeroDetails

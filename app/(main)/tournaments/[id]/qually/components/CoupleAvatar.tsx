@@ -4,6 +4,7 @@ import React from 'react';
 import {
   Avatar,
   AvatarFallback,
+  AvatarImage,
 } from '@/components/ui/avatar';
 import {
   Tooltip,
@@ -15,6 +16,7 @@ import {
 interface Player {
   first_name: string | null;
   last_name: string | null;
+  profile_image_url?: string | null;
 }
 
 interface CoupleAvatarProps {
@@ -65,6 +67,13 @@ const CoupleAvatar: React.FC<CoupleAvatarProps> = ({
           <Tooltip>
             <TooltipTrigger asChild>
               <Avatar className={`${sizeClasses[size]} border-2 ${player1Color}`}>
+                {player1?.profile_image_url && (
+                  <AvatarImage
+                    src={player1.profile_image_url}
+                    alt={player1Name}
+                    className="object-cover"
+                  />
+                )}
                 <AvatarFallback className={player1Color}>
                   {player1Initials}
                 </AvatarFallback>
@@ -78,6 +87,13 @@ const CoupleAvatar: React.FC<CoupleAvatarProps> = ({
           <Tooltip>
             <TooltipTrigger asChild>
               <Avatar className={`${sizeClasses[size]} border-2 ${player2Color}`}>
+                {player2?.profile_image_url && (
+                  <AvatarImage
+                    src={player2.profile_image_url}
+                    alt={player2Name}
+                    className="object-cover"
+                  />
+                )}
                 <AvatarFallback className={player2Color}>
                   {player2Initials}
                 </AvatarFallback>

@@ -11,6 +11,13 @@ describe('LONG mobile navigation', () => {
     expect(labels).toEqual(['Inicio', 'Tablas', 'Llave'])
   })
 
+  it('shows public shortcuts without private schedule access', () => {
+    const items = getMobileTournamentNavigationItems('tournament-1', 'PUBLIC', false)
+    expect(items.map(item => item.label)).toEqual(['Inicio', 'Tablas', 'Llave'])
+    expect(items.map(item => item.href)).not.toContain('/tournaments/tournament-1/schedules')
+    expect(items.map(item => item.href)).not.toContain('/tournaments/tournament-1/match-scheduling')
+  })
+
   it('provides organizer shortcuts without player standings', () => {
     const items = getMobileTournamentNavigationItems('tournament-1', 'ORGANIZER', true)
     expect(items.map(item => item.label)).toEqual(['Inicio', 'Horarios', 'Partidos', 'Llave'])

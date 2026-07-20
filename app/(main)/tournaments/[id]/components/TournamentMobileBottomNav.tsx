@@ -10,14 +10,19 @@ interface TournamentMobileBottomNavProps {
   tournamentId: string
   onMore: () => void
   showAvailability: boolean
-  role?: 'PLAYER' | 'ORGANIZER'
+  role?: 'PLAYER' | 'ORGANIZER' | 'PUBLIC'
 }
 
 export const getMobileTournamentNavigationItems = (
   tournamentId: string,
-  role: 'PLAYER' | 'ORGANIZER',
+  role: 'PLAYER' | 'ORGANIZER' | 'PUBLIC',
   showAvailability: boolean
 ) => {
+  const publicItems = [
+    { label: "Inicio", href: `/tournaments/${tournamentId}`, icon: Home },
+    { label: "Tablas", href: `/tournaments/${tournamentId}/qually`, icon: BarChart3 },
+    { label: "Llave", href: `/tournaments/${tournamentId}/bracket`, icon: Trophy },
+  ]
   const playerItems = [
     { label: "Inicio", href: `/tournaments/${tournamentId}`, icon: Home },
     ...(showAvailability
@@ -33,6 +38,7 @@ export const getMobileTournamentNavigationItems = (
     { label: "Llave", href: `/tournaments/${tournamentId}/bracket`, icon: Trophy },
   ]
 
+  if (role === 'PUBLIC') return publicItems
   return role === 'ORGANIZER' ? organizerItems : playerItems
 }
 

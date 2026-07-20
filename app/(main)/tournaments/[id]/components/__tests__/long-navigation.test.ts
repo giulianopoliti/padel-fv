@@ -21,6 +21,15 @@ describe('LONG player navigation', () => {
     expect(titles).toEqual(['Inicio', 'Tablas de posiciones', 'Llave'])
   })
 
+  it('shows public navigation without private operational pages', () => {
+    const items = getLongNavigationItems('PUBLIC', false, false)
+    const titles = items.map(item => item.title)
+
+    expect(titles).toEqual(['Inicio', 'Tablas de posiciones', 'Llave'])
+    expect(items.map(item => item.href)).not.toContain('/schedules')
+    expect(items.map(item => item.href)).not.toContain('/match-scheduling')
+  })
+
   it('keeps management tools for organizers', () => {
     const titles = getLongNavigationItems('ORGANIZADOR', false, true).map(item => item.title)
 

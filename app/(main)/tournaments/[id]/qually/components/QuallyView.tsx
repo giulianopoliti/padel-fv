@@ -25,7 +25,7 @@ interface QuallyViewProps {
 }
 
 export default function QuallyView({ tournament, coupleInscriptions, canManageTournament = false, playerCoupleId = null }: QuallyViewProps) {
-  const [activeTab, setActiveTab] = useState(canManageTournament ? 'results' : 'standings')
+  const [activeTab, setActiveTab] = useState('standings')
   const isSingleSetFormat = tournament.format_type === 'AMERICAN_2' || tournament.format_type === 'AMERICAN_3'
 
   const standings = (
@@ -54,13 +54,13 @@ export default function QuallyView({ tournament, coupleInscriptions, canManageTo
         {!canManageTournament ? standings : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="results" className="gap-2"><Table className="h-4 w-4" />Matriz de resultados</TabsTrigger>
               <TabsTrigger value="standings" className="gap-2"><BarChart3 className="h-4 w-4" />Tabla de posiciones</TabsTrigger>
+              <TabsTrigger value="results" className="gap-2"><Table className="h-4 w-4" />Matriz de resultados</TabsTrigger>
             </TabsList>
+            <TabsContent value="standings"><Card><CardContent className="pt-6">{standings}</CardContent></Card></TabsContent>
             <TabsContent value="results">
               <Card><CardHeader><CardTitle>Matriz de resultados</CardTitle></CardHeader><CardContent><ResultsMatrix tournament={tournament} coupleInscriptions={coupleInscriptions as any} isSingleSetFormat={isSingleSetFormat} /></CardContent></Card>
             </TabsContent>
-            <TabsContent value="standings"><Card><CardContent className="pt-6">{standings}</CardContent></Card></TabsContent>
           </Tabs>
         )}
       </main>

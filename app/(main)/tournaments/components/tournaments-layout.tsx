@@ -3,13 +3,14 @@
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
-import { Archive, Calendar, Plus, Search, Settings, Trophy } from "lucide-react"
+import { Archive, Plus, Search, Settings, Trophy } from "lucide-react"
 import { useUser } from "@/contexts/user-context"
 import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import TournamentFilters from "./tournament-filters"
 import { getTenantBranding } from "@/config/tenant"
+import { toast } from "@/components/ui/use-toast"
 
 interface TournamentsLayoutProps {
   children: React.ReactNode
@@ -61,33 +62,49 @@ export default function TournamentsLayout({
     return `${pathname}?${params.toString()}`
   }
 
-  const buildStatusHref = (statusPath: "upcoming" | "in-progress" | "past") => {
+  useEffect(() => {
+    if (pathname !== "/tournaments") return
+
+    const toastKey = "padel-fv-active-tournaments-toast"
+    if (window.sessionStorage.getItem(toastKey)) return
+
+    toast({
+      title: "Torneos activos unificados",
+      description: "Ahora aca ves juntos los torneos en curso y los proximos, con inscripciones abiertas o cerradas.",
+    })
+    window.sessionStorage.setItem(toastKey, "shown")
+  }, [pathname])
+
+  const buildStatusHref = (statusPath: "active" | "past") => {
     const params = new URLSearchParams(searchParams.toString())
     params.delete("page")
     const queryString = params.toString()
-    return `/tournaments/${statusPath}${queryString ? `?${queryString}` : ""}`
+    const basePath = statusPath === "active" ? "/tournaments" : "/tournaments/past"
+    return `${basePath}${queryString ? `?${queryString}` : ""}`
   }
 
-  const isActiveStatus = (statusPath: "upcoming" | "in-progress" | "past") => {
-    return pathname.includes(`/tournaments/${statusPath}`)
+  const isActiveStatus = (statusPath: "active" | "past") => {
+    if (statusPath === "active") {
+      return (
+        pathname === "/tournaments" ||
+        pathname.includes("/tournaments/upcoming") ||
+        pathname.includes("/tournaments/in-progress")
+      )
+    }
+
+    return pathname.includes("/tournaments/past")
   }
 
   const statusTabs = [
     {
-      href: buildStatusHref("upcoming"),
-      label: "Proximos",
-      icon: Calendar,
-      active: isActiveStatus("upcoming"),
-    },
-    {
-      href: buildStatusHref("in-progress"),
+      href: buildStatusHref("active"),
       label: "Activos",
       icon: Trophy,
-      active: isActiveStatus("in-progress"),
+      active: isActiveStatus("active"),
     },
     {
       href: buildStatusHref("past"),
-      label: "Pasados",
+      label: "Finalizados",
       icon: Archive,
       active: isActiveStatus("past"),
     },
@@ -214,7 +231,7 @@ export default function TournamentsLayout({
 
         <div className={contentShellClassName}>
           <div className={statusBarClassName}>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {statusTabs.map((tab) => {
                 const Icon = tab.icon
 

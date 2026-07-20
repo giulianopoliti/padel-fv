@@ -6,7 +6,7 @@ import { canViewTournamentParticipantPages } from '@/utils/tournament-visibility
 import QuallyView from './components/QuallyView';
 
 interface QuallyPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /**
@@ -63,6 +63,7 @@ export default async function QuallyPage({ params }: QuallyPageProps) {
           id,
           first_name,
           last_name,
+          profile_image_url,
           score,
           dni,
           phone
@@ -71,6 +72,7 @@ export default async function QuallyPage({ params }: QuallyPageProps) {
           id,
           first_name,
           last_name,
+          profile_image_url,
           score,
           dni,
           phone

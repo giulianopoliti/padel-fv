@@ -72,6 +72,32 @@ export const getLongNavigationItems = (
 ) => {
   const isPlayer = userRole === 'PLAYER'
 
+  if (userRole === 'PUBLIC') {
+    return [
+      {
+        title: 'Inicio',
+        href: '',
+        icon: Home,
+        description: 'Resumen del torneo',
+        showForEliminated: true
+      },
+      {
+        title: 'Tablas de posiciones',
+        href: '/qually',
+        icon: BarChart3,
+        description: 'Posiciones del torneo',
+        showForEliminated: true
+      },
+      {
+        title: 'Llave',
+        href: '/bracket',
+        icon: Zap,
+        description: 'Llave eliminatoria',
+        showForEliminated: true
+      }
+    ]
+  }
+
   if (isPlayer) {
     const playerItems: NavigationItem[] = [
       {
@@ -93,8 +119,7 @@ export const getLongNavigationItems = (
         href: '/qually',
         icon: BarChart3,
         description: 'Posiciones del torneo',
-        showForEliminated: true,
-        requiresParticipantVisibility: true
+        showForEliminated: true
       },
       {
         title: 'Llave',
@@ -195,12 +220,22 @@ export default function TournamentLongSidebar({
   const isEliminated = playerInscription?.is_eliminated || false
   const isPending = playerInscription?.is_pending || false
   const hasActivePlayerInscription = Boolean(playerInscription && !playerInscription.is_eliminated && !playerInscription.is_pending)
+  const shouldUsePublicNavigation =
+    !hasManagePermission &&
+    !hasActivePlayerInscription &&
+    !isEliminated &&
+    !isPending
   const canViewParticipantPages =
     Boolean(tournament.enable_public_inscriptions) ||
     hasManagePermission ||
     hasActivePlayerInscription
 
-  const navigationItems = getLongNavigationItems(userRole, isEliminated, canViewParticipantPages, isPending)
+  const navigationItems = getLongNavigationItems(
+    shouldUsePublicNavigation ? 'PUBLIC' : userRole,
+    isEliminated,
+    canViewParticipantPages,
+    isPending
+  )
 
   const getIsActive = (href: string) => {
     const tournamentHome = `/tournaments/${tournament.id}`
