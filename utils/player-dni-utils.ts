@@ -11,6 +11,7 @@ export async function checkPlayerByDNI(dni: string, supabase: any) {
     .from('players')
     .select('id, first_name, last_name, dni, user_id, score, category_name, is_categorized')
     .eq('dni', dni)
+    .eq('es_prueba', false)
     .maybeSingle();
 
   if (error) {

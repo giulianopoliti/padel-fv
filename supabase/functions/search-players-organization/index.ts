@@ -103,6 +103,8 @@ serve(async (req) => {
         includeTest: false,    // Panel CPA NO incluye jugadores de prueba
         requireScore: false,   // Panel CPA incluye jugadores SIN score
         searchDni: true        // ✅ Panel CPA SÍ busca por DNI
+        ,includeAccountFields: true,
+        includePhone: true
       },
       pageSize,
       from

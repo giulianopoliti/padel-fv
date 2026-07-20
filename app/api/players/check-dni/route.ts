@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
       .from('players')
       .select('id, first_name, last_name, dni, score, category_name, gender')
       .eq('dni', cleanDni)
+      .eq('es_prueba', false)
       .maybeSingle()
 
     if (error) {

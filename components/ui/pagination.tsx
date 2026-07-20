@@ -113,6 +113,12 @@ interface PaginationControlProps {
   currentPage: number
   onPageChange: (page: number) => void
   disabled?: boolean
+  classNames?: {
+    button?: string
+    activeButton?: string
+    inactiveButton?: string
+    disabledButton?: string
+  }
 }
 
 export function PaginationControl({ 
@@ -120,7 +126,8 @@ export function PaginationControl({
   pageSize, 
   currentPage, 
   onPageChange,
-  disabled = false 
+  disabled = false,
+  classNames,
 }: PaginationControlProps) {
   const totalPages = Math.ceil(total / pageSize)
   
@@ -153,6 +160,10 @@ export function PaginationControl({
         size="icon"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={disabled || currentPage === 1}
+        className={cn(
+          classNames?.button,
+          (disabled || currentPage === 1) && classNames?.disabledButton
+        )}
       >
         <ChevronLeft className="h-4 w-4" />
       </Button>
@@ -163,7 +174,12 @@ export function PaginationControl({
           variant={currentPage === page ? "default" : "outline"}
           onClick={() => onPageChange(page)}
           disabled={disabled}
-          className="min-w-[40px]"
+          className={cn(
+            "min-w-[40px]",
+            classNames?.button,
+            currentPage === page ? classNames?.activeButton : classNames?.inactiveButton,
+            disabled && classNames?.disabledButton
+          )}
         >
           {page}
         </Button>
@@ -174,6 +190,10 @@ export function PaginationControl({
         size="icon"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={disabled || currentPage === totalPages}
+        className={cn(
+          classNames?.button,
+          (disabled || currentPage === totalPages) && classNames?.disabledButton
+        )}
       >
         <ChevronRight className="h-4 w-4" />
       </Button>

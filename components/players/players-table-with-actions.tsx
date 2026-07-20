@@ -15,8 +15,9 @@ interface PlayerData {
   score: number | null
   profile_image_url: string | null
   category_name: string | null
+  user_id?: string | null
   email?: string | null
-  users?: { email: string | null } | Array<{ email: string | null }>
+  users?: { email: string | null } | Array<{ email: string | null }> | null
 }
 
 interface Category {
@@ -30,13 +31,15 @@ interface PlayersTableWithActionsProps {
   categories: Category[]
   onPlayerUpdate: (player: PlayerData) => void
   onPlayerDelete: (playerId: string) => void
+  onPlayerAccountReset: (playerId: string) => void
 }
 
 export default function PlayersTableWithActions({
   players,
   categories,
   onPlayerUpdate,
-  onPlayerDelete
+  onPlayerDelete,
+  onPlayerAccountReset
 }: PlayersTableWithActionsProps) {
   if (players.length === 0) {
     return (
@@ -118,6 +121,7 @@ export default function PlayersTableWithActions({
                       categories={categories}
                       onPlayerUpdate={onPlayerUpdate}
                       onPlayerDelete={onPlayerDelete}
+                      onPlayerAccountReset={onPlayerAccountReset}
                     />
                   </TableCell>
                 </TableRow>

@@ -4,6 +4,7 @@ import { createClient, createClientServiceRole } from "@/utils/supabase/server"
 import { revalidatePath } from 'next/cache'
 import { validateAndFormatPhone } from '@/utils/phone'
 import { normalizePlayerDni, sanitizeDniInput } from '@/lib/utils/player-dni'
+import { findExistingPlayerByIdentity } from '@/lib/utils/player-identity'
 
 // Interface for registration result
 interface RegisterResult {
@@ -51,6 +52,7 @@ async function checkPlayerByDNI(dni: string, supabase: any) {
     .from('players')
     .select('id, first_name, last_name, dni, dni_is_temporary, user_id, score, category_name, is_categorized')
     .eq('dni', sanitizedDni)
+    .eq('es_prueba', false)
     .maybeSingle();
     
   if (error) {
@@ -126,8 +128,14 @@ async function linkUserToExistingPlayer(playerId: string, userId: string, supaba
     const phone = formData.get('phone') as string | null;
     const gender = formData.get('gender') as string | null;
     const dateOfBirth = formData.get('dateOfBirth') as string | null;
+    const normalizedDni = normalizePlayerDni(formData.get('dni') as string | null);
     
     // Only update fields that have values
+    if (normalizedDni.dni) {
+      updateData.dni = normalizedDni.dni;
+      updateData.dni_is_temporary = normalizedDni.dniIsTemporary;
+    }
+
     if (phone && phone.trim() !== '') {
       updateData.phone = phone;
     }
@@ -568,33 +576,65 @@ export async function checkDNIConflictBeforeRegistration(formData: FormData): Pr
   try {
     const normalizedDni = normalizePlayerDni(formData.get('dni') as string | null);
     const role = formData.get('role') as string;
+    const firstName = formData.get('firstName') as string;
+    const lastName = formData.get('lastName') as string;
+    const gender = formData.get('gender') as string | null;
     
     // Only check for PLAYER role
-    if (role !== 'PLAYER' || !normalizedDni.dni) {
+    if (role !== 'PLAYER') {
       return { success: true }; // No conflict check needed
     }
-    
-    // Check if DNI already exists
-    const existingPlayerResult = await checkPlayerByDNI(normalizedDni.dni, supabase);
-    
-    if (!existingPlayerResult.success) {
-      return { success: false, error: `Error al verificar DNI: ${existingPlayerResult.error}` };
+
+    let existingPlayer: Awaited<ReturnType<typeof checkPlayerByDNI>>['player'] | null = null;
+
+    if (normalizedDni.dni) {
+      // Check if DNI already exists
+      const existingPlayerResult = await checkPlayerByDNI(normalizedDni.dni, supabase);
+
+      if (!existingPlayerResult.success) {
+        return { success: false, error: `Error al verificar DNI: ${existingPlayerResult.error}` };
+      }
+
+      existingPlayer = existingPlayerResult.player;
     }
-    
-    if (!existingPlayerResult.player) {
+
+    if (!existingPlayer && firstName && lastName) {
+      const identityResult = await findExistingPlayerByIdentity({
+        supabase,
+        firstName,
+        lastName,
+        dni: null,
+        gender,
+      });
+
+      if (identityResult.error) {
+        return { success: false, error: `Error al verificar jugador existente: ${identityResult.error}` };
+      }
+
+      existingPlayer = identityResult.player;
+    }
+
+    if (!existingPlayer) {
       return { success: true }; // No conflict, proceed with registration
     }
+
+    if (existingPlayer.user_id) {
+      return {
+        success: false,
+        error: 'Ya existe una cuenta vinculada a este jugador. Si es tu cuenta, inicia sesión en lugar de registrarte.',
+      };
+    }
     
-    // DNI conflict found - validate if it could be the same person
-    const validation = validatePlayerLinking(existingPlayerResult.player, formData);
-    
-    if (!validation.isValid) {
+    // Existing player found - validate if it could be the same person
+    const validation = validatePlayerLinking(existingPlayer, formData);
+
+    if (normalizedDni.dni && !validation.isValid) {
       console.log(`[checkDNIConflictBeforeRegistration] DNI exists but names don't match - blocking registration`);
       
       // Register conflict for admin review WITHOUT creating any users
       const { error: conflictError } = await supabase.from('dni_conflicts').insert({
         dni: normalizedDni.dni,
-        existing_player_id: existingPlayerResult.player.id,
+        existing_player_id: existingPlayer.id,
         new_player_id: null, // No new player created
         new_user_id: null, // No new user created
         status: 'pending',
@@ -602,7 +642,7 @@ export async function checkDNIConflictBeforeRegistration(formData: FormData): Pr
         admin_notes: JSON.stringify({
           conflict_type: 'blocked_before_registration',
           attempted_name: `${formData.get('firstName')} ${formData.get('lastName')}`,
-          existing_name: `${existingPlayerResult.player.first_name} ${existingPlayerResult.player.last_name}`,
+          existing_name: `${existingPlayer.first_name} ${existingPlayer.last_name}`,
           email: formData.get('email'),
           phone: formData.get('phone') as string || 'No proporcionado',
           blocked_reason: 'Names do not match existing player - registration blocked before user creation'
@@ -619,22 +659,26 @@ export async function checkDNIConflictBeforeRegistration(formData: FormData): Pr
         showConflictReport: true,
         conflictData: {
           dni: normalizedDni.dni,
-          existingPlayerId: existingPlayerResult.player.id,
+          existingPlayerId: existingPlayer.id,
           newPlayerId: 'blocked' // Indicates it was blocked before creation
         }
       };
     }
+
+    if (!validation.isValid) {
+      return { success: true };
+    }
     
-    // Names match - offer confirmation
+    // Names match - let the client auto-link the account to this player.
     return {
       success: false, // Don't proceed with normal registration
       requiresConfirmation: true,
       existingPlayer: {
-        id: existingPlayerResult.player.id,
-        name: `${existingPlayerResult.player.first_name} ${existingPlayerResult.player.last_name}`,
-        score: existingPlayerResult.player.score || 0,
-        category: existingPlayerResult.player.category_name || 'Sin categorizar',
-        dni: existingPlayerResult.player.dni,
+        id: existingPlayer.id,
+        name: `${existingPlayer.first_name} ${existingPlayer.last_name}`,
+        score: existingPlayer.score || 0,
+        category: existingPlayer.category_name || 'Sin categorizar',
+        dni: existingPlayer.dni,
         isExistingPlayer: true
       }
     };
@@ -822,6 +866,36 @@ export async function register(formData: FormData): Promise<RegisterResult> {
           pendingExistingPlayer = existingPlayer
         }
       }
+
+      if (!pendingExistingPlayer) {
+        const identityResult = await findExistingPlayerByIdentity({
+          supabase,
+          firstName,
+          lastName,
+          dni: null,
+          gender: rawGender,
+        })
+
+        if (identityResult.error) {
+          return { error: `Error al verificar jugador existente: ${identityResult.error}`, success: false }
+        }
+
+        if (identityResult.player) {
+          const existingPlayer = identityResult.player
+
+          if (existingPlayer.user_id) {
+            return {
+              error: 'Ya existe una cuenta vinculada a este jugador. Si es tu cuenta, inicia sesión en lugar de registrarte.',
+              success: false,
+            }
+          }
+
+          const validation = validatePlayerLinking(existingPlayer, formData)
+          if (validation.isValid) {
+            pendingExistingPlayer = existingPlayer
+          }
+        }
+      }
     } else if (role === 'COACH') {
       const firstName = formData.get('firstName') as string
       const lastName = formData.get('lastName') as string
@@ -859,7 +933,7 @@ export async function register(formData: FormData): Promise<RegisterResult> {
       return {
         success: true,
         requiresConfirmation: true,
-        message: 'Encontramos un jugador registrado con este DNI. ¿Es tu perfil?',
+        message: 'Encontramos un jugador registrado con este DNI.',
         existingPlayer: {
           id: pendingExistingPlayer.id,
           name: `${pendingExistingPlayer.first_name} ${pendingExistingPlayer.last_name}`,

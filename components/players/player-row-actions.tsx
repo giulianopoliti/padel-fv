@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
-import { MoreVertical, Pencil, Trash2 } from 'lucide-react'
+import { MoreVertical, Pencil, Trash2, UserX } from 'lucide-react'
 import EditPlayerDialog from '@/components/players/edit-player-dialog'
 import DeleteConfirmationDialog from '@/components/players/delete-confirmation-dialog'
+import PlayerAccountResetDialog from '@/components/players/player-account-reset-dialog'
 
 interface PlayerData {
   id: string
@@ -16,8 +17,9 @@ interface PlayerData {
   score: number | null
   profile_image_url: string | null
   category_name: string | null
+  user_id?: string | null
   email?: string | null
-  users?: { email: string | null } | Array<{ email: string | null }>
+  users?: { email: string | null } | Array<{ email: string | null }> | null
 }
 
 interface Category {
@@ -31,16 +33,19 @@ interface PlayerRowActionsProps {
   categories: Category[]
   onPlayerUpdate: (player: PlayerData) => void
   onPlayerDelete: (playerId: string) => void
+  onPlayerAccountReset: (playerId: string) => void
 }
 
 export default function PlayerRowActions({
   player,
   categories,
   onPlayerUpdate,
-  onPlayerDelete
+  onPlayerDelete,
+  onPlayerAccountReset
 }: PlayerRowActionsProps) {
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showAccountResetDialog, setShowAccountResetDialog] = useState(false)
 
   return (
     <>
@@ -56,6 +61,15 @@ export default function PlayerRowActions({
             <Pencil className="mr-2 h-4 w-4" />
             Editar
           </DropdownMenuItem>
+          {player.user_id && (
+            <DropdownMenuItem
+              onClick={() => setShowAccountResetDialog(true)}
+              className="text-amber-700 focus:text-amber-700"
+            >
+              <UserX className="mr-2 h-4 w-4" />
+              Blanquear cuenta
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onClick={() => setShowDeleteDialog(true)}
             className="text-destructive focus:text-destructive"
@@ -79,6 +93,13 @@ export default function PlayerRowActions({
         onOpenChange={setShowDeleteDialog}
         player={player}
         onPlayerDelete={onPlayerDelete}
+      />
+
+      <PlayerAccountResetDialog
+        open={showAccountResetDialog}
+        onOpenChange={setShowAccountResetDialog}
+        player={player}
+        onPlayerAccountReset={onPlayerAccountReset}
       />
     </>
   )

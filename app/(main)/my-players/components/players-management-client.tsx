@@ -21,8 +21,9 @@ interface PlayerData {
   score: number | null
   profile_image_url: string | null
   category_name: string | null
+  user_id?: string | null
   email?: string | null
-  users?: { email: string | null } | Array<{ email: string | null }>
+  users?: { email: string | null } | Array<{ email: string | null }> | null
 }
 
 interface Category {
@@ -118,6 +119,14 @@ export default function PlayersManagementClient({
     setTotal(prev => prev - 1)
   }
 
+  const handlePlayerAccountReset = (playerId: string) => {
+    setPlayers(prev => prev.map((player) => (
+      player.id === playerId
+        ? { ...player, user_id: null, email: null, users: null }
+        : player
+    )))
+  }
+
   return (
     <div className="space-y-6">
       {/* Header con contador */}
@@ -187,6 +196,7 @@ export default function PlayersManagementClient({
           categories={initialCategories}
           onPlayerUpdate={handlePlayerUpdate}
           onPlayerDelete={handlePlayerDelete}
+          onPlayerAccountReset={handlePlayerAccountReset}
         />
       </div>
 

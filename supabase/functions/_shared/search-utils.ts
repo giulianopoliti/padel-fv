@@ -18,6 +18,8 @@ export interface SearchFilters {
   clubId?: string | null
   includeTest?: boolean
   requireScore?: boolean
+  includeAccountFields?: boolean
+  includePhone?: boolean
   searchDni?: boolean  // Activar búsqueda por DNI
 }
 
@@ -79,7 +81,9 @@ export async function buildPlayerSearchQuery(
     clubId,
     includeTest = false,
     requireScore = false,
-    searchDni = true
+    searchDni = true,
+    includeAccountFields = false,
+    includePhone = false
   } = filters
 
   // Detectar tipo de búsqueda
@@ -93,6 +97,8 @@ export async function buildPlayerSearchQuery(
     includeTest,
     requireScore,
     searchDni,
+    includeAccountFields,
+    includePhone,
     isDniSearch
   })
 
@@ -101,6 +107,11 @@ export async function buildPlayerSearchQuery(
   // ========================================
 
   const buildBaseQuery = () => {
+    const optionalFields = [
+      includeAccountFields ? 'user_id' : null,
+      includePhone ? 'phone' : null,
+    ].filter(Boolean).join(',\n        ')
+
     let baseQuery = supabaseClient
       .from('players')
       .select(`
@@ -110,6 +121,7 @@ export async function buildPlayerSearchQuery(
         dni,
         score,
         category_name,
+        ${optionalFields ? `${optionalFields},` : ''}
         profile_image_url,
         gender,
         clubes:club_id (

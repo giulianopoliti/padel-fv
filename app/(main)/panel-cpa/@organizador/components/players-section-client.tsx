@@ -20,8 +20,9 @@ interface PlayerData {
   score: number | null
   profile_image_url: string | null
   category_name: string | null
+  user_id?: string | null
   email?: string | null
-  users?: { email: string | null } | Array<{ email: string | null }>
+  users?: { email: string | null } | Array<{ email: string | null }> | null
 }
 
 interface Category {
@@ -106,6 +107,14 @@ export default function PlayersSectionClient({
     setPlayers(prev => prev.map(p => p.id === updatedPlayer.id ? updatedPlayer : p))
   }
 
+  const handlePlayerAccountReset = (playerId: string) => {
+    setPlayers(prev => prev.map((player) => (
+      player.id === playerId
+        ? { ...player, user_id: null, email: null, users: null }
+        : player
+    )))
+  }
+
   return (
     <div className="space-y-4">
       {canResolvePlayerIdentity && (
@@ -162,6 +171,7 @@ export default function PlayersSectionClient({
           categories={categories}
           onPlayerUpdate={handlePlayerUpdate}
           onPlayerDelete={() => {}}
+          onPlayerAccountReset={handlePlayerAccountReset}
         />
       </div>
       {canResolvePlayerIdentity && (

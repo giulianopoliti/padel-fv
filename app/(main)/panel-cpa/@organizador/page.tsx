@@ -15,6 +15,11 @@ interface TournamentWithMetrics {
   category_name: string
   gender: string
   type: string
+  price: number | string | null
+  clubes?: {
+    id: string
+    name: string
+  } | null
   inscriptions: number
   matchesFinished: number
   matchesPending: number
@@ -30,8 +35,9 @@ interface PlayerData {
   score: number | null
   profile_image_url: string | null
   category_name: string | null
+  user_id?: string | null
   email?: string | null
-  users?: { email: string | null }
+  users?: { email: string | null } | null
 }
 
 export default async function OrganizadorDashboardPage() {
@@ -94,7 +100,7 @@ export default async function OrganizadorDashboardPage() {
   // 5. Fetch top 10 jugadores por puntos con email de users
   const { data: players, error: playersError } = await supabase
     .from("players")
-    .select("id, first_name, last_name, dni, phone, score, profile_image_url, category_name, users!players_user_id_fkey(email)")
+    .select("id, first_name, last_name, dni, phone, score, profile_image_url, category_name, user_id, users!players_user_id_fkey(email)")
     .eq("es_prueba", false)
     .order("score", { ascending: false })
     .limit(10)

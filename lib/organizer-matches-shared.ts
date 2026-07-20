@@ -17,18 +17,37 @@ export interface OrganizerMatchRow {
   matchId: string
   tournamentId: string
   tournamentName: string
+  tournamentType?: string | null
+  tournamentStatus?: string | null
   scheduledDate: string
   scheduledStartTime: string | null
   scheduledEndTime: string | null
   courtAssignment: string | null
   round: string | null
   status: string
+  couple1Id?: string | null
+  couple2Id?: string | null
+  winnerId?: string | null
+  resultCouple1?: string | null
+  resultCouple2?: string | null
   matchClubId: string | null
   tournamentClubId: string | null
   effectiveClubId: string | null
   effectiveClubName: string
   couple1Display: string
   couple2Display: string
+  couple1?: OrganizerMatchCouple | null
+  couple2?: OrganizerMatchCouple | null
+}
+
+export interface OrganizerMatchPlayer {
+  first_name: string
+  last_name: string
+}
+
+export interface OrganizerMatchCouple {
+  player1: OrganizerMatchPlayer
+  player2: OrganizerMatchPlayer
 }
 
 const formatCsvValue = (value: string | null | undefined): string => {

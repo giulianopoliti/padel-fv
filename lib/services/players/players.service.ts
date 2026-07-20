@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { normalizePlayerDni } from '@/lib/utils/player-dni'
 
 export interface PlayerData {
@@ -11,8 +12,9 @@ export interface PlayerData {
   score: number | null
   profile_image_url: string | null
   category_name: string | null
+  user_id?: string | null
   email?: string | null
-  users?: { email: string | null }
+  users?: { email: string | null } | null
 }
 
 export interface PlayerUpdateData {
@@ -37,7 +39,7 @@ export async function getTenantPlayers(
 
   const { data, error, count } = await supabase
     .from('players')
-    .select('id, first_name, last_name, dni, dni_is_temporary, phone, score, profile_image_url, category_name, users!players_user_id_fkey(email)', { count: 'exact' })
+    .select('id, first_name, last_name, dni, dni_is_temporary, phone, score, profile_image_url, category_name, user_id, users!players_user_id_fkey(email)', { count: 'exact' })
     .eq('es_prueba', false)
     .order('score', { ascending: false, nullsFirst: false })
     .order('last_name', { ascending: true })
@@ -105,6 +107,7 @@ export async function updatePlayer(
         .from('players')
         .select('id')
         .eq('dni', normalizedDni.dni)
+        .eq('es_prueba', false)
         .neq('id', playerId)
         .maybeSingle()
 
@@ -137,7 +140,7 @@ export async function updatePlayer(
     .from('players')
     .update(finalUpdates)
     .eq('id', playerId)
-    .select('id, first_name, last_name, dni, dni_is_temporary, phone, score, profile_image_url, category_name, users!players_user_id_fkey(email)')
+    .select('id, first_name, last_name, dni, dni_is_temporary, phone, score, profile_image_url, category_name, user_id, users!players_user_id_fkey(email)')
     .single()
 
   if (updateError) {
@@ -153,15 +156,13 @@ export async function updatePlayer(
 }
 
 /**
- * Soft-delete de un jugador (marca es_prueba = true)
+ * Elimina definitivamente un jugador solo si no tiene cuenta ni registros asociados.
  */
 export async function softDeletePlayer(playerId: string) {
-  const supabase = await createClient()
-
   // 1. Verificar permisos
-  const { data: player, error: fetchError } = await supabase
+  const { data: player, error: fetchError } = await supabaseAdmin
     .from('players')
-    .select('id')
+    .select('id, user_id')
     .eq('id', playerId)
     .eq('es_prueba', false)
     .single()
@@ -170,18 +171,258 @@ export async function softDeletePlayer(playerId: string) {
     return { success: false, error: 'Jugador no encontrado' }
   }
 
-  // 2. Soft delete
-  const { error: deleteError } = await supabase
+  if (player.user_id) {
+    return {
+      success: false,
+      error: 'No se pudo eliminar el jugador porque tiene una cuenta vinculada. Contacta al administrador.'
+    }
+  }
+
+  const coupleIds = await getPlayerCoupleIds(playerId)
+  const hasInscriptions = await hasPlayerInscriptions(playerId, coupleIds)
+
+  if (hasInscriptions) {
+    return {
+      success: false,
+      error: 'No se pudo eliminar el jugador porque tiene inscripciones asociadas. Contacta al administrador.'
+    }
+  }
+
+  const hasPlayedMatches = await hasPlayerPlayedMatches(coupleIds)
+
+  if (hasPlayedMatches) {
+    return {
+      success: false,
+      error: 'No se pudo eliminar el jugador porque tiene partidos jugados. Contacta al administrador.'
+    }
+  }
+
+  await cleanupPlayerReferences(playerId, coupleIds)
+
+  // 2. Hard delete
+  const { error: deleteError } = await supabaseAdmin
     .from('players')
-    .update({ es_prueba: true })
+    .delete()
     .eq('id', playerId)
 
   if (deleteError) {
-    console.error('Error soft-deleting player:', deleteError)
-    return { success: false, error: deleteError.message }
+    console.error('Error deleting player:', deleteError)
+    return {
+      success: false,
+      error: 'No se pudo eliminar el jugador. Contacta al administrador.'
+    }
   }
 
   return { success: true }
+}
+
+const getPlayerCoupleIds = async (playerId: string) => {
+  const { data, error } = await supabaseAdmin
+    .from('couples')
+    .select('id')
+    .or(`player1_id.eq.${playerId},player2_id.eq.${playerId}`)
+
+  if (error) {
+    console.error('Error fetching player couples:', error)
+    throw error
+  }
+
+  return (data || []).map((couple) => couple.id)
+}
+
+const hasPlayerInscriptions = async (playerId: string, coupleIds: string[]) => {
+  const { count: playerInscriptions, error: playerInscriptionsError } = await supabaseAdmin
+    .from('inscriptions')
+    .select('*', { count: 'exact', head: true })
+    .eq('player_id', playerId)
+    .or('es_prueba.is.false,es_prueba.is.null')
+
+  if (playerInscriptionsError) {
+    console.error('Error checking player inscriptions:', playerInscriptionsError)
+    throw playerInscriptionsError
+  }
+
+  if ((playerInscriptions || 0) > 0) {
+    return true
+  }
+
+  if (coupleIds.length === 0) {
+    return false
+  }
+
+  const { count, error } = await supabaseAdmin
+    .from('inscriptions')
+    .select('*', { count: 'exact', head: true })
+    .in('couple_id', coupleIds)
+    .or('es_prueba.is.false,es_prueba.is.null')
+
+  if (error) {
+    console.error('Error checking player couple inscriptions:', error)
+    throw error
+  }
+
+  return (count || 0) > 0
+}
+
+const hasPlayerPlayedMatches = async (coupleIds: string[]) => {
+  if (coupleIds.length === 0) {
+    return false
+  }
+
+  const matchCoupleFilter = buildOrInFilter([
+    ['couple1_id', coupleIds],
+    ['couple2_id', coupleIds],
+  ])
+
+  const { data, error } = await supabaseAdmin
+    .from('matches')
+    .select('id, status, result_couple1, result_couple2')
+    .or('es_prueba.is.false,es_prueba.is.null')
+    .or(matchCoupleFilter)
+
+  if (error) {
+    console.error('Error checking player played matches:', error)
+    throw error
+  }
+
+  return (data || []).some((match) => {
+    const status = String(match.status || '').toUpperCase()
+    const hasResult = [match.result_couple1, match.result_couple2].some((result) => (
+      typeof result === 'string' && result.trim() !== ''
+    ))
+
+    return hasResult || ['FINISHED', 'COMPLETED'].includes(status)
+  })
+}
+
+const cleanupPlayerReferences = async (playerId: string, coupleIds: string[]) => {
+  const matchIds = await getUnplayedMatchIdsForCouples(coupleIds)
+
+  await deleteByColumn('dni_conflicts', 'existing_player_id', playerId)
+  await deleteByColumn('dni_conflicts', 'new_player_id', playerId)
+  await deleteByColumn('player_identity_transfers', 'source_player_id', playerId)
+  await deleteByColumn('player_identity_transfers', 'target_player_id', playerId)
+  await deleteByColumn('player_recategorizations', 'player_id', playerId)
+  await deleteByColumn('player_user_account_resets', 'player_id', playerId)
+  await deleteByColumn('reviews', 'player_id', playerId)
+  await deleteByColumn('tournament_couple_disqualifications', 'player1_id', playerId)
+  await deleteByColumn('tournament_couple_disqualifications', 'player2_id', playerId)
+
+  if (coupleIds.length === 0) {
+    return
+  }
+
+  if (matchIds.length > 0) {
+    await deleteByColumnIn('match_hierarchy', 'parent_match_id', matchIds)
+    await deleteByColumnIn('match_hierarchy', 'child_match_id', matchIds)
+    await deleteByColumnIn('bracket_operations_log', 'source_match_id', matchIds)
+    await deleteByColumnIn('bracket_operations_log', 'target_match_id', matchIds)
+    await deleteByColumnIn('match_results_history', 'match_id', matchIds)
+  }
+
+  await deleteByColumnIn('bracket_operations_log', 'source_couple_id', coupleIds)
+  await deleteByColumnIn('bracket_operations_log', 'target_couple_id', coupleIds)
+  await deleteByColumnIn('match_results_history', 'previous_winner_id', coupleIds)
+  await deleteByColumnIn('match_results_history', 'new_winner_id', coupleIds)
+  await deleteByColumnIn('placeholder_resolutions', 'resolved_couple_id', coupleIds)
+  await deleteByColumnIn('set_matches', 'winner_couple_id', coupleIds)
+  await updateByColumnIn('tournaments', 'winner_id', coupleIds, { winner_id: null })
+  await deleteByColumnIn('zone_positions', 'couple_id', coupleIds)
+
+  if (matchIds.length > 0) {
+    await deleteByColumnIn('matches', 'id', matchIds)
+  }
+
+  await deleteByColumnIn('couples', 'id', coupleIds)
+}
+
+const getUnplayedMatchIdsForCouples = async (coupleIds: string[]) => {
+  if (coupleIds.length === 0) {
+    return []
+  }
+
+  const matchCoupleFilter = buildOrInFilter([
+    ['couple1_id', coupleIds],
+    ['couple2_id', coupleIds],
+    ['winner_id', coupleIds],
+  ])
+
+  const { data, error } = await supabaseAdmin
+    .from('matches')
+    .select('id, status, result_couple1, result_couple2')
+    .or(matchCoupleFilter)
+
+  if (error) {
+    console.error('Error fetching unplayed player matches:', error)
+    throw error
+  }
+
+  return (data || [])
+    .filter((match) => {
+      const status = String(match.status || '').toUpperCase()
+      const hasResult = [match.result_couple1, match.result_couple2].some((result) => (
+        typeof result === 'string' && result.trim() !== ''
+      ))
+
+      return !hasResult && !['FINISHED', 'COMPLETED'].includes(status)
+    })
+    .map((match) => match.id)
+}
+
+const buildOrInFilter = (filters: Array<[string, string[]]>) => {
+  return filters
+    .filter(([, values]) => values.length > 0)
+    .map(([column, values]) => `${column}.in.(${values.join(',')})`)
+    .join(',')
+}
+
+const deleteByColumn = async (table: string, column: string, value: string) => {
+  const { error } = await (supabaseAdmin as any)
+    .from(table)
+    .delete()
+    .eq(column, value)
+
+  if (error) {
+    console.error(`Error deleting ${table}.${column} references:`, error)
+    throw error
+  }
+}
+
+const deleteByColumnIn = async (table: string, column: string, values: string[]) => {
+  if (values.length === 0) {
+    return
+  }
+
+  const { error } = await (supabaseAdmin as any)
+    .from(table)
+    .delete()
+    .in(column, values)
+
+  if (error) {
+    console.error(`Error deleting ${table}.${column} references:`, error)
+    throw error
+  }
+}
+
+const updateByColumnIn = async (
+  table: string,
+  column: string,
+  values: string[],
+  updates: Record<string, unknown>
+) => {
+  if (values.length === 0) {
+    return
+  }
+
+  const { error } = await (supabaseAdmin as any)
+    .from(table)
+    .update(updates)
+    .in(column, values)
+
+  if (error) {
+    console.error(`Error updating ${table}.${column} references:`, error)
+    throw error
+  }
 }
 
 /**

@@ -22,7 +22,7 @@ interface PlayerData {
   profile_image_url: string | null
   category_name: string | null
   email?: string | null
-  users?: { email: string | null } | Array<{ email: string | null }>
+  users?: { email: string | null } | Array<{ email: string | null }> | null
 }
 
 interface Category {

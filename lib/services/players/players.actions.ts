@@ -61,7 +61,7 @@ export async function updatePlayerAction(
 }
 
 /**
- * Server Action para eliminar (soft-delete) un jugador
+ * Server Action para eliminar definitivamente un jugador cuando no tiene registros asociados
  */
 export async function deletePlayerAction(playerId: string) {
   try {
@@ -98,9 +98,13 @@ export async function deletePlayerAction(playerId: string) {
     return result
   } catch (error) {
     console.error('Error in deletePlayerAction:', error)
+    const message = error instanceof Error && error.message
+      ? error.message
+      : 'No se pudo eliminar el jugador. Contacta al administrador.'
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Error al eliminar jugador'
+      error: message
     }
   }
 }

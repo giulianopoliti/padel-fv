@@ -166,8 +166,12 @@ async function getIdentityContext(playerId: string): Promise<IdentityContextItem
       : Promise.resolve({ data: [], error: null } as any),
   ])
 
-  const clubMap = new Map((clubsResult.data || []).map((club: any) => [club.id, club.name || null]))
-  const orgMap = new Map((orgsResult.data || []).map((org: any) => [org.id, org.name || null]))
+  const clubMap = new Map<string, string | null>(
+    (clubsResult.data || []).map((club: any) => [club.id, club.name || null])
+  )
+  const orgMap = new Map<string, string | null>(
+    (orgsResult.data || []).map((org: any) => [org.id, org.name || null])
+  )
 
   const sortedRows = rows.sort((a: any, b: any) => {
     const left = new Date(a.created_at || "").getTime()

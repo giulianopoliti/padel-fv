@@ -3,7 +3,7 @@
 import type React from "react"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, CheckCircle, Eye, EyeOff, Loader2, UserCheck } from "lucide-react"
+import { ArrowLeft, CheckCircle, Eye, EyeOff, Loader2 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import { checkDNIConflictBeforeRegistration, register, registerAndLinkToExistingPlayer } from "./actions"
@@ -18,18 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { createClient } from "@/utils/supabase/client"
 
-type ConfirmationState = {
-  existingPlayer: {
-    id: string
-    name: string
-    score: number
-    category: string
-    dni: string | null
-    isExistingPlayer: boolean
-  }
-  message?: string
-}
-
 export default function RegisterPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -37,8 +25,6 @@ export default function RegisterPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [confirmationData, setConfirmationData] = useState<ConfirmationState | null>(null)
-  const [originalFormData, setOriginalFormData] = useState<FormData | null>(null)
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -127,51 +113,28 @@ export default function RegisterPage() {
     }
   }
 
-  const handleConfirmLinking = async () => {
-    if (!confirmationData?.existingPlayer || !originalFormData) return
+  const autoLinkExistingPlayer = async (dataToSubmit: FormData, existingPlayerId: string) => {
+    const result = await registerAndLinkToExistingPlayer(dataToSubmit, existingPlayerId)
 
-    setIsSubmitting(true)
-    try {
-      const result = await registerAndLinkToExistingPlayer(originalFormData, confirmationData.existingPlayer.id)
-      setConfirmationData(null)
-
-      if (result?.error) {
-        toast({
-          title: "Error al vincular cuenta",
-          description: result.error,
-          variant: "destructive",
-        })
-        return
-      }
-
+    if (result?.error) {
       toast({
-        title: "Cuenta vinculada",
-        description: result.message || "Tu cuenta quedo asociada al jugador existente.",
-      })
-
-      setTimeout(() => {
-        window.location.assign(result.redirectUrl || "/panel")
-      }, 1200)
-    } catch (error) {
-      console.error("[REGISTER_PAGE] Linking failed:", error)
-      toast({
-        title: "Error inesperado",
-        description: "No pudimos completar la vinculacion.",
+        title: "Error al vincular cuenta",
+        description: result.error,
         variant: "destructive",
       })
-    } finally {
-      setIsSubmitting(false)
+      return
     }
+
+    toast({
+      title: "Cuenta vinculada",
+      description: result.message || "Tu cuenta quedo asociada al jugador existente.",
+    })
+
+    setTimeout(() => {
+      window.location.assign(result.redirectUrl || "/panel")
+    }, 1200)
   }
 
-  const handleRejectLinking = () => {
-    setConfirmationData(null)
-    setOriginalFormData(null)
-    toast({
-      title: "Revision necesaria",
-      description: "No vinculamos el perfil. Podes escribirnos para revisar el caso manualmente.",
-    })
-  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -206,16 +169,7 @@ export default function RegisterPage() {
 
       if (!conflictCheckResult.success) {
         if (conflictCheckResult.requiresConfirmation && conflictCheckResult.existingPlayer) {
-          setConfirmationData({
-            existingPlayer: conflictCheckResult.existingPlayer,
-            message: conflictCheckResult.message,
-          })
-          setOriginalFormData(dataToSubmit)
-          toast({
-            title: "Jugador encontrado",
-            description: "Encontramos un perfil previo que podria ser tuyo.",
-          })
-          setIsSubmitting(false)
+          await autoLinkExistingPlayer(dataToSubmit, conflictCheckResult.existingPlayer.id)
           return
         }
 
@@ -240,11 +194,7 @@ export default function RegisterPage() {
       }
 
       if (result?.requiresConfirmation && result.existingPlayer) {
-        setConfirmationData({
-          existingPlayer: result.existingPlayer,
-          message: result.message,
-        })
-        setOriginalFormData(dataToSubmit)
+        await autoLinkExistingPlayer(dataToSubmit, result.existingPlayer.id)
         return
       }
 
@@ -312,56 +262,6 @@ export default function RegisterPage() {
           </section>
 
           <div className="relative">
-            {confirmationData?.existingPlayer && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[2rem] bg-black/50 p-4 backdrop-blur-sm">
-                <Card className="w-full max-w-md rounded-[2rem] border-0 shadow-2xl">
-                  <CardHeader className="text-center">
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-900 text-white">
-                      <UserCheck className="h-6 w-6" />
-                    </div>
-                    <CardTitle className="text-xl">¿Es tu perfil?</CardTitle>
-                    <CardDescription className="leading-6">
-                      {confirmationData.message || "Encontramos un jugador registrado con ese DNI."}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4 text-sm text-slate-600">
-                    <div className="rounded-2xl bg-white/5 p-4">
-                      <p className="font-semibold text-white">{confirmationData.existingPlayer.name}</p>
-                      <p>Categoria: {confirmationData.existingPlayer.category}</p>
-                      <p>Puntaje: {confirmationData.existingPlayer.score}</p>
-                    </div>
-                    <p>Si confirmas, tu cuenta nueva se va a vincular a ese jugador existente.</p>
-                  </CardContent>
-                  <CardFooter className="flex gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1 rounded-xl"
-                      onClick={handleRejectLinking}
-                      disabled={isSubmitting}
-                    >
-                      No es mi perfil
-                    </Button>
-                    <Button
-                      type="button"
-                      className="flex-1 rounded-xl bg-brand-600 hover:bg-brand-700"
-                      onClick={handleConfirmLinking}
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? (
-                        <span className="inline-flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Vinculando...
-                        </span>
-                      ) : (
-                        "Si, continuar"
-                      )}
-                    </Button>
-                  </CardFooter>
-                </Card>
-              </div>
-            )}
-
             <Card className="overflow-hidden rounded-[2rem] border border-white/10 bg-brand-900/70 shadow-2xl backdrop-blur-sm">
               <div className="h-2 bg-gradient-to-r from-court-400 via-court-500 to-court-300" />
               <CardHeader className="space-y-3 px-8 pt-8 text-center">

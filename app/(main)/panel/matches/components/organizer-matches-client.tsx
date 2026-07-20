@@ -5,10 +5,17 @@ import { useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { format, parseISO } from "date-fns"
 import { es } from "date-fns/locale"
-import { Download, ExternalLink, CalendarDays, Clock3, MapPin, Trophy, History } from "lucide-react"
+import { BarChart3, Download, ExternalLink, CalendarDays, Clock3, MapPin, Trophy, History } from "lucide-react"
 import OrganizerMatchFilters, {
   type OrganizerMatchFiltersState,
 } from "@/app/(main)/panel/matches/components/organizer-match-filters"
+import LoadMatchResultDialog from "@/app/(main)/tournaments/[id]/match-scheduling/components/LoadMatchResultDialog"
+import {
+  modifyMatchResult,
+  updateMatchResult,
+  type ExistingMatch,
+  type SetResult,
+} from "@/app/(main)/tournaments/[id]/match-scheduling/actions"
 import StatusBadge from "@/components/matches/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,23 +30,9 @@ import {
 import {
   getDefaultOrganizerMatchesFilters,
   getRoundLabel,
+  type OrganizerMatchCouple,
+  type OrganizerMatchRow,
 } from "@/lib/organizer-matches-shared"
-
-interface OrganizerMatchRow {
-  matchId: string
-  tournamentId: string
-  tournamentName: string
-  scheduledDate: string
-  scheduledStartTime: string | null
-  scheduledEndTime: string | null
-  courtAssignment: string | null
-  round: string | null
-  status: string
-  effectiveClubId: string | null
-  effectiveClubName: string
-  couple1Display: string
-  couple2Display: string
-}
 
 interface OrganizerClubOption {
   id: string
@@ -90,6 +83,45 @@ const formatTimeRange = (startTime: string | null, endTime: string | null): stri
   return "Sin horario"
 }
 
+const adaptCoupleForResultDialog = (couple: OrganizerMatchCouple | null) => {
+  if (!couple) return null
+
+  return {
+    player1: couple.player1,
+    player2: couple.player2,
+  }
+}
+
+const adaptMatchForResultDialog = (match: OrganizerMatchRow): ExistingMatch => ({
+  id: match.matchId,
+  couple1_id: match.couple1Id ?? null,
+  couple2_id: match.couple2Id ?? null,
+  time_slot_id: null,
+  status: match.status,
+  scheduled_date: match.scheduledDate,
+  scheduled_start_time: match.scheduledStartTime,
+  scheduled_end_time: match.scheduledEndTime,
+  court_assignment: match.courtAssignment,
+  couple1: adaptCoupleForResultDialog(match.couple1 ?? null),
+  couple2: adaptCoupleForResultDialog(match.couple2 ?? null),
+  club_id: match.matchClubId,
+  club: null,
+})
+
+const isCompletedStatus = (status: string): boolean => status === "FINISHED" || status === "COMPLETED"
+
+const canManageResultFromPanel = (match: OrganizerMatchRow): boolean => {
+  if (match.tournamentType !== "LONG") return false
+  if (!match.couple1Id || !match.couple2Id || !match.couple1 || !match.couple2) return false
+  if (match.status === "WAITING_OPONENT" || match.status === "DRAFT") return false
+
+  if (match.round === "ZONE") {
+    return match.tournamentStatus === "ZONE_PHASE" || match.tournamentStatus === "BRACKET_PHASE"
+  }
+
+  return match.tournamentStatus === "BRACKET_PHASE"
+}
+
 export default function OrganizerMatchesClient({
   matches,
   clubs,
@@ -103,6 +135,8 @@ export default function OrganizerMatchesClient({
   const searchParams = useSearchParams()
   const [filters, setFilters] = useState(() => buildFilterState(initialFilters))
   const [currentIncludePast, setCurrentIncludePast] = useState(Boolean(initialFilters.includePast))
+  const [resultMatch, setResultMatch] = useState<OrganizerMatchRow | null>(null)
+  const [isModifyResultMode, setIsModifyResultMode] = useState(false)
   const defaultFilterState = buildFilterState(defaultOrganizerFilters)
 
   useEffect(() => {
@@ -199,6 +233,74 @@ export default function OrganizerMatchesClient({
     router.refresh()
   }
 
+  const handleOpenResultDialog = (match: OrganizerMatchRow) => {
+    setResultMatch(match)
+    setIsModifyResultMode(isCompletedStatus(match.status))
+  }
+
+  const handleResultSaved = () => {
+    setResultMatch(null)
+    router.refresh()
+  }
+
+  const handleUpdatePanelMatchResult = async (
+    matchId: string,
+    sets: SetResult[],
+    winnerId: string,
+    resultCouple1: string,
+    resultCouple2: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    const match = resultMatch
+
+    if (!match || match.matchId !== matchId) {
+      return { success: false, error: "No se pudo identificar el partido seleccionado" }
+    }
+
+    if (match.round === "ZONE") {
+      const payload = {
+        matchId,
+        sets,
+        winnerId,
+        result_couple1: resultCouple1,
+        result_couple2: resultCouple2,
+      }
+      const result = isModifyResultMode
+        ? await modifyMatchResult(payload)
+        : await updateMatchResult(payload)
+
+      return { success: result.success, error: result.error }
+    }
+
+    if (match.tournamentStatus !== "BRACKET_PHASE") {
+      return { success: false, error: "La llave todavia no esta activa para cargar este resultado" }
+    }
+
+    const response = await fetch(`/api/tournaments/${match.tournamentId}/matches/${matchId}/universal-result`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        finishMatch: true,
+        result: {
+          format: "best_of_3",
+          sets: sets.map((set) => ({
+            couple1_games: set.couple1_games,
+            couple2_games: set.couple2_games,
+          })),
+          winner_id: winnerId,
+          sets_won_couple1: resultCouple1,
+          sets_won_couple2: resultCouple2,
+        },
+      }),
+    })
+
+    const data = await response.json().catch(() => null)
+    if (!response.ok || !data?.success) {
+      return { success: false, error: data?.error || "No se pudo guardar el resultado" }
+    }
+
+    return { success: true }
+  }
+
   return (
     <div className="container mx-auto space-y-6 px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -280,51 +382,69 @@ export default function OrganizerMatchesClient({
                     <TableHead>Pareja 1</TableHead>
                     <TableHead>Pareja 2</TableHead>
                     <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acceso</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {matches.map((match) => (
-                    <TableRow key={match.matchId}>
-                      <TableCell className="font-medium capitalize">
-                        {formatDateLabel(match.scheduledDate)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-sm text-slate-700">
-                          <Clock3 className="h-4 w-4 text-slate-500" />
-                          <span>{formatTimeRange(match.scheduledStartTime, match.scheduledEndTime)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-sm text-slate-700">
-                          <MapPin className="h-4 w-4 text-slate-500" />
-                          <span>{match.effectiveClubName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{match.courtAssignment || "Sin cancha"}</TableCell>
-                      <TableCell>
-                        <div className="max-w-[220px] truncate font-medium">{match.tournamentName}</div>
-                      </TableCell>
-                      <TableCell>{getRoundLabel(match.round)}</TableCell>
-                      <TableCell className="max-w-[240px]">
-                        <span className="line-clamp-2">{match.couple1Display}</span>
-                      </TableCell>
-                      <TableCell className="max-w-[240px]">
-                        <span className="line-clamp-2">{match.couple2Display}</span>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={match.status} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button asChild size="sm" variant="ghost">
-                          <Link href={`/tournaments/${match.tournamentId}`}>
-                            Ver torneo
-                            <ExternalLink className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {matches.map((match) => {
+                    const canManageResult = canManageResultFromPanel(match)
+                    const resultButtonLabel = isCompletedStatus(match.status) ? "Modificar" : "Resultado"
+
+                    return (
+                      <TableRow key={match.matchId}>
+                        <TableCell className="font-medium capitalize">
+                          {formatDateLabel(match.scheduledDate)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2 text-sm text-slate-700">
+                            <Clock3 className="h-4 w-4 text-slate-500" />
+                            <span>{formatTimeRange(match.scheduledStartTime, match.scheduledEndTime)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2 text-sm text-slate-700">
+                            <MapPin className="h-4 w-4 text-slate-500" />
+                            <span>{match.effectiveClubName}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{match.courtAssignment || "Sin cancha"}</TableCell>
+                        <TableCell>
+                          <div className="max-w-[220px] truncate font-medium">{match.tournamentName}</div>
+                        </TableCell>
+                        <TableCell>{getRoundLabel(match.round)}</TableCell>
+                        <TableCell className="max-w-[240px]">
+                          <span className="line-clamp-2">{match.couple1Display}</span>
+                        </TableCell>
+                        <TableCell className="max-w-[240px]">
+                          <span className="line-clamp-2">{match.couple2Display}</span>
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={match.status} />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {canManageResult && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={isCompletedStatus(match.status) ? "outline" : "default"}
+                                onClick={() => handleOpenResultDialog(match)}
+                              >
+                                <BarChart3 className="h-4 w-4" />
+                                {resultButtonLabel}
+                              </Button>
+                            )}
+                            <Button asChild size="sm" variant="ghost">
+                              <Link href={`/tournaments/${match.tournamentId}`}>
+                                Ver torneo
+                                <ExternalLink className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
 
@@ -357,6 +477,20 @@ export default function OrganizerMatchesClient({
           )}
         </CardContent>
       </Card>
+
+      {resultMatch && (
+        <LoadMatchResultDialog
+          match={adaptMatchForResultDialog(resultMatch)}
+          open={Boolean(resultMatch)}
+          onOpenChange={(open) => {
+            if (!open) setResultMatch(null)
+          }}
+          onResultSaved={handleResultSaved}
+          onUpdateMatchResult={handleUpdatePanelMatchResult}
+          isModifyMode={isModifyResultMode}
+          tournamentId={resultMatch.tournamentId}
+        />
+      )}
     </div>
   )
 }

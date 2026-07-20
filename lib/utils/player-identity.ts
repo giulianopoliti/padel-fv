@@ -10,6 +10,7 @@ export interface ExistingPlayerMatch {
   user_id?: string | null
   score?: number | null
   category_name?: string | null
+  created_at?: string | null
 }
 
 interface FindExistingPlayerParams {
@@ -64,8 +65,9 @@ export async function findExistingPlayerByIdentity({
   if (normalizedDni.dni) {
     const { data, error } = await supabase
       .from("players")
-      .select("id, first_name, last_name, dni, dni_is_temporary, gender, user_id, score, category_name")
+      .select("id, first_name, last_name, dni, dni_is_temporary, gender, user_id, score, category_name, created_at")
       .eq("dni", normalizedDni.dni)
+      .eq("es_prueba", false)
       .maybeSingle()
 
     if (error) {
@@ -83,7 +85,9 @@ export async function findExistingPlayerByIdentity({
 
   let candidatesQuery = supabase
     .from("players")
-    .select("id, first_name, last_name, dni, dni_is_temporary, gender, user_id, score, category_name")
+    .select("id, first_name, last_name, dni, dni_is_temporary, gender, user_id, score, category_name, created_at")
+    .eq("es_prueba", false)
+    .order("created_at", { ascending: true })
 
   if (normalizedGender) {
     candidatesQuery = candidatesQuery.eq("gender", normalizedGender)
@@ -103,14 +107,26 @@ export async function findExistingPlayerByIdentity({
     return { player: null, matchedBy: null }
   }
 
+  const sortedExactNameMatches = [...exactNameMatches].sort((left, right) => {
+    const leftHasUser = left.user_id ? 1 : 0
+    const rightHasUser = right.user_id ? 1 : 0
+    if (leftHasUser !== rightHasUser) return leftHasUser - rightHasUser
+
+    const leftHasDni = normalizePlayerDni(left.dni).dni ? 1 : 0
+    const rightHasDni = normalizePlayerDni(right.dni).dni ? 1 : 0
+    if (leftHasDni !== rightHasDni) return leftHasDni - rightHasDni
+
+    return (left.created_at || "").localeCompare(right.created_at || "")
+  })
+
   if (normalizedGender) {
     const genderMatchedPlayer =
-      exactNameMatches.find(
+      sortedExactNameMatches.find(
         (candidate) => !candidate.gender || candidate.gender.toUpperCase() === normalizedGender,
       ) || null
 
     return { player: genderMatchedPlayer, matchedBy: genderMatchedPlayer ? "name" : null }
   }
 
-  return { player: exactNameMatches[0], matchedBy: "name" }
+  return { player: sortedExactNameMatches[0], matchedBy: "name" }
 }

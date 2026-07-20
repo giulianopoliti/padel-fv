@@ -3,6 +3,7 @@ import {
   applyOrganizerMatchesFilters,
   getDefaultOrganizerMatchesFilters,
   isOrganizerMatchesRangeInvalid,
+  type OrganizerMatchCouple,
   type OrganizerClubOption,
   type OrganizerMatchRow,
   type OrganizerMatchesFilters,
@@ -45,6 +46,24 @@ const formatCoupleDisplay = (couple: PlayerPairRelation | null): string => {
   const player2 = unwrapRelation(couple.player2)
 
   return `${formatPlayerName(player1)} / ${formatPlayerName(player2)}`
+}
+
+const toOrganizerMatchCouple = (couple: PlayerPairRelation | null): OrganizerMatchCouple | null => {
+  if (!couple) return null
+
+  const player1 = unwrapRelation(couple.player1)
+  const player2 = unwrapRelation(couple.player2)
+
+  return {
+    player1: {
+      first_name: player1?.first_name ?? "",
+      last_name: player1?.last_name ?? "",
+    },
+    player2: {
+      first_name: player2?.first_name ?? "",
+      last_name: player2?.last_name ?? "",
+    },
+  }
 }
 
 const compareOrganizerMatches = (a: OrganizerMatchRow, b: OrganizerMatchRow): number => {
@@ -131,6 +150,8 @@ export async function getOrganizationScheduledMatchesPage(
     .select(`
       id,
       name,
+      type,
+      status,
       club_id,
       clubes:club_id(
         id,
@@ -159,6 +180,8 @@ export async function getOrganizationScheduledMatchesPage(
     {
       id: string
       name: string
+      type: string | null
+      status: string | null
       clubId: string | null
       clubName: string | null
     }
@@ -170,6 +193,8 @@ export async function getOrganizationScheduledMatchesPage(
     tournamentMap.set(tournament.id, {
       id: tournament.id,
       name: tournament.name,
+      type: tournament.type,
+      status: tournament.status,
       clubId: tournament.club_id,
       clubName: tournamentClub?.name ?? null,
     })
@@ -183,6 +208,11 @@ export async function getOrganizationScheduledMatchesPage(
       club_id,
       status,
       round,
+      couple1_id,
+      couple2_id,
+      winner_id,
+      result_couple1,
+      result_couple2,
       fecha_matches!inner(
         scheduled_date,
         scheduled_start_time,
@@ -289,23 +319,34 @@ export async function getOrganizationScheduledMatchesPage(
       (match.club_id ? matchClubMap.get(match.club_id) : null) ??
       tournament.clubName ??
       "Sin club asignado"
+    const couple1 = unwrapRelation<PlayerPairRelation>(match.couple1)
+    const couple2 = unwrapRelation<PlayerPairRelation>(match.couple2)
 
     rows.push({
       matchId: match.id,
       tournamentId: tournament.id,
       tournamentName: tournament.name,
+      tournamentType: tournament.type,
+      tournamentStatus: tournament.status,
       scheduledDate: schedule.scheduled_date,
       scheduledStartTime: schedule.scheduled_start_time,
       scheduledEndTime: schedule.scheduled_end_time,
       courtAssignment: schedule.court_assignment,
       round: match.round,
       status: match.status,
+      couple1Id: match.couple1_id,
+      couple2Id: match.couple2_id,
+      winnerId: match.winner_id,
+      resultCouple1: match.result_couple1,
+      resultCouple2: match.result_couple2,
       matchClubId: match.club_id,
       tournamentClubId: tournament.clubId,
       effectiveClubId,
       effectiveClubName,
-      couple1Display: formatCoupleDisplay(unwrapRelation<PlayerPairRelation>(match.couple1)),
-      couple2Display: formatCoupleDisplay(unwrapRelation<PlayerPairRelation>(match.couple2)),
+      couple1Display: formatCoupleDisplay(couple1),
+      couple2Display: formatCoupleDisplay(couple2),
+      couple1: toOrganizerMatchCouple(couple1),
+      couple2: toOrganizerMatchCouple(couple2),
     })
   }
 
