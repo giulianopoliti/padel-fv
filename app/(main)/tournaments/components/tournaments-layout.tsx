@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
-import { Archive, Plus, Search, Settings, Trophy } from "lucide-react"
+import { Archive, Calendar, Plus, Search, Settings, Trophy } from "lucide-react"
 import { useUser } from "@/contexts/user-context"
 import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
@@ -63,6 +63,7 @@ export default function TournamentsLayout({
   }
 
   useEffect(() => {
+    if (isElite) return
     if (pathname !== "/tournaments") return
 
     const toastKey = "padel-fv-active-tournaments-toast"
@@ -73,17 +74,17 @@ export default function TournamentsLayout({
       description: "Ahora aca ves juntos los torneos en curso y los proximos, con inscripciones abiertas o cerradas.",
     })
     window.sessionStorage.setItem(toastKey, "shown")
-  }, [pathname])
+  }, [isElite, pathname])
 
-  const buildStatusHref = (statusPath: "active" | "past") => {
+  const buildStatusHref = (statusPath: "active" | "upcoming" | "in-progress" | "past") => {
     const params = new URLSearchParams(searchParams.toString())
     params.delete("page")
     const queryString = params.toString()
-    const basePath = statusPath === "active" ? "/tournaments" : "/tournaments/past"
+    const basePath = statusPath === "active" ? "/tournaments" : `/tournaments/${statusPath}`
     return `${basePath}${queryString ? `?${queryString}` : ""}`
   }
 
-  const isActiveStatus = (statusPath: "active" | "past") => {
+  const isActiveStatus = (statusPath: "active" | "upcoming" | "in-progress" | "past") => {
     if (statusPath === "active") {
       return (
         pathname === "/tournaments" ||
@@ -92,22 +93,45 @@ export default function TournamentsLayout({
       )
     }
 
-    return pathname.includes("/tournaments/past")
+    return pathname.includes(`/tournaments/${statusPath}`)
   }
 
   const statusTabs = [
-    {
-      href: buildStatusHref("active"),
-      label: "Activos",
-      icon: Trophy,
-      active: isActiveStatus("active"),
-    },
-    {
-      href: buildStatusHref("past"),
-      label: "Finalizados",
-      icon: Archive,
-      active: isActiveStatus("past"),
-    },
+    ...(isElite
+      ? [
+          {
+            href: buildStatusHref("upcoming"),
+            label: "Proximos",
+            icon: Calendar,
+            active: isActiveStatus("upcoming"),
+          },
+          {
+            href: buildStatusHref("in-progress"),
+            label: "Activos",
+            icon: Trophy,
+            active: isActiveStatus("in-progress"),
+          },
+          {
+            href: buildStatusHref("past"),
+            label: "Pasados",
+            icon: Archive,
+            active: isActiveStatus("past"),
+          },
+        ]
+      : [
+          {
+            href: buildStatusHref("active"),
+            label: "Activos",
+            icon: Trophy,
+            active: isActiveStatus("active"),
+          },
+          {
+            href: buildStatusHref("past"),
+            label: "Finalizados",
+            icon: Archive,
+            active: isActiveStatus("past"),
+          },
+        ]),
   ]
 
   const pageClassName = isElite
@@ -231,7 +255,7 @@ export default function TournamentsLayout({
 
         <div className={contentShellClassName}>
           <div className={statusBarClassName}>
-            <div className="grid grid-cols-2 gap-2">
+            <div className={`grid gap-2 ${isElite ? "grid-cols-3" : "grid-cols-2"}`}>
               {statusTabs.map((tab) => {
                 const Icon = tab.icon
 

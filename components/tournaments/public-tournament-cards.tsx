@@ -231,7 +231,7 @@ export function PublicTournamentCards({
           tournament.maxParticipants > 0
         const canRegister =
           tournament.status === "NOT_STARTED" &&
-          Boolean(tournament.enablePublicInscriptions) &&
+          (isElite || Boolean(tournament.enablePublicInscriptions)) &&
           !tournament.isFull
         const registrationStatusLabel = canRegister ? "Inscripciones abiertas" : "Inscripciones cerradas"
         const registrationBadgeClassName = canRegister
@@ -266,9 +266,11 @@ export function PublicTournamentCards({
                         {genderLabel[tournament.gender as keyof typeof genderLabel] || tournament.gender}
                       </Badge>
                     ) : null}
-                    <Badge className={registrationBadgeClassName}>
-                      {registrationStatusLabel}
-                    </Badge>
+                    {!isElite ? (
+                      <Badge className={registrationBadgeClassName}>
+                        {registrationStatusLabel}
+                      </Badge>
+                    ) : null}
                     {tournament.isFull ? (
                       <Badge className="rounded-full border border-red-200/90 bg-red-700 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-white shadow-[0_0_22px_rgba(220,38,38,0.38)]">
                         Completo
@@ -378,11 +380,11 @@ export function PublicTournamentCards({
                       buttonClassName={`${registrationButtonClassName} lg:max-w-[220px]`}
                       fullWidth
                     />
-                  ) : (
+                  ) : !isElite || tournament.status === "NOT_STARTED" ? (
                     <div className="rounded-2xl border border-white/12 bg-white/6 px-4 py-3 text-center text-xs font-bold uppercase tracking-[0.18em] text-white/80">
                       {tournament.isFull ? "Torneo completo" : registrationStatusLabel}
                     </div>
-                  )}
+                  ) : null}
                   <Button asChild variant="outline" className={`${detailsButtonClassName} lg:max-w-[220px]`}>
                     <Link href={`/tournaments/${tournament.id}`}>Ver detalles</Link>
                   </Button>

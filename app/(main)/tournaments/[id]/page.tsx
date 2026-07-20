@@ -13,6 +13,7 @@ import AmericanTournamentOverview from './components/AmericanTournamentOverview'
 import LongTournamentView from './components/LongTournamentView';
 import { getLongPlayerOverview } from '@/lib/services/long-player-overview';
 import { normalizeTournamentOperationalSettings } from '@/lib/services/tournament-operational-settings';
+import { getTenantBranding } from '@/config/tenant';
 
 interface TournamentPageProps {
   params: Promise<{ id: string }>;
@@ -144,6 +145,7 @@ const serializeTournamentForClient = (
 export default async function TournamentPage({ params }: TournamentPageProps) {
   const resolvedParams = await params;
   const tournamentId = resolvedParams.id;
+  const branding = getTenantBranding();
 
   // ========================================
   // OBTENER DATOS DEL TORNEO
@@ -211,7 +213,9 @@ export default async function TournamentPage({ params }: TournamentPageProps) {
   };
   const publicInfo = ensureSerializable(mapTournamentToPublicInfo({
     ...tournament,
-    show_tournament_status: operationalSettings.showTournamentStatus,
+    show_tournament_status: branding.key === 'padel-elite'
+      ? true
+      : operationalSettings.showTournamentStatus,
   }));
 
   // ========================================

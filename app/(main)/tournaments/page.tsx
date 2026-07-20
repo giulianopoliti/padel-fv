@@ -1,4 +1,5 @@
 import React from "react"
+import { redirect } from "next/navigation"
 import { getTournamentsOptimized, getCategories, getClubsForFilter } from "@/app/api/tournaments"
 import TournamentsLayout from "./components/tournaments-layout"
 import PaginationWrapper from "./components/pagination-wrapper"
@@ -29,6 +30,17 @@ export default async function TournamentsPage({ searchParams }: PageProps) {
   const branding = getTenantBranding()
   const defaultType = getDefaultPublicTournamentType()
   const type = params.type === "AMERICAN" || params.type === "LONG" ? params.type : defaultType
+
+  if (branding.key === "padel-elite") {
+    const queryString = new URLSearchParams(
+      Object.entries({
+        ...params,
+        type,
+      }).filter((entry): entry is [string, string] => Boolean(entry[1]))
+    ).toString()
+
+    redirect(`/tournaments/upcoming${queryString ? `?${queryString}` : ""}`)
+  }
 
   const [tournamentsData, categories, clubs] = await Promise.all([
     getTournamentsOptimized({

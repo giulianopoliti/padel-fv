@@ -10,6 +10,7 @@ import { getTournamentSettingsData } from '../components/settings-data'
 import { SettingsSectionHeader, SettingsShellCard } from '../components/settings-shell'
 import CancelTournamentButton from '@/components/tournament/club/cancel-tournament'
 import { normalizeTournamentOperationalSettings } from '@/lib/services/tournament-operational-settings'
+import { getTenantBranding } from '@/config/tenant'
 
 interface SettingsOperacionPageProps {
   params: Promise<{
@@ -40,6 +41,7 @@ export default async function SettingsOperacionPage({
   const operationalSettings = normalizeTournamentOperationalSettings(
     rankingConfig?.operational_settings
   )
+  const branding = getTenantBranding()
 
   return (
     <div className="space-y-6">
@@ -61,16 +63,18 @@ export default async function SettingsOperacionPage({
           />
         </SettingsShellCard>
 
-        <SettingsShellCard
-          icon={<Globe2 className="h-5 w-5 text-slate-700" />}
-          title="Estado publico"
-          description="Decide si la ficha publica muestra el estado operativo del torneo."
-        >
-          <TournamentStatusVisibilityToggle
-            tournamentId={tournament.id}
-            initialEnabled={operationalSettings.showTournamentStatus}
-          />
-        </SettingsShellCard>
+        {branding.key === 'padel-fv' ? (
+          <SettingsShellCard
+            icon={<Globe2 className="h-5 w-5 text-slate-700" />}
+            title="Estado publico"
+            description="Decide si la ficha publica muestra el estado operativo del torneo."
+          >
+            <TournamentStatusVisibilityToggle
+              tournamentId={tournament.id}
+              initialEnabled={operationalSettings.showTournamentStatus}
+            />
+          </SettingsShellCard>
+        ) : null}
 
         {!isAmericanTournament ? (
           <>
