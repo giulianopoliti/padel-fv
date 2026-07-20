@@ -24,6 +24,7 @@ export interface OrganizerMatchRow {
   scheduledEndTime: string | null
   courtAssignment: string | null
   round: string | null
+  bracketKey?: "MAIN" | "GOLD" | "SILVER" | string | null
   status: string
   couple1Id?: string | null
   couple2Id?: string | null
@@ -204,6 +205,12 @@ export const getRoundLabel = (round: string | null): string => {
   return labels[round] ?? round
 }
 
+export const getBracketLabel = (bracketKey: string | null | undefined): string | null => {
+  if (bracketKey === "GOLD") return "Copa de Oro"
+  if (bracketKey === "SILVER") return "Copa de Plata"
+  return null
+}
+
 export const getStatusLabel = (status: string): string => {
   const labels: Record<string, string> = {
     PENDING: "Programado",
@@ -225,6 +232,7 @@ export const buildOrganizerMatchesCsv = (matches: OrganizerMatchRow[]): string =
     "Cancha",
     "Torneo",
     "Ronda",
+    "Copa",
     "Estado",
     "Pareja 1",
     "Pareja 2",
@@ -239,6 +247,7 @@ export const buildOrganizerMatchesCsv = (matches: OrganizerMatchRow[]): string =
     match.courtAssignment,
     match.tournamentName,
     getRoundLabel(match.round),
+    getBracketLabel(match.bracketKey) ?? "",
     getStatusLabel(match.status),
     match.couple1Display,
     match.couple2Display,

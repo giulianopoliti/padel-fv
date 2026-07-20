@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table"
 import {
   getDefaultOrganizerMatchesFilters,
+  getBracketLabel,
   getRoundLabel,
   type OrganizerMatchCouple,
   type OrganizerMatchRow,
@@ -109,6 +110,17 @@ const adaptMatchForResultDialog = (match: OrganizerMatchRow): ExistingMatch => (
 })
 
 const isCompletedStatus = (status: string): boolean => status === "FINISHED" || status === "COMPLETED"
+
+const getMatchBracketLabel = (match: OrganizerMatchRow): string | null => {
+  if (match.round === "ZONE") return null
+  return getBracketLabel(match.bracketKey)
+}
+
+const getBracketBadgeClassName = (bracketKey: OrganizerMatchRow["bracketKey"]): string => {
+  if (bracketKey === "GOLD") return "border-amber-300 bg-amber-50 text-amber-800"
+  if (bracketKey === "SILVER") return "border-slate-300 bg-slate-100 text-slate-800"
+  return "border-slate-200 bg-slate-50 text-slate-700"
+}
 
 const canManageResultFromPanel = (match: OrganizerMatchRow): boolean => {
   if (match.tournamentType !== "LONG") return false
@@ -389,6 +401,7 @@ export default function OrganizerMatchesClient({
                   {matches.map((match) => {
                     const canManageResult = canManageResultFromPanel(match)
                     const resultButtonLabel = isCompletedStatus(match.status) ? "Modificar" : "Resultado"
+                    const bracketLabel = getMatchBracketLabel(match)
 
                     return (
                       <TableRow key={match.matchId}>
@@ -411,7 +424,16 @@ export default function OrganizerMatchesClient({
                         <TableCell>
                           <div className="max-w-[220px] truncate font-medium">{match.tournamentName}</div>
                         </TableCell>
-                        <TableCell>{getRoundLabel(match.round)}</TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div>{getRoundLabel(match.round)}</div>
+                            {bracketLabel && (
+                              <span className={`inline-flex rounded border px-2 py-0.5 text-xs font-medium ${getBracketBadgeClassName(match.bracketKey)}`}>
+                                {bracketLabel}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="max-w-[240px]">
                           <span className="line-clamp-2">{match.couple1Display}</span>
                         </TableCell>
